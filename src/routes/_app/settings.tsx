@@ -57,6 +57,7 @@ import {
   listFacebookPages,
   connectFacebookPage,
   disconnectFacebookPage,
+  listMetaAppConnectionsForEmbeddedSignup,
   PROFILE_MASKED_SECRET,
 } from "@/lib/profile.functions";
 import { inferMetaMediaType, uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
@@ -690,6 +691,12 @@ function SettingsPage() {
   const registerPhone = useServerFn(registerPhoneNumber);
   const fetchIg = useServerFn(listInstagramAccounts);
   const fetchFb = useServerFn(listFacebookPages);
+  const getEmbeddedSignupConnections = useServerFn(listMetaAppConnectionsForEmbeddedSignup);
+
+  const { data: embeddedSignupConnections } = useQuery({
+    queryKey: ["meta-app-connection-embedded-signup"],
+    queryFn: () => getEmbeddedSignupConnections(),
+  });
 
   const { data: igAccounts } = useQuery({
     queryKey: ["instagram-accounts"],
@@ -743,6 +750,7 @@ function SettingsPage() {
       waba_id?: string;
       phone_number_id?: string;
       is_coexistence?: boolean;
+      meta_app_connection_id?: string;
     }) => doOnboardWhatsApp({ data }),
     onSuccess: (res: any) => {
       if (res.success) {
@@ -784,21 +792,35 @@ function SettingsPage() {
     return () => window.removeEventListener("message", handleMessage);
   }, []);
 
+  const [selectedMetaConnectionId, setSelectedMetaConnectionId] = useState<string>("");
+
   const handleEmbeddedSignup = () => {
     if (typeof (window as any).FB === "undefined") {
       toast.error("SDK do Facebook ainda não carregou.");
       return;
     }
 
+    const connections = embeddedSignupConnections || [];
+    let selected = connections.find((c: any) => c.id === selectedMetaConnectionId);
+    if (!selected && connections.length === 1) {
+      selected = connections[0];
+    }
+    if (!selected) {
+      toast.error("Selecione uma Meta App Connection para continuar.");
+      return;
+    }
+
+    const appId = selected?.appId || "";
+    const configId = selected?.configId || "";
+    if (!appId) {
+      toast.error("A Meta App Connection selecionada não possui App ID.");
+      return;
+    }
+
     // Inicializa o SDK caso ainda não tenha sido inicializado
     if (!(window as any).fbInitialized) {
-      const appId = import.meta.env.VITE_META_APP_ID || "";
-      if (!appId || appId === "seu-app-id-aqui") {
-        toast.error("O VITE_META_APP_ID não está configurado no arquivo .env");
-        return;
-      }
       (window as any).FB.init({
-        appId: appId,
+        appId,
         autoLogAppEvents: true,
         xfbml: true,
         version: "v20.0",
@@ -813,13 +835,13 @@ function SettingsPage() {
           const waba_id = (window as any).__wa_embedded_waba_id;
           const phone_number_id = (window as any).__wa_embedded_phone_number_id;
           const is_coexistence = (window as any).__wa_embedded_is_coexistence;
-          onboardWhatsAppMut.mutate({ code, waba_id, phone_number_id, is_coexistence });
+          onboardWhatsAppMut.mutate({ code, waba_id, phone_number_id, is_coexistence, meta_app_connection_id: selected?.id || "" });
         } else {
           toast.error("Você cancelou o login ou não autorizou.");
         }
       },
       {
-        config_id: import.meta.env.VITE_META_CONFIG_ID || "",
+        config_id: configId,
         response_type: "code",
         override_default_response_type: true,
         extras: {

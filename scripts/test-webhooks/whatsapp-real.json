@@ -1,0 +1,35 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "1252390143469267",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "5511999999999",
+              "phone_number_id": "1107720082434785"
+            },
+            "contacts": [
+              {
+                "wa_id": "5511888888888",
+                "profile": { "name": "John Doe" }
+              }
+            ],
+            "messages": [
+              {
+                "id": "wamid.testtext",
+                "from": "5511888888888",
+                "timestamp": "1699999999",
+                "type": "text",
+                "text": { "body": "Mensagem de teste" }
+              }
+            ]
+          },
+          "field": "messages"
+        }
+      ]
+    }
+  ]
+}

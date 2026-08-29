@@ -86,6 +86,7 @@ import { Route as AppContactsIdRouteImport } from './routes/_app/contacts.$id'
 import { Route as AppCampaignsIdRouteImport } from './routes/_app/campaigns.$id'
 import { Route as ApiWhatsappBusinessProfilePhotoRouteImport } from './routes/api/whatsapp/business-profile.photo'
 import { Route as ApiPublicWebhooksStripeRouteImport } from './routes/api/public/webhooks/stripe'
+import { Route as ApiPublicMetaWebhookPublicIdRouteImport } from './routes/api/public/meta-webhook.$publicId'
 import { Route as ApiPublicCronProcessSubscriptionsRouteImport } from './routes/api/public/cron/process-subscriptions'
 import { Route as ApiPublicCronProcessQueueRouteImport } from './routes/api/public/cron/process-queue'
 import { Route as ApiPublicContactsIngestRouteImport } from './routes/api/public/contacts/ingest'
@@ -493,6 +494,12 @@ const ApiPublicWebhooksStripeRoute = ApiPublicWebhooksStripeRouteImport.update({
   path: '/api/public/webhooks/stripe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicMetaWebhookPublicIdRoute =
+  ApiPublicMetaWebhookPublicIdRouteImport.update({
+    id: '/api/public/meta-webhook/$publicId',
+    path: '/api/public/meta-webhook/$publicId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicCronProcessSubscriptionsRoute =
   ApiPublicCronProcessSubscriptionsRouteImport.update({
     id: '/api/public/cron/process-subscriptions',
@@ -639,6 +646,7 @@ export interface FileRoutesByFullPath {
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
   '/api/public/cron/process-subscriptions': typeof ApiPublicCronProcessSubscriptionsRoute
+  '/api/public/meta-webhook/$publicId': typeof ApiPublicMetaWebhookPublicIdRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
   '/api/admin/payment-gateways/mercadopago/test': typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
@@ -728,6 +736,7 @@ export interface FileRoutesByTo {
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
   '/api/public/cron/process-subscriptions': typeof ApiPublicCronProcessSubscriptionsRoute
+  '/api/public/meta-webhook/$publicId': typeof ApiPublicMetaWebhookPublicIdRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
   '/api/admin/payment-gateways/mercadopago/test': typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
@@ -819,6 +828,7 @@ export interface FileRoutesById {
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
   '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
   '/api/public/cron/process-subscriptions': typeof ApiPublicCronProcessSubscriptionsRoute
+  '/api/public/meta-webhook/$publicId': typeof ApiPublicMetaWebhookPublicIdRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
   '/api/admin/payment-gateways/mercadopago/test': typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
@@ -910,6 +920,7 @@ export interface FileRouteTypes {
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
     | '/api/public/cron/process-subscriptions'
+    | '/api/public/meta-webhook/$publicId'
     | '/api/public/webhooks/stripe'
     | '/api/whatsapp/business-profile/photo'
     | '/api/admin/payment-gateways/mercadopago/test'
@@ -999,6 +1010,7 @@ export interface FileRouteTypes {
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
     | '/api/public/cron/process-subscriptions'
+    | '/api/public/meta-webhook/$publicId'
     | '/api/public/webhooks/stripe'
     | '/api/whatsapp/business-profile/photo'
     | '/api/admin/payment-gateways/mercadopago/test'
@@ -1089,6 +1101,7 @@ export interface FileRouteTypes {
     | '/api/public/contacts/ingest'
     | '/api/public/cron/process-queue'
     | '/api/public/cron/process-subscriptions'
+    | '/api/public/meta-webhook/$publicId'
     | '/api/public/webhooks/stripe'
     | '/api/whatsapp/business-profile/photo'
     | '/api/admin/payment-gateways/mercadopago/test'
@@ -1149,6 +1162,7 @@ export interface RootRouteChildren {
   ApiPublicContactsIngestRoute: typeof ApiPublicContactsIngestRoute
   ApiPublicCronProcessQueueRoute: typeof ApiPublicCronProcessQueueRoute
   ApiPublicCronProcessSubscriptionsRoute: typeof ApiPublicCronProcessSubscriptionsRoute
+  ApiPublicMetaWebhookPublicIdRoute: typeof ApiPublicMetaWebhookPublicIdRoute
   ApiPublicWebhooksStripeRoute: typeof ApiPublicWebhooksStripeRoute
   ApiBillingPaymentsIdStatusRoute: typeof ApiBillingPaymentsIdStatusRoute
   ApiPublicWebhooksIncomingTokenRoute: typeof ApiPublicWebhooksIncomingTokenRoute
@@ -1695,6 +1709,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWebhooksStripeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/meta-webhook/$publicId': {
+      id: '/api/public/meta-webhook/$publicId'
+      path: '/api/public/meta-webhook/$publicId'
+      fullPath: '/api/public/meta-webhook/$publicId'
+      preLoaderRoute: typeof ApiPublicMetaWebhookPublicIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/cron/process-subscriptions': {
       id: '/api/public/cron/process-subscriptions'
       path: '/api/public/cron/process-subscriptions'
@@ -1969,6 +1990,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicCronProcessQueueRoute: ApiPublicCronProcessQueueRoute,
   ApiPublicCronProcessSubscriptionsRoute:
     ApiPublicCronProcessSubscriptionsRoute,
+  ApiPublicMetaWebhookPublicIdRoute: ApiPublicMetaWebhookPublicIdRoute,
   ApiPublicWebhooksStripeRoute: ApiPublicWebhooksStripeRoute,
   ApiBillingPaymentsIdStatusRoute: ApiBillingPaymentsIdStatusRoute,
   ApiPublicWebhooksIncomingTokenRoute: ApiPublicWebhooksIncomingTokenRoute,

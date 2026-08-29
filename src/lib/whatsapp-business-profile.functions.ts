@@ -13,6 +13,7 @@ import {
   normalizeWebsites,
 } from "@/lib/whatsapp-business-profile.shared";
 import db from "./db";
+import { decryptMetaCredential } from "./encryption";
 
 function pickMetaCredentials(p: any) {
   const phoneNumberId = (process.env.META_PHONE_NUMBER_ID || p?.whatsapp_phone_number_id || "")
@@ -199,18 +200,38 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
     code: z.string(),
     waba_id: z.string().optional(),
     phone_number_id: z.string().optional(),
-    is_coexistence: z.boolean().optional()
+    is_coexistence: z.boolean().optional(),
+    meta_app_connection_id: z.string(),
   }).parse(d))
   .handler(async ({ context, data }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
-    const APP_ID = process.env.VITE_META_APP_ID || process.env.META_APP_ID;
-    const APP_SECRET = process.env.META_APP_SECRET;
-    const GRAPH_VERSION = process.env.META_GRAPH_API_VERSION || "v26.0";
+    const connectionId = data.meta_app_connection_id;
+    if (!connectionId) {
+      throw new Error("META_APP_CONNECTION_NOT_RESOLVED: meta_app_connection_id é obrigatório.");
+    }
+
+    const connRows = await db.query<{ app_id: string; app_secret_encrypted: string; graph_version: string }[]>(
+      "SELECT app_id, app_secret_encrypted, graph_version FROM meta_app_connections WHERE id = ? AND tenant_id = ? LIMIT 1",
+      [connectionId, effectiveUserId],
+    );
+    const conn = connRows?.[0];
+    if (!conn) {
+      throw new Error("Meta App Connection não encontrada ou não pertence ao tenant.");
+    }
+
+    const APP_ID = conn.app_id;
+    const GRAPH_VERSION = conn.graph_version || "v26.0";
+    let APP_SECRET = "";
+    try {
+      APP_SECRET = decryptMetaCredential(conn.app_secret_encrypted);
+    } catch (err) {
+      throw new Error("Falha ao descriptografar o App Secret da Meta App Connection.");
+    }
 
     if (!APP_ID || !APP_SECRET) {
-      throw new Error("META_APP_ID e META_APP_SECRET precisam estar configurados.");
+      throw new Error("App ID e App Secret da Meta App Connection estão incompletos.");
     }
 
     try {

@@ -46,7 +46,11 @@ export async function processCanonicalEvent(event: CanonicalEvent): Promise<void
     event.channelResourceId,
   );
 
-  const userId = config?.userId || event.userId || event.tenantId;
+  if (!config) {
+    throw new Error(`[messaging:processor] Channel config not resolved for provider=${event.provider} tenant=${event.tenantId} resource=${event.channelResourceId}. FAIL_CLOSED.`);
+  }
+
+  const userId = config.userId || event.userId || event.tenantId;
 
   switch (event.eventType) {
     case "message.received":

@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { dbAdmin } from "@/integrations/mysql/client.server";
+import { query } from "@/lib/db";
 import { buildWhatsAppPayload } from "@/lib/whatsapp-payload";
 import { resolvePublicWebhookBaseUrl } from "@/lib/meta-webhook-url";
 import crypto from "crypto";
@@ -2539,5 +2540,26 @@ export const testInstagramConnection = createServerFn({ method: "POST" })
         error: e.message || "Erro de conexão com a API da Meta.",
       };
     }
+  });
+
+/**
+ * Lista as Meta App Connections do tenant para seleção no Embedded Signup.
+ * Não expõe segredos. O frontend deve escolher uma conexão explicitamente.
+ */
+export const listMetaAppConnectionsForEmbeddedSignup = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const rows = await query<{ id: string; app_id: string | null; meta_config_id: string | null }[]>(
+      `SELECT id, app_id, meta_config_id
+       FROM meta_app_connections
+       WHERE tenant_id = ?
+       ORDER BY created_at DESC`,
+      [context.userId],
+    );
+    return (rows || []).map((r) => ({
+      id: r.id,
+      appId: r.app_id || null,
+      configId: r.meta_config_id || null,
+    }));
   });
 

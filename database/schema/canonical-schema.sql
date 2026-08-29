@@ -1,6 +1,6 @@
 -- CANONICAL SCHEMA (SINGLE SOURCE OF TRUTH FOR WAPI WEAVER)
--- Generated from local MySQL dump
--- Date: 2026-08-25T13:32:56.280Z
+-- Generated dynamically from local MySQL
+-- Date: 2026-08-29T15:00:44.154Z
 
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -418,6 +418,28 @@ CREATE TABLE IF NOT EXISTS `campaigns` (
   CONSTRAINT `fk_campaigns_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `channel_connections` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `meta_app_connection_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `provider` enum('whatsapp','instagram','messenger') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` enum('active','pending','degraded','reauth_required','disconnected') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
+  `external_account_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `display_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `metadata` json DEFAULT NULL,
+  `access_token_encrypted` text COLLATE utf8mb4_unicode_ci,
+  `connected_at` datetime DEFAULT NULL,
+  `disconnected_at` datetime DEFAULT NULL,
+  `last_health_check_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_channel_conn_tenant` (`tenant_id`),
+  KEY `idx_channel_conn_meta_app` (`meta_app_connection_id`),
+  KEY `idx_channel_conn_provider` (`provider`),
+  KEY `idx_channel_conn_ext_acc` (`provider`,`external_account_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `chat_message_outbox` (
   `id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -445,7 +467,7 @@ CREATE TABLE IF NOT EXISTS `chat_message_outbox` (
   KEY `idx_chat_outbox_schedule` (`status`,`next_attempt_at`,`locked_at`),
   KEY `idx_chat_outbox_tenant` (`tenant_id`,`created_at`),
   KEY `fk_chat_outbox_user` (`user_id`),
-  CONSTRAINT `fk_chat_outbox_message` FOREIGN KEY (`message_id`) REFERENCES `direct_messages` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_chat_outbox_message` FOREIGN KEY (`message_id`) REFERENCES `direct_messages` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_chat_outbox_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_chat_outbox_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -460,11 +482,10 @@ CREATE TABLE IF NOT EXISTS `chat_sessions` (
   `answered_at` datetime DEFAULT NULL,
   `closed_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_chat_sessions_contact_id` (`contact_id`),
   KEY `user_id` (`user_id`),
-  KEY `contact_id` (`contact_id`),
   KEY `idx_chat_sessions_tenant` (`tenant_id`),
   KEY `idx_chat_sessions_tenant_contact` (`tenant_id`,`contact_id`),
-  UNIQUE KEY `uq_chat_sessions_contact_id` (`contact_id`),
   CONSTRAINT `chat_sessions_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `chat_sessions_ibfk_2` FOREIGN KEY (`contact_id`) REFERENCES `contacts` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_chat_sessions_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
@@ -487,7 +508,7 @@ CREATE TABLE IF NOT EXISTS `contact_activities` (
   KEY `idx_contact_act_tenant` (`tenant_id`),
   CONSTRAINT `contact_activities_ibfk_1` FOREIGN KEY (`contact_id`) REFERENCES `contacts` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_contact_act_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `contact_custom_field_values` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -507,7 +528,7 @@ CREATE TABLE IF NOT EXISTS `contact_custom_field_values` (
   CONSTRAINT `contact_custom_field_values_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `contact_custom_field_values_ibfk_2` FOREIGN KEY (`contact_id`) REFERENCES `contacts` (`id`) ON DELETE CASCADE,
   CONSTRAINT `contact_custom_field_values_ibfk_3` FOREIGN KEY (`custom_field_id`) REFERENCES `contact_custom_fields` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=34 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `contact_custom_fields` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -544,6 +565,29 @@ CREATE TABLE IF NOT EXISTS `contact_groups` (
   KEY `group_id` (`group_id`),
   CONSTRAINT `contact_groups_ibfk_1` FOREIGN KEY (`contact_id`) REFERENCES `contacts` (`id`) ON DELETE CASCADE,
   CONSTRAINT `contact_groups_ibfk_2` FOREIGN KEY (`group_id`) REFERENCES `groups` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `contact_identities` (
+  `id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tenant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `user_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `contact_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `provider` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `external_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `phone_e164` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `username` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `avatar_url` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `metadata` json DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_contact_identities_tenant_provider_external` (`tenant_id`,`provider`,`external_id`),
+  KEY `idx_contact_identities_contact` (`contact_id`),
+  KEY `idx_contact_identities_tenant` (`tenant_id`),
+  KEY `fk_contact_identities_user` (`user_id`),
+  CONSTRAINT `fk_contact_identities_contact` FOREIGN KEY (`contact_id`) REFERENCES `contacts` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_contact_identities_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_contact_identities_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `contact_tags` (
@@ -609,28 +653,6 @@ CREATE TABLE IF NOT EXISTS `contacts` (
   KEY `idx_contacts_whatsapp_number` (`whatsapp_number`),
   CONSTRAINT `contacts_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_contacts_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `contact_identities` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `contact_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `provider` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `external_id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `phone_e164` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `username` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `avatar_url` text COLLATE utf8mb4_unicode_ci,
-  `metadata` json DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_contact_identities_tenant_provider_external` (`tenant_id`,`provider`,`external_id`),
-  KEY `idx_contact_identities_contact` (`contact_id`),
-  KEY `idx_contact_identities_tenant` (`tenant_id`),
-  CONSTRAINT `fk_contact_identities_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_contact_identities_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_contact_identities_contact` FOREIGN KEY (`contact_id`) REFERENCES `contacts` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `conversation_assignments` (
@@ -704,6 +726,9 @@ CREATE TABLE IF NOT EXISTS `direct_messages` (
   `recipient_type` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `external_group_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `raw_payload` json DEFAULT NULL,
+  `delivered_at` datetime DEFAULT NULL,
+  `read_at` datetime DEFAULT NULL,
+  `failed_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_direct_messages_user_wa_id` (`user_id`,`wa_message_id`),
   UNIQUE KEY `uq_dm_channel_msg` (`user_id`,`channel`,`provider_message_id`),
@@ -1038,7 +1063,7 @@ CREATE TABLE IF NOT EXISTS `incoming_webhook_events` (
   KEY `idx_iwe_status` (`user_id`,`status`),
   KEY `idx_iwe_received` (`user_id`,`received_at`),
   CONSTRAINT `incoming_webhook_events_ibfk_1` FOREIGN KEY (`incoming_webhook_id`) REFERENCES `incoming_webhooks` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `incoming_webhooks` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1213,7 +1238,7 @@ CREATE TABLE IF NOT EXISTS `licenses` (
   KEY `idx_licenses_status` (`status`),
   KEY `idx_licenses_app_id` (`app_id`),
   KEY `idx_licenses_tenant_id` (`tenant_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `list_contacts` (
   `list_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1257,6 +1282,56 @@ CREATE TABLE IF NOT EXISTS `message_tags` (
   CONSTRAINT `message_tags_ibfk_1` FOREIGN KEY (`message_id`) REFERENCES `direct_messages` (`id`) ON DELETE CASCADE,
   CONSTRAINT `message_tags_ibfk_2` FOREIGN KEY (`tag_id`) REFERENCES `tags` (`id`) ON DELETE CASCADE,
   CONSTRAINT `message_tags_ibfk_3` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `messaging_events` (
+  `id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tenant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `user_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `provider` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `channel_resource_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `external_event_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `event_type` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `payload_json` json NOT NULL,
+  `raw_payload_json` json NOT NULL,
+  `status` enum('pending','processing','completed','failed') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `attempt_count` int NOT NULL DEFAULT '0',
+  `last_error` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `received_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `processed_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_messaging_events_tenant_provider_external` (`tenant_id`,`provider`,`external_event_id`),
+  KEY `idx_messaging_events_status` (`status`,`received_at`),
+  KEY `idx_messaging_events_provider` (`provider`,`channel_resource_id`),
+  KEY `idx_messaging_events_tenant` (`tenant_id`),
+  KEY `fk_messaging_events_user` (`user_id`),
+  CONSTRAINT `fk_messaging_events_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_messaging_events_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `meta_app_connections` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `public_id` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `created_by_user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `app_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `app_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `app_secret_encrypted` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `meta_config_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `webhook_verify_token_encrypted` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `graph_version` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'v26.0',
+  `status` enum('active','pending','degraded','reauth_required','disconnected') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `last_verified_at` datetime DEFAULT NULL,
+  `last_error` text COLLATE utf8mb4_unicode_ci,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_meta_app_public_id` (`public_id`),
+  UNIQUE KEY `uk_meta_app_tenant_app` (`tenant_id`,`app_id`),
+  KEY `idx_meta_app_tenant` (`tenant_id`),
+  KEY `idx_meta_app_created_by` (`created_by_user_id`),
+  KEY `idx_meta_app_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `notifications` (
@@ -1565,7 +1640,7 @@ CREATE TABLE IF NOT EXISTS `platform_settings` (
   `meta_app_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `meta_app_secret` text COLLATE utf8mb4_unicode_ci,
   `meta_config_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `meta_graph_version` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'v26.0',
+  `meta_graph_version` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'v26.0',
   `cron_secret` text COLLATE utf8mb4_unicode_ci,
   `head_tags` text COLLATE utf8mb4_unicode_ci,
   `body_tags` text COLLATE utf8mb4_unicode_ci,
@@ -1608,7 +1683,7 @@ CREATE TABLE IF NOT EXISTS `profiles` (
   `whatsapp_business_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `whatsapp_business_phone` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `whatsapp_app_secret` text COLLATE utf8mb4_unicode_ci,
-  `meta_graph_version` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'v26.0',
+  `meta_graph_version` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'v26.0',
   `salvy_api_key` text COLLATE utf8mb4_unicode_ci,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -1706,12 +1781,6 @@ CREATE TABLE IF NOT EXISTS `schema_backups` (
   PRIMARY KEY (`id`),
   KEY `created_by` (`created_by`),
   CONSTRAINT `schema_backups_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `schema_migrations` (
-  `version` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `applied_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`version`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `subscription_events` (
@@ -1904,7 +1973,26 @@ CREATE TABLE IF NOT EXISTS `webhook_bot_logs` (
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_wbl_tenant_contact` (`tenant_id`,`contact_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `webhook_delivery_logs` (
+  `id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `provider` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tenant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `channel_resource_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `http_status` int DEFAULT NULL,
+  `outcome` enum('received','rejected_signature','rejected_unconfigured','rejected_parse','rejected_no_events','persistence_failed','persisted','queued') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `raw_body` json DEFAULT NULL,
+  `error_message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `ip_address` varchar(45) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `received_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_webhook_delivery_logs_tenant` (`tenant_id`),
+  KEY `idx_webhook_delivery_logs_received` (`received_at`),
+  KEY `idx_webhook_delivery_logs_provider` (`provider`,`outcome`),
+  CONSTRAINT `fk_webhook_delivery_logs_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `webhook_events` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1923,50 +2011,6 @@ CREATE TABLE IF NOT EXISTS `webhook_events` (
   KEY `user_id` (`user_id`),
   KEY `idx_webhook_events_processed` (`processed`,`received_at`),
   CONSTRAINT `webhook_events_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `messaging_events` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `user_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `provider` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `channel_resource_id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `external_event_id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `event_type` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `payload_json` json NOT NULL,
-  `raw_payload_json` json NOT NULL,
-  `status` enum('pending','processing','completed','failed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
-  `attempt_count` int NOT NULL DEFAULT '0',
-  `last_error` text COLLATE utf8mb4_unicode_ci,
-  `received_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `processed_at` datetime DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_messaging_events_tenant_provider_external` (`tenant_id`,`provider`,`external_event_id`),
-  KEY `idx_messaging_events_status` (`status`,`received_at`),
-  KEY `idx_messaging_events_provider` (`provider`,`channel_resource_id`),
-  KEY `idx_messaging_events_tenant` (`tenant_id`),
-  CONSTRAINT `fk_messaging_events_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_messaging_events_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `webhook_delivery_logs` (
-  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `provider` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `channel_resource_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `http_status` int DEFAULT NULL,
-  `outcome` enum('received','rejected_signature','rejected_unconfigured','rejected_parse','rejected_no_events','persistence_failed','persisted','queued') COLLATE utf8mb4_unicode_ci NOT NULL,
-  `raw_body` json DEFAULT NULL,
-  `error_message` text COLLATE utf8mb4_unicode_ci,
-  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `received_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_webhook_delivery_logs_tenant` (`tenant_id`),
-  KEY `idx_webhook_delivery_logs_received` (`received_at`),
-  KEY `idx_webhook_delivery_logs_provider` (`provider`,`outcome`),
-  CONSTRAINT `fk_webhook_delivery_logs_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `webhook_field_mappings` (
@@ -2108,4 +2152,3 @@ CREATE TABLE IF NOT EXISTS `whatsapp_groups` (
   CONSTRAINT `whatsapp_groups_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-SET FOREIGN_KEY_CHECKS = 1;

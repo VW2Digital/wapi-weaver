@@ -1,6 +1,7 @@
 "use server";
 
 import db from "@/lib/db";
+import { decryptMetaCredential } from "@/lib/encryption";
 import type { MessagingProvider } from "../types";
 
 export interface WhatsAppChannelConfig {
@@ -14,6 +15,7 @@ export interface WhatsAppChannelConfig {
   accessToken: string | null;
   graphVersion: string;
   displayPhoneNumber: string | null;
+  architecture: "v3" | "legacy";
 }
 
 export interface InstagramChannelConfig {
@@ -26,6 +28,7 @@ export interface InstagramChannelConfig {
   accessToken: string | null;
   appSecret: string | null;
   graphVersion: string;
+  architecture: "v3" | "legacy";
 }
 
 export interface MessengerChannelConfig {
@@ -36,16 +39,88 @@ export interface MessengerChannelConfig {
   pageAccessToken: string | null;
   appSecret: string | null;
   graphVersion: string;
+  architecture: "v3" | "legacy";
 }
 
 export type ChannelConfig = WhatsAppChannelConfig | InstagramChannelConfig | MessengerChannelConfig;
 
 const DEFAULT_GRAPH_VERSION = "v26.0";
 
+/**
+ * Resolve WhatsApp channel configuration V3-first.
+ * If a V3 channel_connection exists, use meta_app_connection credentials.
+ * Otherwise, fall back to legacy `profiles` only when no V3 record exists.
+ */
 export async function getWhatsAppChannelConfig(
   tenantId: string,
   phoneNumberId: string,
 ): Promise<WhatsAppChannelConfig | null> {
+  // V3 lookup
+  const v3Rows = (await db.query(
+    `SELECT
+       cc.id AS channel_id,
+       cc.tenant_id,
+       cc.external_account_id,
+       cc.metadata,
+       cc.access_token_encrypted,
+       mac.id AS meta_app_connection_id,
+       mac.app_id,
+       mac.app_secret_encrypted,
+       mac.graph_version
+     FROM channel_connections cc
+     JOIN meta_app_connections mac ON mac.id = cc.meta_app_connection_id
+     WHERE cc.tenant_id = ?
+       AND cc.provider = 'whatsapp'
+       AND cc.external_account_id = ?
+       AND mac.status = 'active'
+     LIMIT 1`,
+    [tenantId, phoneNumberId],
+  )) as Array<{
+    channel_id: string;
+    tenant_id: string;
+    external_account_id: string;
+    metadata: any;
+    access_token_encrypted: string | null;
+    meta_app_connection_id: string;
+    app_id: string;
+    app_secret_encrypted: string;
+    graph_version: string;
+  }>;
+
+  const v3 = v3Rows[0];
+  if (v3) {
+    const metadata = typeof v3.metadata === "string" ? JSON.parse(v3.metadata) : v3.metadata || {};
+    let appSecret = "";
+    let accessToken = "";
+    try {
+      appSecret = decryptMetaCredential(v3.app_secret_encrypted);
+    } catch (err) {
+      console.error(`[channel.service] V3 Meta App secret decrypt failed for tenant ${tenantId}:`, err);
+      return null;
+    }
+    if (v3.access_token_encrypted) {
+      try {
+        accessToken = decryptMetaCredential(v3.access_token_encrypted);
+      } catch (err) {
+        console.error(`[channel.service] V3 WhatsApp access token decrypt failed for tenant ${tenantId}:`, err);
+      }
+    }
+    return {
+      tenantId: v3.tenant_id,
+      userId: v3.tenant_id,
+      provider: "whatsapp",
+      phoneNumberId: v3.external_account_id,
+      wabaId: metadata?.waba_id || null,
+      appId: v3.app_id,
+      appSecret,
+      accessToken,
+      graphVersion: v3.graph_version || DEFAULT_GRAPH_VERSION,
+      displayPhoneNumber: metadata?.display_phone_number || null,
+      architecture: "v3",
+    };
+  }
+
+  // LEGACY fallback only when no V3 record exists
   const rows = (await db.query(
     `SELECT
        id,
@@ -85,6 +160,7 @@ export async function getWhatsAppChannelConfig(
     accessToken: profile.accessToken,
     graphVersion: profile.graphVersion || DEFAULT_GRAPH_VERSION,
     displayPhoneNumber: profile.displayPhoneNumber,
+    architecture: "legacy",
   };
 }
 
@@ -128,6 +204,7 @@ export async function getInstagramChannelConfig(
     accessToken: account.access_token,
     appSecret: account.app_secret,
     graphVersion: DEFAULT_GRAPH_VERSION,
+    architecture: "legacy",
   };
 }
 
@@ -156,8 +233,9 @@ export async function getMessengerChannelConfig(
     provider: "messenger",
     pageId: page.page_id,
     pageAccessToken: page.page_access_token,
-    appSecret: process.env.META_APP_SECRET || null,
+    appSecret: null,
     graphVersion: DEFAULT_GRAPH_VERSION,
+    architecture: "legacy",
   };
 }
 
@@ -186,13 +264,39 @@ export async function getChannelHealthDiagnostic(
   let lastError: string | null = null;
 
   if (provider === "whatsapp") {
-    const rows = (await db.query(
-      "SELECT id, whatsapp_phone_number_id, whatsapp_access_token FROM profiles WHERE id = ? LIMIT 1",
+    const v3Rows = (await db.query(
+      `SELECT cc.id, cc.status, cc.external_account_id, mac.app_secret_encrypted, cc.access_token_encrypted
+       FROM channel_connections cc
+       JOIN meta_app_connections mac ON mac.id = cc.meta_app_connection_id
+       WHERE cc.tenant_id = ? AND cc.provider = 'whatsapp'
+       LIMIT 1`,
       [tenantId],
-    )) as Array<{ id: string; whatsapp_phone_number_id: string | null; whatsapp_access_token: string | null }>;
-    const profile = rows[0];
-    credentialsConfigured = Boolean(profile?.whatsapp_access_token);
-    assetResolved = Boolean(profile?.whatsapp_phone_number_id);
+    )) as Array<{ id: string; status: string; external_account_id: string; app_secret_encrypted: string; access_token_encrypted: string }>;
+
+    if (v3Rows[0]) {
+      assetResolved = Boolean(v3Rows[0].external_account_id);
+      let hasSecret = false;
+      let hasToken = false;
+      try {
+        decryptMetaCredential(v3Rows[0].app_secret_encrypted);
+        hasSecret = true;
+      } catch {}
+      if (v3Rows[0].access_token_encrypted) {
+        try {
+          decryptMetaCredential(v3Rows[0].access_token_encrypted);
+          hasToken = true;
+        } catch {}
+      }
+      credentialsConfigured = hasSecret || hasToken;
+    } else {
+      const rows = (await db.query(
+        "SELECT id, whatsapp_phone_number_id, whatsapp_access_token FROM profiles WHERE id = ? LIMIT 1",
+        [tenantId],
+      )) as Array<{ id: string; whatsapp_phone_number_id: string | null; whatsapp_access_token: string | null }>;
+      const profile = rows[0];
+      credentialsConfigured = Boolean(profile?.whatsapp_access_token);
+      assetResolved = Boolean(profile?.whatsapp_phone_number_id);
+    }
   } else if (provider === "instagram") {
     const rows = (await db.query(
       "SELECT id, page_id, instagram_business_account_id, access_token, status FROM instagram_accounts WHERE tenant_id = ? LIMIT 1",
@@ -254,7 +358,6 @@ export async function getChannelHealthDiagnostic(
     lastError,
   };
 }
-
 
 export async function getChannelConfig(
   provider: MessagingProvider,

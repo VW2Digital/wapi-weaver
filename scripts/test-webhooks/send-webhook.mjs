@@ -7,10 +7,11 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const [_, __, provider, baseUrl] = process.argv;
+const [_, __, provider, baseUrl, publicId, appSecret] = process.argv;
 
-if (!provider || !baseUrl) {
-  console.error("Usage: node send-webhook.mjs <whatsapp|instagram|messenger> <baseUrl>");
+if (!provider || !baseUrl || !publicId || !appSecret) {
+  console.error("Usage: node send-webhook.mjs <whatsapp|instagram|messenger> <baseUrl> <publicId> <appSecret>");
+  console.error("  appSecret must be a test secret explicitly provided for this script.");
   process.exit(1);
 }
 
@@ -21,23 +22,10 @@ if (!fs.existsSync(payloadFile)) {
 }
 
 const rawBody = fs.readFileSync(payloadFile, "utf8");
-const appSecret = process.env.META_APP_SECRET;
+const signature = "sha256=" + crypto.createHmac("sha256", appSecret).update(rawBody).digest("hex");
+console.log(`[send-webhook] Using X-Hub-Signature-256: ${signature}`);
 
-let signature = "";
-if (appSecret) {
-  signature = "sha256=" + crypto.createHmac("sha256", appSecret).update(rawBody).digest("hex");
-  console.log(`[send-webhook] Using X-Hub-Signature-256: ${signature}`);
-} else {
-  console.warn("[send-webhook] META_APP_SECRET not set. The server may reject this request if it requires signature validation.");
-}
-
-const routeMap = {
-  whatsapp: "/api/public/whatsapp-webhook",
-  instagram: "/api/public/instagram-webhook",
-  messenger: "/api/public/facebook-webhook",
-};
-
-const url = `${baseUrl.replace(/\/$/, "")}${routeMap[provider]}`;
+const url = `${baseUrl.replace(/\/$/, "")}/api/public/meta-webhook/${publicId}`;
 
 console.log(`[send-webhook] POST ${url}`);
 
@@ -45,7 +33,7 @@ const res = await fetch(url, {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
-    ...(signature ? { "X-Hub-Signature-256": signature } : {}),
+    "X-Hub-Signature-256": signature,
   },
   body: rawBody,
 });

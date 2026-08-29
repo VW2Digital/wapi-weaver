@@ -3,9 +3,10 @@
 ## 1. Verificação do Webhook (Authentication/Authorization)
 A principal vulnerabilidade num CRM integrado ao WhatsApp é o acesso indevido ao webhook público, forjando mensagens que não vieram da Meta (Injeção de Spam no banco de dados).
 **Resolução Implementada**:
-- Uso da rota `/api/public/whatsapp-webhook` com função `verifySignature(rawBody, signatureHeader, appSecret)`.
+- Webhook V3: rota `/api/public/meta-webhook/{public_id}` resolve a Meta App Connection pelo `public_id`, descriptografa `app_secret_encrypted` e valida a assinatura `X-Hub-Signature-256`.
 - Comparação constante `crypto.timingSafeEqual` que mitiga ataques de *Timing Attack* de força bruta.
-- Somente com o payload validado contra o secret da Meta (`META_APP_SECRET` ou `whatsapp_app_secret` da tabela `profiles`), as mensagens são persistidas no DB.
+- Não existe `META_APP_SECRET` global. Cada tenant possui seu próprio App Secret em `meta_app_connections.app_secret_encrypted`.
+- Webhooks legados ainda validam via `platform_settings`, `profiles.whatsapp_app_secret` ou `instagram_accounts.app_secret` durante o cutover.
 
 ## 2. Injeção de SQL (SQLi)
 - A aplicação usa *Query Builders* / *ORM approaches* nas chamadas, sanitizando as entradas.
