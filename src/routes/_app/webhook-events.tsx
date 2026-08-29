@@ -40,6 +40,62 @@ type EventRow = {
   raw: any;
 };
 
+function translateErrorCode(errorMessage: string | null | undefined, eventType: string | null | undefined): { title: string; description: string; status: Summary["status"] } {
+  const code = eventType || errorMessage || "";
+
+  // Legacy unconfigured Meta App Secret (no longer a required global env)
+  if (code.includes("META_APP_SECRET_NOT_CONFIGURED")) {
+    return {
+      title: "Callback legado rejeitado",
+      description: "Tentativa da integração antiga foi rejeitada. A arquitetura V3 está ativa.",
+      status: "info",
+    };
+  }
+
+  // V3 or legacy signature mismatch
+  if (code.includes("rejected_signature") || code.includes("invalid_signature")) {
+    const isV3 = String(errorMessage).startsWith("V3 Signature") || String(errorMessage).startsWith("V3");
+    return {
+      title: isV3 ? "Assinatura V3 inválida" : "Callback legado rejeitado",
+      description: isV3
+        ? "Assinatura HMAC da Meta não confere com a credencial V3."
+        : "Tentativa da integração antiga foi rejeitada por assinatura inválida.",
+      status: "rejected",
+    };
+  }
+
+  if (code.includes("rejected_unconfigured") || code.includes("rejected_no_events")) {
+    return {
+      title: "Evento descartado",
+      description: "Nenhum dado processável encontrado ou canal não configurado.",
+      status: "info",
+    };
+  }
+
+  if (code.includes("persistence_failed") || code.includes("PROCESSING_FAILED")) {
+    return {
+      title: "Falha ao processar evento",
+      description: errorMessage || "Não foi possível persistir o evento.",
+      status: "failed",
+    };
+  }
+
+  // Generic delivery rejection (queued/persisted are not failures)
+  if (errorMessage) {
+    return {
+      title: "Tentativa rejeitada",
+      description: errorMessage,
+      status: "rejected",
+    };
+  }
+
+  return {
+    title: "Evento recebido",
+    description: "Sem detalhes de erro.",
+    status: "info",
+  };
+}
+
 type Summary = {
   kind: "template_status" | "template_category" | "message_status" | "inbound" | "other";
   title: string;
@@ -298,21 +354,50 @@ function WebhookEventsPage() {
 
   const enriched = useMemo(
     () =>
-      events.map((e) => ({
-        ...e,
-        summaries: e.error_message
-          ? [
+      events.map((e) => {
+        const classification = translateErrorCode(e.error_message, e.event_type);
+        const rawSummaries = summarize(e.raw);
+
+        // If the payload itself contains a successful message/status, prefer it as primary.
+        // The error becomes a secondary note describing the delivery attempt, not a critical failure.
+        const hasSuccessSummary = rawSummaries.some((s) =>
+          ["sent", "delivered", "read", "approved", "inbound"].includes(s.status || ""),
+        );
+
+        if (e.error_message && hasSuccessSummary) {
+          return {
+            ...e,
+            summaries: [
+              ...rawSummaries,
               {
                 kind: "other" as const,
-                title: "Falha ao processar evento",
-                description: e.error_message,
-                status: "failed" as const,
+                title: classification.title,
+                description: classification.description,
+                status: classification.status,
                 icon: AlertTriangle,
               },
-              ...summarize(e.raw),
-            ]
-          : summarize(e.raw),
-      })),
+            ],
+          };
+        }
+
+        if (e.error_message) {
+          return {
+            ...e,
+            summaries: [
+              {
+                kind: "other" as const,
+                title: classification.title,
+                description: classification.description,
+                status: classification.status,
+                icon: AlertTriangle,
+              },
+              ...rawSummaries,
+            ],
+          };
+        }
+
+        return { ...e, summaries: rawSummaries };
+      }),
     [events],
   );
 
@@ -544,13 +629,24 @@ function WebhookEventsPage() {
           {selected && (
             <div className="space-y-4 overflow-y-auto">
               {selected.error_message && (
-                <div className="flex items-start gap-3 rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-red-600">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium">Falha no processamento</p>
-                    <p className="mt-0.5 text-sm">{selected.error_message}</p>
-                  </div>
-                </div>
+                (() => {
+                  const c = translateErrorCode(selected.error_message, selected.event_type);
+                  const isFailure = c.status === "failed";
+                  return (
+                    <div className={cn(
+                      "flex items-start gap-3 rounded-lg border p-3",
+                      isFailure
+                        ? "border-red-500/30 bg-red-500/5 text-red-600"
+                        : "border-amber-500/30 bg-amber-500/5 text-amber-600"
+                    )}>
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium">{c.title}</p>
+                        <p className="mt-0.5 text-sm">{c.description}</p>
+                      </div>
+                    </div>
+                  );
+                })()
               )}
               <div className="space-y-2">
                 {summarize(selected.raw).map((s, i) => (
