@@ -116,18 +116,18 @@ export async function processInstagramWebhook(rawBody: string, signature: string
   logInfo("Instagram channel config resolved", { hasConfig: Boolean(channelConfig), hasToken: Boolean(channelConfig?.accessToken), eventCount: events.length });
   if (channelConfig?.accessToken) {
     for (const event of events) {
-      const senderId = event.sender?.externalId;
-      logInfo("Instagram event sender", { senderId, hasSender: Boolean(event.sender) });
+      const message = event.payload as { sender?: CanonicalIdentity } | undefined;
+      const senderId = message?.sender?.externalId;
       if (senderId) {
         try {
-          logInfo("Fetching Instagram profile", { senderId, hasToken: Boolean(channelConfig.accessToken) });
+          logInfo("Fetching Instagram profile", { senderId });
           const profile = await fetchInstagramUserProfile(senderId, channelConfig.accessToken);
           logInfo("Instagram profile result", { senderId, name: profile?.name, hasPic: Boolean(profile?.profilePic) });
           if (profile?.name) {
-            event.sender!.name = profile.name;
+            message.sender!.name = profile.name;
           }
           if (profile?.profilePic) {
-            event.sender!.avatarUrl = profile.profilePic;
+            message.sender!.avatarUrl = profile.profilePic;
           }
         } catch (err: any) {
           logInfo("Could not fetch Instagram profile", { senderId, error: err.message });
