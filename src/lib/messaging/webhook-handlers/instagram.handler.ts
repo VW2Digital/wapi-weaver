@@ -113,10 +113,11 @@ export async function processInstagramWebhook(rawBody: string, signature: string
     resolution.resolved!.tenantId,
     pageId,
   );
-  logInfo("Instagram channel config resolved", { hasConfig: Boolean(channelConfig), hasToken: Boolean(channelConfig?.accessToken) });
+  logInfo("Instagram channel config resolved", { hasConfig: Boolean(channelConfig), hasToken: Boolean(channelConfig?.accessToken), eventCount: events.length });
   if (channelConfig?.accessToken) {
     for (const event of events) {
       const senderId = event.sender?.externalId;
+      logInfo("Instagram event sender", { senderId, hasSender: Boolean(event.sender) });
       if (senderId) {
         try {
           logInfo("Fetching Instagram profile", { senderId, hasToken: Boolean(channelConfig.accessToken) });
