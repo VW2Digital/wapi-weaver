@@ -118,7 +118,9 @@ export async function processInstagramWebhook(rawBody: string, signature: string
       const senderId = event.sender?.externalId;
       if (senderId) {
         try {
+          logInfo("Fetching Instagram profile", { senderId, hasToken: Boolean(channelConfig.accessToken) });
           const profile = await fetchInstagramUserProfile(senderId, channelConfig.accessToken);
+          logInfo("Instagram profile result", { senderId, name: profile?.name, hasPic: Boolean(profile?.profilePic) });
           if (profile?.name) {
             event.sender!.name = profile.name;
           }
