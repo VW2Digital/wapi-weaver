@@ -1,12 +1,12 @@
 {
   "enabled": true,
-  "baselineCommit": "17d01f0868589858b045ebe4fdb757fd6a6f7914",
-  "baselineShort": "17d01f0",
+  "baselineCommit": "da1771272a264973c7cf4fff97b80611fac953b8",
+  "baselineShort": "da17712",
   "protectedProviders": ["whatsapp", "instagram"],
   "requireExplicitUnfreeze": true,
   "unfreeze": {
     "whatsapp": {
-      "enabled": true,
+      "enabled": false,
       "since": "STEP12_AUTHORIZED"
     }
   },
@@ -26,6 +26,9 @@
     "src/lib/messaging/channel-connection.service.ts",
     "src/lib/messaging/conversation-channel.service.ts",
     "src/lib/messaging/outbound/",
+    "src/lib/messaging/bridges/bullmq-whatsapp-queue.ts",
+    "src/lib/messaging/bridges/bullmq-whatsapp-worker.ts",
+    "src/lib/omnichannel-next/bridges/",
     "src/lib/instagram.functions.ts",
     "src/lib/instagram-webhook-owner.ts",
     "src/lib/instagram-media-downloader.ts",
