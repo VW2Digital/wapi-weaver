@@ -145,4 +145,64 @@ describe("omnichannel-next architecture import boundary", () => {
 
     expect(files.length).toBeGreaterThan(0);
   });
+
+  test("application does not import infrastructure", () => {
+    const appRoot = path.join(process.cwd(), "src/lib/omnichannel-next/application");
+    const files = getTsFiles(appRoot);
+    const pattern = /from\s+['"]@\/lib\/omnichannel-next\/infrastructure/;
+
+    const violations: { file: string; line: number; text: string }[] = [];
+    for (const file of files) {
+      const content = fs.readFileSync(file, "utf8");
+      const lines = content.split("\n");
+      lines.forEach((line, index) => {
+        if (pattern.test(line)) {
+          violations.push({
+            file: path.relative(process.cwd(), file),
+            line: index + 1,
+            text: line.trim(),
+          });
+        }
+      });
+    }
+
+    if (violations.length > 0) {
+      const details = violations
+        .map((v) => `${v.file}:${v.line} → ${v.text}`)
+        .join("\n");
+      throw new Error(`Application imported infrastructure:\n${details}`);
+    }
+
+    expect(files.length).toBeGreaterThan(0);
+  });
+
+  test("domain does not import infrastructure", () => {
+    const domainRoot = path.join(process.cwd(), "src/lib/omnichannel-next/domain");
+    const files = getTsFiles(domainRoot);
+    const pattern = /from\s+['"]@\/lib\/omnichannel-next\/infrastructure/;
+
+    const violations: { file: string; line: number; text: string }[] = [];
+    for (const file of files) {
+      const content = fs.readFileSync(file, "utf8");
+      const lines = content.split("\n");
+      lines.forEach((line, index) => {
+        if (pattern.test(line)) {
+          violations.push({
+            file: path.relative(process.cwd(), file),
+            line: index + 1,
+            text: line.trim(),
+          });
+        }
+      });
+    }
+
+    if (violations.length > 0) {
+      const details = violations
+        .map((v) => `${v.file}:${v.line} → ${v.text}`)
+        .join("\n");
+      throw new Error(`Domain imported infrastructure:\n${details}`);
+    }
+
+    expect(files.length).toBeGreaterThan(0);
+  });
 });

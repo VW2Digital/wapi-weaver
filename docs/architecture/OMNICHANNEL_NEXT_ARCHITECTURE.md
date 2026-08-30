@@ -1,4 +1,4 @@
-# Omnichannel Next Architecture — Steps 1, 2 and 3
+# Omnichannel Next Architecture — Steps 1, 2, 3 and 4
 
 ## Status
 
@@ -99,6 +99,11 @@ src/lib/omnichannel-next/**
 - `provider-worker.ts` — generic `ProviderWorker` with provider mismatch guard
 - `provider-worker.types.ts` — `ProviderWorkerResult`
 
+### Infrastructure (`src/lib/omnichannel-next/infrastructure/`)
+
+- `mysql/` — `MySQLConversationRepository`, `MySQLChannelRepository`, `MySQLMessageRepository`, `MySQLWhatsAppChannelConfigRepository`, `MySQLInstagramChannelConfigRepository`
+- `bullmq/` — `BullMQWhatsAppQueue`, `BullMQInstagramQueue`, `queue-names.ts`
+
 ## Design Rules
 
 - Provider is always derived from `Channel`, never from the frontend or string heuristics.
@@ -112,6 +117,10 @@ src/lib/omnichannel-next/**
 - `ProviderWorker` refuses to process a job whose `provider` does not match its own.
 - `queued ≠ processing ≠ accepted ≠ delivered`. Accepted only means the provider accepted the request; delivery/read are separate future events.
 - Idempotency is enforced by the worker using `MessageRepositoryPort.getById` and `accepted` status.
+- Dependency direction: `Infrastructure` implements `Application Ports`; `Application` and `Domain` never import `Infrastructure`.
+- MySQL adapters receive a `SqlExecutor` by constructor; no global connection or pool.
+- BullMQ adapters receive a `Queue` by constructor; no Redis connection on module import.
+- All SQL uses parameters; no runtime mutation; no real DB or Redis needed for unit tests.
 
 ## Freeze Compliance
 
