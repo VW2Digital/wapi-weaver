@@ -3708,6 +3708,8 @@ function ChatPage() {
       };
 
       recorder.onstop = async () => {
+        let isVoiceNote = false;
+
         const rawAudioBlob = new Blob(chunks, { type: supportedType });
         let uploadBlob = rawAudioBlob;
         let uploadMime = supportedType.split(";")[0].trim().toLowerCase();
@@ -3751,7 +3753,6 @@ function ChatPage() {
           if (isInstagram) {
             res = await uploadInstagramMediaViaApi(file, "audio");
           } else {
-            let isVoiceNote = false;
             try {
               res = await uploadMetaMediaViaApi(phoneId!, file, "audio", { isVoice: true });
               isVoiceNote = Boolean(res?.data?.is_voice);
