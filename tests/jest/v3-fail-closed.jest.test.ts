@@ -7,6 +7,7 @@ jest.mock("@/lib/messaging/channel-connection.service", () => ({
   requireActiveChannel: (c: any) => {
     if (c.status !== "active") throw new Error(`Channel ${c.id} is not active (${c.status})`);
   },
+  resolveChannelAccessToken: (c: any) => c.accessTokenEncrypted ?? "",
 }));
 
 describe("V3 fail closed", () => {

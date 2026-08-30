@@ -424,5 +424,44 @@ Shared core changed: YES / NO
 * Sequential tests = PASS
 * Build = PASS
 * Typecheck = PASS
+* Omnichannel Golden Path = PASS
 
 Nunca marcar `READY = YES` com PASS parcial.
+
+## 20. OMNICHANNEL GOLDEN PATH IS A RELEASE GATE
+
+Teste permanente: `tests/jest/omnichannel-golden-path.jest.test.ts`.
+
+Ele atravessa as camadas compartilhadas reais (dispatcher → registry → adapter →
+channel-connection resolution → provider client) e prova, no MESMO build:
+
+* WhatsApp outbound decripta a credencial do canal antes de chamar a Meta;
+* Instagram outbound decripta a credencial do canal antes de chamar a Meta;
+* channel isolation (cada provider usa sua conta e seu token);
+* WA → IG → WA;
+* IG → WA → IG;
+* parallel `Promise.all([WA, IG])`;
+* failure isolation nos dois sentidos.
+
+Arquivos protegidos — qualquer alteração exige rodar o Golden Path e reportar:
+
+```
+src/routes/_app/chat.tsx
+src/lib/chat.functions.ts
+src/lib/chat-outbox.server.ts
+src/lib/messaging/outbound/**
+src/lib/messaging/channel*
+src/lib/messaging/conversation*
+src/lib/messaging/message*
+```
+
+O Golden Path NÃO substitui os testes específicos de cada provider.
+
+### Contrato de credencial de canal
+
+`channel_connections.access_token_encrypted` guarda AES-256-GCM (`iv:ciphertext:authTag`).
+
+Nunca usar esse valor diretamente como Bearer token. Sempre resolver via
+`resolveChannelAccessToken()` em `src/lib/messaging/channel-connection.service.ts`.
+Caminhos legacy que colocam texto plano no mesmo campo continuam suportados pela
+detecção de formato — não "consertar" isso removendo a decriptação.

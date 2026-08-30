@@ -196,6 +196,35 @@ NÃO marcar tarefa como concluída.
 
 Investigar o `git diff`, localizar a regressão e corrigir a abstração.
 
+## OMNICHANNEL GOLDEN PATH IS A RELEASE GATE
+
+O teste `tests/jest/omnichannel-golden-path.jest.test.ts` é o gate de release da mensageria.
+
+Ele prova, no MESMO build, que WhatsApp e Instagram enviam cada um pelo seu próprio
+`channel_connection`, com a credencial do canal resolvida (decriptada) antes de chegar
+na Meta, e cobre: credential resolution, channel isolation, WA → IG → WA, IG → WA → IG,
+parallel e failure isolation.
+
+Qualquer alteração nos arquivos protegidos abaixo exige rodar o Golden Path e reportar
+o resultado:
+
+```
+src/routes/_app/chat.tsx
+src/lib/chat.functions.ts
+src/lib/chat-outbox.server.ts
+src/lib/messaging/outbound/**
+src/lib/messaging/channel*
+src/lib/messaging/conversation*
+src/lib/messaging/message*
+```
+
+Regras:
+
+* O Golden Path NÃO substitui os testes específicos de provider — ambos são obrigatórios.
+* `WhatsApp unit PASS` + `Golden Path FAIL` = FAIL. Tarefa não concluída.
+* Nunca declarar outbound restaurado sem `provider_message_id` persistido.
+* Nunca declarar PASS com base apenas em HTTP 200.
+
 ## 9. CONGELAMENTO DE ESCOPO DO INSTAGRAM
 
 - **O módulo de Instagram está CONGELADO em funcionalidade.** A base atual (mensagens de texto, imagem, áudio, vídeo, documento e sticker) atinge o objetivo do projeto e NÃO deve ser expandida.

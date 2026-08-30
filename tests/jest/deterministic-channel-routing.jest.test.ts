@@ -10,6 +10,7 @@ const mockRequireActive = jest.fn((c: any) => {
 jest.mock("@/lib/messaging/channel-connection.service", () => ({
   getChannelConnection: (...args: any[]) => mockGetChannel(...args),
   requireActiveChannel: (c: any) => mockRequireActive(c),
+  resolveChannelAccessToken: (c: any) => c.accessTokenEncrypted ?? "",
 }));
 
 jest.mock("@/lib/db", () => ({
