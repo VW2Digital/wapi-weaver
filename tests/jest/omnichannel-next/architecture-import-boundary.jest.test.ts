@@ -67,4 +67,35 @@ describe("omnichannel-next architecture import boundary", () => {
 
     expect(files.length).toBeGreaterThan(0);
   });
+
+  test("whatsapp and instagram modules do not cross-import", () => {
+    const waRoot = path.join(process.cwd(), "src/lib/omnichannel-next/providers/whatsapp");
+    const igRoot = path.join(process.cwd(), "src/lib/omnichannel-next/providers/instagram");
+
+    const waFiles = getTsFiles(waRoot);
+    const igFiles = getTsFiles(igRoot);
+
+    const violations: string[] = [];
+
+    for (const file of waFiles) {
+      const content = fs.readFileSync(file, "utf8");
+      if (/from\s+['"]@\/lib\/omnichannel-next\/providers\/instagram/.test(content)) {
+        violations.push(path.relative(process.cwd(), file));
+      }
+    }
+
+    for (const file of igFiles) {
+      const content = fs.readFileSync(file, "utf8");
+      if (/from\s+['"]@\/lib\/omnichannel-next\/providers\/whatsapp/.test(content)) {
+        violations.push(path.relative(process.cwd(), file));
+      }
+    }
+
+    if (violations.length > 0) {
+      throw new Error(`Cross-provider imports found:\n${violations.join("\n")}`);
+    }
+
+    expect(waFiles.length).toBeGreaterThan(0);
+    expect(igFiles.length).toBeGreaterThan(0);
+  });
 });

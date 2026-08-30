@@ -23,3 +23,9 @@ export type { TransactionPort } from "./application/ports/transaction.port";
 
 export { SendMessageService } from "./application/services/send-message.service";
 export type { SendMessageResult } from "./application/services/send-message.result";
+
+export { NextProviderRegistry } from "./providers";
+export { WhatsAppProvider } from "./providers/whatsapp";
+export { InstagramProvider } from "./providers/instagram";
+export type { WhatsAppChannelConfigPort, WhatsAppTransportPort } from "./providers/whatsapp";
+export type { InstagramChannelConfigPort, InstagramTransportPort } from "./providers/instagram";

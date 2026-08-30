@@ -6,6 +6,8 @@ export interface ProviderSendContext {
   conversationId: string;
   channelConnectionId: string;
   messageId: string;
+  provider?: Provider;
+  recipient?: string;
   message: OutboundMessage;
 }
 

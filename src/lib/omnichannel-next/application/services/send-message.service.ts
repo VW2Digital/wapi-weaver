@@ -82,6 +82,8 @@ export class SendMessageService {
           conversationId: conversation.id,
           channelConnectionId: channel.id,
           messageId,
+          provider: channel.provider,
+          recipient: conversation.contactId,
           message: command.message,
         });
       } catch (e) {

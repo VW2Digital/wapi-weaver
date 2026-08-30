@@ -1,4 +1,4 @@
-# Omnichannel Next Architecture — Step 1
+# Omnichannel Next Architecture — Steps 1 and 2
 
 ## Status
 
@@ -25,6 +25,22 @@ ProviderRegistry
  WhatsApp Port    Instagram Port
 
 ISOLATED — TESTED — NOT WIRED
+
+```
+WhatsApp Next Module
+  ├── Provider
+  ├── Capability model
+  ├── Message mapper
+  ├── Channel config port
+  └── Transport port
+
+Instagram Next Module
+  ├── Provider
+  ├── Capability model
+  ├── Message mapper
+  ├── Channel config port
+  └── Transport port
+```
 ```
 
 ## Root
@@ -60,6 +76,12 @@ src/lib/omnichannel-next/**
 
 - `send-message.service.ts`
 - `send-message.result.ts`
+
+### Provider Modules (`src/lib/omnichannel-next/providers/`)
+
+- `whatsapp/` — `WhatsAppProvider`, capabilities, mapper, ports
+- `instagram/` — `InstagramProvider`, capabilities, mapper, ports
+- `index.ts` — `NextProviderRegistry`
 
 ## Design Rules
 
