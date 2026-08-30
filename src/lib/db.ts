@@ -18,6 +18,7 @@ if (!globalForDb.pool && typeof mysql.createPool === "function") {
     // suportar HMR, workers e queries simultâneas sem estourar o MySQL.
     connectionLimit: process.env.DB_POOL_SIZE ? parseInt(process.env.DB_POOL_SIZE, 10) : 10,
     queueLimit: 100,
+    multipleStatements: true,
     enableKeepAlive: true,
     keepAliveInitialDelay: 10000,
     connectTimeout: 10000,
