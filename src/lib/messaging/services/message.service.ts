@@ -78,7 +78,7 @@ export async function saveMessage(options: SaveMessageOptions): Promise<SaveMess
          channel, channel_connection_id, provider_message_id, provider_account_id,
          sender_wa_id, sender_name, external_group_id,
          metadata, raw_payload, created_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
         messageId,
         tenantId,
