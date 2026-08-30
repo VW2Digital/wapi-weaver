@@ -16,40 +16,39 @@ export interface EnsureConversationResult {
   isNew: boolean;
 }
 
-/**
- * Garante uma chat_session para o contato.
- *
- * A tabela chat_sessions deveria possuir UNIQUE KEY (tenant_id, contact_id).
- * Enquanto isso não for aplicado (dados duplicados legados), usamos
- * SELECT + INSERT dentro de transaction. Isso ainda permite race conditions
- * sob alta concorrência; a unique key é a correção definitiva.
- */
 export async function ensureConversation(
   options: EnsureConversationOptions,
 ): Promise<EnsureConversationResult> {
   const { tenantId, userId, contactId, channelConnectionId, status = "aguardando" } = options;
 
   return transaction(async (conn) => {
-    const channelFilter = channelConnectionId
-      ? " AND channel_connection_id = ?"
-      : " AND channel_connection_id IS NULL";
-    const params = channelConnectionId
-      ? [tenantId, userId, contactId, channelConnectionId]
-      : [tenantId, userId, contactId];
-
+    // Find any existing conversation for this contact (legacy or v3).
     const [rows] = await conn.execute(
       `SELECT id, channel_connection_id FROM chat_sessions
-       WHERE tenant_id = ? AND user_id = ? AND contact_id = ?${channelFilter}
+       WHERE tenant_id = ? AND user_id = ? AND contact_id = ?
        ORDER BY started_at DESC
        LIMIT 1
        FOR UPDATE`,
-      params,
+      [tenantId, userId, contactId],
     );
 
     const existing = (rows as Array<{ id: string; channel_connection_id: string | null }>)?.[0];
     if (existing?.id) {
-      if (channelConnectionId && existing.channel_connection_id !== channelConnectionId) {
-        throw new Error(`Conversation channel mismatch: expected ${channelConnectionId}, found ${existing.channel_connection_id}`);
+      // If a V3 channel is known, make sure it matches.
+      if (channelConnectionId) {
+        if (existing.channel_connection_id && existing.channel_connection_id !== channelConnectionId) {
+          throw new Error(
+            `Conversation channel mismatch: contact ${contactId} already linked to ${existing.channel_connection_id}, requested ${channelConnectionId}`,
+          );
+        }
+        if (!existing.channel_connection_id) {
+          await conn.execute(
+            `UPDATE chat_sessions
+             SET channel_connection_id = ?
+             WHERE id = ?`,
+            [channelConnectionId, existing.id],
+          );
+        }
       }
       return { sessionId: existing.id, isNew: false };
     }

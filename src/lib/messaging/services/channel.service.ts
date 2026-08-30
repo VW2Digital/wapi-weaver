@@ -429,6 +429,50 @@ export async function getChannelHealthDiagnostic(
   };
 }
 
+export async function promoteChannelStatusIfHealthy(
+  channelConnectionId: string,
+  tenantId: string,
+): Promise<void> {
+  const rows = (await db.query(
+    `SELECT id, status, provider, external_account_id, access_token_encrypted,
+            meta_app_connection_id
+     FROM channel_connections
+     WHERE id = ? AND tenant_id = ?`,
+    [channelConnectionId, tenantId],
+  )) as Array<{
+    id: string;
+    status: string;
+    provider: string;
+    external_account_id: string;
+    access_token_encrypted: string | null;
+    meta_app_connection_id: string;
+  }>;
+
+  const channel = rows[0];
+  if (!channel) return;
+  if (channel.status !== "pending") return;
+
+  const config = await getChannelConfig(
+    channel.provider as MessagingProvider,
+    tenantId,
+    channel.external_account_id,
+  );
+  if (!config) return;
+
+  const tokenAvailable =
+    (config as any).accessToken !== undefined
+      ? Boolean((config as any).accessToken)
+      : Boolean((config as any).pageAccessToken);
+  if (!tokenAvailable) return;
+
+  await db.query(
+    `UPDATE channel_connections
+     SET status = 'active'
+     WHERE id = ? AND tenant_id = ? AND status = 'pending'`,
+    [channelConnectionId, tenantId],
+  );
+}
+
 export async function getChannelConfig(
   provider: MessagingProvider,
   tenantId: string,
