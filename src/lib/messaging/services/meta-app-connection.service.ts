@@ -37,6 +37,52 @@ export interface ResolvedMetaAppSecret {
  * Resolve Meta App connection by its public_id.
  * Decrypts app_secret and webhook_verify_token server-side safely.
  */
+export async function getMetaAppConnectionById(
+  id: string,
+): Promise<ResolvedMetaAppSecret | null> {
+  if (!id) return null;
+
+  const rows = await query<Array<any>>(
+    `SELECT id, public_id, tenant_id, app_id, app_secret_encrypted,
+            meta_config_id, webhook_verify_token_encrypted, graph_version, status
+     FROM meta_app_connections
+     WHERE id = ?
+     LIMIT 1`,
+    [id],
+  );
+
+  const row = rows?.[0];
+  if (!row) return null;
+
+  let decryptedSecret = "";
+  let decryptedToken = "";
+
+  try {
+    decryptedSecret = decryptMetaCredential(row.app_secret_encrypted);
+  } catch (err) {
+    console.error(`[MetaAppConnection] Failed to decrypt secret for connection ${row.id}:`, err);
+    return null;
+  }
+
+  try {
+    decryptedToken = decryptMetaCredential(row.webhook_verify_token_encrypted);
+  } catch (err) {
+    console.error(`[MetaAppConnection] Failed to decrypt verify token for connection ${row.id}:`, err);
+    return null;
+  }
+
+  return {
+    connectionId: row.id,
+    tenantId: row.tenant_id,
+    appId: row.app_id,
+    appSecret: decryptedSecret,
+    metaConfigId: row.meta_config_id || null,
+    webhookVerifyToken: decryptedToken,
+    graphVersion: row.graph_version || "v26.0",
+    status: row.status,
+  };
+}
+
 export async function getMetaAppConnectionByPublicId(
   publicId: string,
 ): Promise<ResolvedMetaAppSecret | null> {

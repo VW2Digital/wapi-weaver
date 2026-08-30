@@ -5,6 +5,8 @@ import { instagramAdapter } from "@/lib/messaging/adapters/instagram.adapter";
 import type { CanonicalIdentity } from "@/lib/messaging/types";
 import { resolveInstagramTenant } from "@/lib/messaging/services/tenant-resolution.service";
 import { getInstagramChannelConfig } from "@/lib/messaging/services/channel.service";
+import { getChannelConnectionByExternalAccount } from "@/lib/messaging/channel-connection.service";
+import { getMetaAppConnectionById } from "@/lib/messaging/services/meta-app-connection.service";
 import { fetchInstagramUserProfile } from "@/lib/instagram.functions";
 import { persistCanonicalEvents } from "@/lib/messaging/event-store.server";
 import { enqueueMessagingEvent } from "@/lib/queue/webhook-queue";
@@ -151,9 +153,18 @@ export async function processInstagramWebhook(rawBody: string, signature: string
     return new Response("EVENT_RECEIVED", { status: 200 });
   }
 
+  const channel = await getChannelConnectionByExternalAccount(
+    resolution.resolved!.tenantId,
+    "instagram",
+    pageId,
+  );
+  const metaApp = channel?.metaAppConnectionId ? await getMetaAppConnectionById(channel.metaAppConnectionId) : null;
   for (const event of events) {
     event.tenantId = resolution.resolved!.tenantId;
     event.userId = resolution.resolved!.userId;
+    event.channelResourceId = pageId;
+    event.channelConnectionId = channel?.id ?? null;
+    event.metaAppConnectionId = metaApp?.connectionId ?? null;
   }
 
   let persisted: Array<{ eventId: string; skipped: boolean }> = [];

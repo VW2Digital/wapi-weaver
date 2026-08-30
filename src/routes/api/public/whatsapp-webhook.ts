@@ -13,6 +13,8 @@ import { whatsappAdapter } from "@/lib/messaging/adapters/whatsapp.adapter";
 import { persistCanonicalEvents } from "@/lib/messaging/event-store.server";
 import { enqueueMessagingEvent } from "@/lib/queue/webhook-queue";
 import { logWebhookDelivery } from "@/lib/messaging/webhook-delivery-log.server";
+import { getChannelConnectionByExternalAccount } from "@/lib/messaging/channel-connection.service";
+import { getMetaAppConnectionById } from "@/lib/messaging/services/meta-app-connection.service";
 import { processInstagramWebhook } from "@/lib/messaging/webhook-handlers/instagram.handler";
 import {
   verifyMetaWebhookSignature,
@@ -2081,10 +2083,18 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
 
         // Resolve channel resource id and assign tenant to each event
         const phoneNumberId = phoneNumberIds[0];
+        const channel = await getChannelConnectionByExternalAccount(
+          matchedUserId,
+          "whatsapp",
+          phoneNumberId,
+        );
+        const metaApp = channel?.metaAppConnectionId ? await getMetaAppConnectionById(channel.metaAppConnectionId) : null;
         for (const event of events) {
           event.tenantId = matchedUserId;
           event.userId = matchedUserId;
           event.channelResourceId = event.channelResourceId || phoneNumberId;
+          event.channelConnectionId = channel?.id ?? null;
+          event.metaAppConnectionId = metaApp?.connectionId ?? null;
         }
 
         // Persist canonical events idempotently
