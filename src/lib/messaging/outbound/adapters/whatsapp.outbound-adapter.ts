@@ -1,6 +1,7 @@
 "use server";
 
 import db from "@/lib/db";
+import { getChannelConnection, requireActiveChannel, type ChannelConnection } from "@/lib/messaging/channel-connection.service";
 import type { IOutboundAdapter, OutboundMessageContext, OutboundSendResult } from "../types";
 import { WhatsAppClient } from "./whatsapp.api";
 
@@ -12,30 +13,16 @@ export class WhatsAppOutboundAdapter implements IOutboundAdapter {
       throw new Error(`WhatsAppOutboundAdapter cannot send for provider: ${context.provider}`);
     }
 
-    const profiles = (await db.query(
-      `SELECT whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version
-       FROM profiles WHERE id = ? LIMIT 1`,
-      [context.userId],
-    )) as Array<{
-      whatsapp_phone_number_id?: string | null;
-      whatsapp_access_token?: string | null;
-      meta_graph_version?: string | null;
-    }>;
+    const channel = await this.resolveChannel(context);
+    const graphVersion = recentMetaVersion(channel.metadata && typeof (channel.metadata as any)?.graphVersion === "string" ? (channel.metadata as any).graphVersion : undefined);
 
-    const profile = profiles[0];
-    if (!profile?.whatsapp_phone_number_id || !profile.whatsapp_access_token) {
-      throw new Error("Credenciais do WhatsApp não configuradas.");
-    }
-
-    const graphVersion = recentMetaVersion(profile.meta_graph_version);
     const client = new WhatsAppClient({
-      phoneNumberId: profile.whatsapp_phone_number_id,
-      accessToken: profile.whatsapp_access_token,
+      phoneNumberId: channel.externalAccountId || "",
+      accessToken: channel.accessTokenEncrypted || "",
       graphVersion,
     });
 
     const isVoiceMessage = context.payload.type === "audio" && Boolean(context.payload.audio?.voice);
-
     if (isVoiceMessage) {
       console.log("[VOICE] 13 iniciando envio /messages");
       console.log("[VOICE] 14 usando voice:true");
@@ -55,7 +42,7 @@ export class WhatsAppOutboundAdapter implements IOutboundAdapter {
       return {
         provider: this.provider,
         providerMessageId: result.providerMessageId,
-        providerAccountId: profile.whatsapp_phone_number_id,
+        providerAccountId: channel.externalAccountId,
         status: "sent",
         responsePayload: result.responsePayload,
       };
@@ -65,6 +52,41 @@ export class WhatsAppOutboundAdapter implements IOutboundAdapter {
       }
       throw error;
     }
+  }
+
+  private async resolveChannel(context: OutboundMessageContext): Promise<ChannelConnection> {
+    if (context.channelConnectionId) {
+      const channel = await getChannelConnection(context.channelConnectionId, context.tenantId);
+      if (channel.provider !== this.provider) {
+        throw new Error(`Channel ${channel.id} is not a WhatsApp channel.`);
+      }
+      await requireActiveChannel(channel);
+      return channel;
+    }
+
+    const profiles = (await db.query(
+      `SELECT whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version
+       FROM profiles WHERE id = ? LIMIT 1`,
+      [context.userId],
+    )) as any[];
+
+    const profile = profiles[0];
+    if (!profile?.whatsapp_phone_number_id || !profile.whatsapp_access_token) {
+      throw new Error("Credenciais do WhatsApp não configuradas.");
+    }
+
+    console.warn(`[WhatsApp Outbound] Using legacy profile resolution for message ${context.messageId}`);
+    return {
+      id: "LEGACY",
+      tenantId: context.tenantId,
+      metaAppConnectionId: null,
+      provider: "whatsapp",
+      status: "active",
+      externalAccountId: profile.whatsapp_phone_number_id,
+      displayName: null,
+      metadata: { graphVersion: profile.meta_graph_version },
+      accessTokenEncrypted: profile.whatsapp_access_token,
+    };
   }
 }
 

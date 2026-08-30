@@ -33,6 +33,8 @@ export interface EnqueueChatMessageInput {
   clientMessageId: string;
   contactPhone: string;
   channel: ChatChannel;
+  channelConnectionId?: string | null;
+  conversationId?: string | null;
   providerRecipientId?: string | null;
   providerAccountId?: string | null;
   type: string;
@@ -48,6 +50,8 @@ export interface ChatOutboxRow {
   user_id: string;
   message_id: string;
   channel: ChatChannel;
+  channel_connection_id?: string | null;
+  conversation_id?: string | null;
   recipient: string;
   provider_recipient_id?: string | null;
   provider_account_id?: string | null;
@@ -222,6 +226,8 @@ async function dispatch(job: ChatOutboxRow): Promise<DispatchResult> {
       tenantId: job.tenant_id,
       userId: job.user_id,
       messageId: job.message_id,
+      conversationId: job.conversation_id ?? null,
+      channelConnectionId: job.channel_connection_id ?? null,
       provider: job.channel,
       contactPhone: job.recipient,
       providerRecipientId: job.provider_recipient_id ?? null,
@@ -271,34 +277,38 @@ export async function enqueueChatOutboxMessage(input: EnqueueChatMessageInput) {
 
     await connection.query(
       `INSERT INTO direct_messages
-       (id, client_message_id, tenant_id, user_id, contact_phone, direction, type, body,
-        status, reply_to_message_id, metadata, channel, provider_account_id)
-       VALUES (?, ?, ?, ?, ?, 'outgoing', ?, ?, 'queued', ?, ?, ?, ?)`,
+       (id, client_message_id, tenant_id, user_id, conversation_id, contact_phone, direction, type, body,
+        status, reply_to_message_id, metadata, channel, channel_connection_id, provider_account_id)
+       VALUES (?, ?, ?, ?, ?, ?, 'outgoing', ?, ?, 'queued', ?, ?, ?, ?, ?)`,
       [
         messageId,
         input.clientMessageId,
         input.tenantId,
         input.userId,
+        input.conversationId || null,
         input.contactPhone,
         input.type,
         input.body,
         input.replyToMessageId || null,
         JSON.stringify(input.metadata),
         input.channel,
+        input.channelConnectionId || null,
         input.providerAccountId || null,
       ],
     );
     await connection.query(
       `INSERT INTO chat_message_outbox
-       (id, tenant_id, user_id, message_id, channel, recipient, provider_recipient_id,
+       (id, tenant_id, user_id, message_id, channel, conversation_id, channel_connection_id, recipient, provider_recipient_id,
         provider_account_id, payload, status, next_attempt_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())`,
       [
         outboxId,
         input.tenantId,
         input.userId,
         messageId,
         input.channel,
+        input.conversationId || null,
+        input.channelConnectionId || null,
         input.contactPhone,
         input.providerRecipientId || null,
         input.providerAccountId || null,
@@ -328,7 +338,7 @@ export async function enqueueChatOutboxMessage(input: EnqueueChatMessageInput) {
 async function claimBatch(workerId: string): Promise<ChatOutboxRow[]> {
   return db.transaction(async (connection) => {
     const [rows] = await connection.query(
-      `SELECT id, tenant_id, user_id, message_id, channel, recipient,
+      `SELECT id, tenant_id, user_id, message_id, channel, conversation_id, channel_connection_id, recipient,
               provider_recipient_id, provider_account_id, payload, attempts, max_attempts
        FROM chat_message_outbox
        WHERE (

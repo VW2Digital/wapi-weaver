@@ -7,6 +7,8 @@ import { buildWhatsAppBotMessage, type WhatsAppBotStep } from "@/lib/meta-whatsa
 import { enqueueChatOutboxMessage } from "@/lib/chat-outbox.server";
 import { publishChatRealtimeEvent } from "@/lib/chat-realtime.server";
 import { resolveSharedContactsData } from "@/lib/chat-message-content";
+import { getChannelConnection, requireActiveChannel, type ChannelConnection } from "@/lib/messaging/channel-connection.service";
+import { resolveConversationChannel } from "@/lib/messaging/conversation-channel.service";
 import db from "./db";
 
 type JsonValue = string | number | boolean | null | undefined | JsonRecord | JsonValue[];
@@ -229,6 +231,8 @@ const sendMessageInput = z.object({
       size: z.number().int().nonnegative(),
     })
     .optional(),
+  conversation_id: z.string().uuid().optional(),
+  channel_connection_id: z.string().uuid().optional(),
   reply_to_message_id: z.string().optional(),
 }).superRefine((value, ctx) => {
   const requireMediaReference = (
@@ -899,9 +903,25 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       }
     }
 
-    const messageChannel = isInstagram ? "instagram" : isMessenger ? "messenger" : "whatsapp";
+    let messageChannel: "whatsapp" | "instagram" | "messenger" = isInstagram ? "instagram" : isMessenger ? "messenger" : "whatsapp";
+    let resolvedChannel: ChannelConnection | null = null;
     let providerRecipientId: string | null = null;
     let providerAccountId: string | null = null;
+
+    try {
+      if (data.channel_connection_id) {
+        resolvedChannel = await getChannelConnection(data.channel_connection_id, effectiveUserId);
+        await requireActiveChannel(resolvedChannel);
+        messageChannel = resolvedChannel.provider;
+      } else if (data.conversation_id) {
+        const resolved = await resolveConversationChannel(data.conversation_id, effectiveUserId);
+        resolvedChannel = await getChannelConnection(resolved.channelConnectionId, effectiveUserId);
+        await requireActiveChannel(resolvedChannel);
+        messageChannel = resolvedChannel.provider;
+      }
+    } catch (e: any) {
+      return { ok: false, error: e?.message || "Falha ao resolver canal de envio." };
+    }
 
     if (isInstagram) {
       const igAccounts = (await db.query(
@@ -929,7 +949,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       }
 
       providerRecipientId = externalId;
-      providerAccountId = account.ig_user_id;
+      providerAccountId = resolvedChannel?.externalAccountId || account.ig_user_id;
     } else if (isMessenger) {
       // 1. Busca página do Facebook conectada
       const fbPages = (await db.query(
@@ -954,7 +974,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       }
 
       providerRecipientId = externalId;
-      providerAccountId = page.page_id;
+      providerAccountId = resolvedChannel?.externalAccountId || page.page_id;
     } else {
       // Envio via WhatsApp
       const profiles = (await db.query(
@@ -976,7 +996,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
           };
         }
       }
-      providerAccountId = profile.whatsapp_phone_number_id || null;
+      providerAccountId = resolvedChannel?.externalAccountId || profile.whatsapp_phone_number_id || null;
     }
 
     let bodyText = "";
@@ -1066,6 +1086,8 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       clientMessageId: data.client_message_id || crypto.randomUUID(),
       contactPhone: digits,
       channel: messageChannel,
+      channelConnectionId: resolvedChannel?.id,
+      conversationId: data.conversation_id || null,
       providerRecipientId,
       providerAccountId,
       type: data.type,
