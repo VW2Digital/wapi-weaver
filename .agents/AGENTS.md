@@ -134,6 +134,68 @@ Toda tarefa deve terminar com:
 Se qualquer uma dessas seções não puder ser preenchida com honestidade,
 isso é um sinal de que a tarefa não está realmente concluída.
 
+---
+
+# OMNICHANNEL NON-REGRESSION — MANDATORY
+
+Este projeto é um SaaS omnichannel.
+
+WhatsApp, Instagram e Messenger são canais independentes que compartilham um Messaging Core.
+
+É PROIBIDO considerar uma alteração concluída se ela fizer um provider funcionar e causar regressão em outro provider já funcional.
+
+Regras obrigatórias:
+
+* WhatsApp, Instagram e Messenger devem coexistir.
+* Cada provider usa sua própria `channel_connection`.
+* Cada provider usa suas próprias credentials.
+* Cada channel resolve sua própria `meta_app_connection_id`.
+* Nunca resolver credencial por "latest Meta App do tenant".
+* Nunca compartilhar Access Token entre providers.
+* Nunca usar estado global mutável para provider/token/channel.
+* Toda operação de envio deve ser roteada por `channel_connection_id` ou contexto equivalente determinístico.
+* Alteração em código compartilhado exige regressão dos providers afetados.
+* Alteração no Instagram exige regressão do WhatsApp.
+* Alteração no WhatsApp exige regressão do Instagram.
+* Alteração no Messaging Core exige regressão de todos os providers configurados.
+* Um provider quebrado não pode derrubar os demais.
+* Nunca corrigir uma integração trocando credentials de outro provider.
+* Nunca declarar PASS parcial como tarefa concluída.
+
+Critério:
+
+WhatsApp PASS + Instagram FAIL = FAIL
+
+Instagram PASS + WhatsApp FAIL = FAIL
+
+WhatsApp PASS + Instagram PASS = PASS
+
+Messenger também entra no gate quando estiver configurado.
+
+Antes de editar mensageria, informar:
+
+* provider alvo;
+* arquivos que serão modificados;
+* shared files afetados;
+* providers sob risco;
+* regressões obrigatórias.
+
+Depois da alteração, executar e informar no mínimo:
+
+* WhatsApp regression;
+* Instagram regression;
+* Messenger regression quando configurado;
+* channel isolation;
+* build;
+* typecheck;
+* testes de mensageria.
+
+Se algum provider previamente funcional falhar:
+
+NÃO marcar tarefa como concluída.
+
+Investigar o `git diff`, localizar a regressão e corrigir a abstração.
+
 ## 9. CONGELAMENTO DE ESCOPO DO INSTAGRAM
 
 - **O módulo de Instagram está CONGELADO em funcionalidade.** A base atual (mensagens de texto, imagem, áudio, vídeo, documento e sticker) atinge o objetivo do projeto e NÃO deve ser expandida.
