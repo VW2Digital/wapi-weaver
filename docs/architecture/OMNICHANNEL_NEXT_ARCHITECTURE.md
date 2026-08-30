@@ -1,4 +1,4 @@
-# Omnichannel Next Architecture — Steps 1 and 2
+# Omnichannel Next Architecture — Steps 1, 2 and 3
 
 ## Status
 
@@ -15,14 +15,16 @@ SendMessageCommand
         ↓
 SendMessageService
         ↓
-ConversationPort
+   OutboundJob
         ↓
-ChannelPort
-        ↓
-ProviderRegistry
-     ┌───────┴────────┐
-     ▼                ▼
- WhatsApp Port    Instagram Port
+ProviderQueueRouter
+  ┌─────────┴──────────┐
+  ↓                    ↓
+WhatsApp Queue     Instagram Queue
+  ↓                    ↓
+WhatsApp Worker    Instagram Worker
+  ↓                    ↓
+WhatsApp Provider  Instagram Provider
 
 ISOLATED — TESTED — NOT WIRED
 
@@ -83,6 +85,20 @@ src/lib/omnichannel-next/**
 - `instagram/` — `InstagramProvider`, capabilities, mapper, ports
 - `index.ts` — `NextProviderRegistry`
 
+### Async Outbox (`src/lib/omnichannel-next/application/outbox/`)
+
+- `outbound-job.ts` — canonical job, no credentials, no Meta payloads
+- `outbound-job-status.ts` — `pending | queued | processing | accepted | failed`
+- `outbound-job.port.ts` — `OutboundJobPort.enqueue`
+- `outbound-job.service.ts` — builds an `OutboundJob` from domain context
+- `provider-queue.port.ts` — `ProviderQueuePort` for a single provider queue
+- `provider-queue-router.ts` — `ProviderQueueRouter`, fail-closed, no `default` to WhatsApp
+
+### Workers (`src/lib/omnichannel-next/application/workers/`)
+
+- `provider-worker.ts` — generic `ProviderWorker` with provider mismatch guard
+- `provider-worker.types.ts` — `ProviderWorkerResult`
+
 ## Design Rules
 
 - Provider is always derived from `Channel`, never from the frontend or string heuristics.
@@ -91,6 +107,11 @@ src/lib/omnichannel-next/**
 - No legacy fallback (`LIMIT 1`, phone prefix, `ig_`, `wa_`).
 - No imports from the frozen runtime (`chat.functions.ts`, `chat-outbox.server.ts`, `messaging/outbound/adapters`, `messaging/webhook-handlers`, `messaging/services`, `mysql`, `bullmq`, `ioredis`, `react`).
 - New architecture uses in-memory fakes for tests.
+- `OutboundJob` carries only domain intent: no access tokens, no Meta payloads.
+- `ProviderQueueRouter` has no `default` to any provider; unknown providers fail closed.
+- `ProviderWorker` refuses to process a job whose `provider` does not match its own.
+- `queued ≠ processing ≠ accepted ≠ delivered`. Accepted only means the provider accepted the request; delivery/read are separate future events.
+- Idempotency is enforced by the worker using `MessageRepositoryPort.getById` and `accepted` status.
 
 ## Freeze Compliance
 

@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const NEXT_ROOT = path.join(process.cwd(), "src/lib/omnichannel-next");
+const SRC_LIB = path.join(process.cwd(), "src/lib");
 
 function getTsFiles(dir: string): string[] {
   const files: string[] = [];
@@ -11,6 +12,21 @@ function getTsFiles(dir: string): string[] {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       files.push(...getTsFiles(full));
+    } else if (entry.isFile() && full.endsWith(".ts")) {
+      files.push(full);
+    }
+  }
+  return files;
+}
+
+function getTsFilesExcept(dir: string, except: string): string[] {
+  const files: string[] = [];
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (full === except) continue;
+      files.push(...getTsFilesExcept(full, except));
     } else if (entry.isFile() && full.endsWith(".ts")) {
       files.push(full);
     }
@@ -97,5 +113,36 @@ describe("omnichannel-next architecture import boundary", () => {
 
     expect(waFiles.length).toBeGreaterThan(0);
     expect(igFiles.length).toBeGreaterThan(0);
+  });
+
+  test("frozen runtime does not import omnichannel-next", () => {
+    const nextRoot = path.join(process.cwd(), "src/lib/omnichannel-next");
+    const files = getTsFilesExcept(SRC_LIB, nextRoot);
+
+    const violations: { file: string; line: number; text: string }[] = [];
+    const pattern = /from\s+['"]@\/lib\/omnichannel-next/;
+
+    for (const file of files) {
+      const content = fs.readFileSync(file, "utf8");
+      const lines = content.split("\n");
+      lines.forEach((line, index) => {
+        if (pattern.test(line)) {
+          violations.push({
+            file: path.relative(process.cwd(), file),
+            line: index + 1,
+            text: line.trim(),
+          });
+        }
+      });
+    }
+
+    if (violations.length > 0) {
+      const details = violations
+        .map((v) => `${v.file}:${v.line} → ${v.text}`)
+        .join("\n");
+      throw new Error(`Frozen runtime imported omnichannel-next:\n${details}`);
+    }
+
+    expect(files.length).toBeGreaterThan(0);
   });
 });

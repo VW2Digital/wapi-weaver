@@ -24,6 +24,15 @@ export type { TransactionPort } from "./application/ports/transaction.port";
 export { SendMessageService } from "./application/services/send-message.service";
 export type { SendMessageResult } from "./application/services/send-message.result";
 
+export { OutboundJobService } from "./application/outbox/outbound-job.service";
+export { ProviderQueueRouter } from "./application/outbox/provider-queue-router";
+export { ProviderWorker } from "./application/workers/provider-worker";
+export type { OutboundJob } from "./application/outbox/outbound-job";
+export type { OutboundJobPort } from "./application/outbox/outbound-job.port";
+export type { OutboundJobStatus } from "./application/outbox/outbound-job-status";
+export type { ProviderQueuePort } from "./application/outbox/provider-queue.port";
+export type { ProviderWorkerResult } from "./application/workers/provider-worker.types";
+
 export { NextProviderRegistry } from "./providers";
 export { WhatsAppProvider } from "./providers/whatsapp";
 export { InstagramProvider } from "./providers/instagram";

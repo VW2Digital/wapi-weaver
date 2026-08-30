@@ -6,16 +6,14 @@ import {
   TenantMismatchError,
   ChannelUnavailableError,
   ChannelConnectionRequiredError,
-  UnsupportedProviderError,
-  ProviderSendError,
   OmnichannelError,
 } from "@/lib/omnichannel-next/domain/errors";
 import type { ConversationPort } from "../ports/conversation.port";
 import type { ChannelPort } from "../ports/channel.port";
 import type { MessageRepositoryPort } from "../ports/message-repository.port";
-import type { ProviderRegistryPort } from "../ports/provider-registry.port";
 import type { TransactionPort } from "../ports/transaction.port";
-import type { ProviderSendResult } from "../ports/outbound-provider.port";
+import type { OutboundJobPort } from "@/lib/omnichannel-next/application/outbox/outbound-job.port";
+import { OutboundJobService } from "@/lib/omnichannel-next/application/outbox/outbound-job.service";
 import type { SendMessageResult } from "./send-message.result";
 
 export class SendMessageService {
@@ -23,7 +21,7 @@ export class SendMessageService {
     private readonly conversationPort: ConversationPort,
     private readonly channelPort: ChannelPort,
     private readonly messageRepository: MessageRepositoryPort,
-    private readonly providerRegistry: ProviderRegistryPort,
+    private readonly outboundJobPort: OutboundJobPort,
     private readonly transactionPort: TransactionPort,
   ) {}
 
@@ -58,13 +56,17 @@ export class SendMessageService {
       throw new ChannelUnavailableError();
     }
 
-    const providerPort = this.providerRegistry.get(channel.provider);
-    if (providerPort.provider !== channel.provider) {
-      throw new ProviderSendError(channel.provider, "Registry returned wrong provider adapter");
-    }
-
     const messageId = randomUUID();
-    let sendResult: ProviderSendResult;
+
+    const job = OutboundJobService.build({
+      tenantId: command.tenantId,
+      messageId,
+      conversationId: conversation.id,
+      channelConnectionId: channel.id,
+      provider: channel.provider,
+      recipient: conversation.contactId,
+      message: command.message,
+    });
 
     await this.transactionPort.run(async () => {
       await this.messageRepository.createPending({
@@ -76,30 +78,8 @@ export class SendMessageService {
         message: command.message,
       });
 
-      try {
-        sendResult = await providerPort.send({
-          tenantId: command.tenantId,
-          conversationId: conversation.id,
-          channelConnectionId: channel.id,
-          messageId,
-          provider: channel.provider,
-          recipient: conversation.contactId,
-          message: command.message,
-        });
-      } catch (e) {
-        await this.messageRepository.markFailed(messageId);
-        throw new ProviderSendError(
-          channel.provider,
-          e instanceof Error ? e.message : "Unknown provider error",
-        );
-      }
-
-      if (!sendResult.providerMessageId) {
-        await this.messageRepository.markFailed(messageId);
-        throw new ProviderSendError(channel.provider, "Provider did not return a message id");
-      }
-
-      await this.messageRepository.markAccepted(messageId, sendResult.providerMessageId);
+      await this.messageRepository.markQueued(messageId);
+      await this.outboundJobPort.enqueue(job);
     });
 
     return {
@@ -107,8 +87,7 @@ export class SendMessageService {
       conversationId: conversation.id,
       channelConnectionId: channel.id,
       provider: channel.provider,
-      providerMessageId: sendResult!.providerMessageId,
-      status: "sent",
+      status: "queued",
     };
   }
 
