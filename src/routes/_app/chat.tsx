@@ -3735,8 +3735,9 @@ function ChatPage() {
           toast.error("Nenhum contato selecionado para envio de áudio.");
           return;
         }
+        const isInstagram = selectedContact?.channel === "instagram" || selectedPhone?.startsWith("ig_");
         const phoneId = profile?.whatsapp_phone_number_id;
-        if (!phoneId) {
+        if (!isInstagram && !phoneId) {
           toast.error("ID do número de telefone não configurado.");
           return;
         }
@@ -3746,24 +3747,24 @@ function ChatPage() {
 
         try {
           let res: any;
-          let isVoiceNote = false;
 
-          try {
-            res = await uploadMetaMediaViaApi(phoneId, file, "audio", { isVoice: true });
-            isVoiceNote = Boolean(res?.data?.is_voice);
-          } catch (voiceUploadErr) {
-            console.error("[VOICE ERROR] Falha no upload com isVoice, tentando fallback comum:", voiceUploadErr);
-            console.log("[VOICE FALLBACK] iniciando envio de áudio comum");
-            res = await uploadMetaMediaViaApi(phoneId, file, "audio");
-            isVoiceNote = false;
+          if (isInstagram) {
+            res = await uploadInstagramMediaViaApi(file, "audio");
+          } else {
+            let isVoiceNote = false;
+            try {
+              res = await uploadMetaMediaViaApi(phoneId!, file, "audio", { isVoice: true });
+              isVoiceNote = Boolean(res?.data?.is_voice);
+            } catch (voiceUploadErr) {
+              console.error("[VOICE ERROR] Falha no upload com isVoice, tentando fallback comum:", voiceUploadErr);
+              console.log("[VOICE FALLBACK] iniciando envio de áudio comum");
+              res = await uploadMetaMediaViaApi(phoneId!, file, "audio");
+              isVoiceNote = false;
+            }
           }
 
           if (!res.ok || (!res.data?.id && !res.data?.link)) {
             throw new Error(res.error || "Falha ao preparar o áudio.");
-          }
-
-          if (isVoiceNote) {
-            console.log("[VOICE] Enviando como voice note");
           }
 
           const mediaId = res.data.id;
@@ -3771,7 +3772,6 @@ function ChatPage() {
             type: "audio",
             audio: {
               ...(mediaId ? { id: mediaId } : { link: res.data.link }),
-              ...(isVoiceNote ? { voice: true } : {}),
             },
             local_media: res.data.local_media,
             reply_to_message_id: replyingTo?.wa_message_id || replyingTo?.id || undefined,
@@ -3779,9 +3779,6 @@ function ChatPage() {
 
           sendMutation.mutate(payload, {
             onSuccess: () => {
-              if (isVoiceNote) {
-                console.log("[VOICE] Voice note enviada");
-              }
               setReplyingTo(null);
               toast.success("Áudio enviado com sucesso!", { id: toastId });
             },

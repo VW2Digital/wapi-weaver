@@ -5,6 +5,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { resolveEffectiveUserId } from "@/lib/chat-helpers";
 import { JWT_SECRET } from "@/lib/jwt-secret";
+import { transcodeAudioToM4a } from "@/lib/audio-transcode.server";
 
 function getAuthUserId(request: Request): string {
   let token = "";
@@ -43,7 +44,7 @@ const MEDIA_RULES: Record<MediaType, { maxBytes: number; mimeTypes: Set<string> 
   },
   audio: {
     maxBytes: 25 * 1024 * 1024,
-    mimeTypes: new Set(["audio/aac", "audio/m4a", "audio/wav", "audio/mp4"]),
+    mimeTypes: new Set(["audio/aac", "audio/m4a", "audio/wav", "audio/mp4", "audio/webm", "audio/ogg", "audio/mpeg"]),
   },
   video: {
     maxBytes: 25 * 1024 * 1024,
@@ -153,7 +154,21 @@ export const Route = createFileRoute("/api/instagram/media-upload")({
             );
           }
 
-          const fileBuffer = Buffer.from(await file.arrayBuffer());
+          let fileBuffer = Buffer.from(await file.arrayBuffer());
+
+          if (mediaType === "audio" && (declaredMime === "audio/webm" || declaredMime.startsWith("audio/ogg"))) {
+            try {
+              fileBuffer = Buffer.from(await transcodeAudioToM4a(new Uint8Array(fileBuffer)));
+              declaredMime = "audio/mp4";
+            } catch (transcodeErr: any) {
+              console.error("[Instagram Media Upload] Falha ao transcodificar áudio:", transcodeErr);
+              return json(
+                { ok: false, error: "Falha ao converter o áudio gravado." },
+                500,
+              );
+            }
+          }
+
           if (file.size > rule.maxBytes) {
             const maxSizeLabel =
               rule.maxBytes >= 1024 * 1024

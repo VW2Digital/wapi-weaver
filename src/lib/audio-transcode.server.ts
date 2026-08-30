@@ -31,6 +31,68 @@ export function isOggOpus(bytes: Uint8Array): boolean {
   return false;
 }
 
+function isM4a(bytes: Uint8Array) {
+  if (bytes.length < 8) return false;
+  // ftyp box at offset 4
+  return (
+    bytes[4] === 0x66 &&
+    bytes[5] === 0x74 &&
+    bytes[6] === 0x79 &&
+    bytes[7] === 0x70
+  );
+}
+
+export async function transcodeAudioToM4a(bytes: Uint8Array): Promise<Uint8Array> {
+  const executable = ffmpegPath;
+  if (!executable) throw new Error("FFmpeg não está disponível para converter o áudio em M4A.");
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(executable, [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-i",
+      "pipe:0",
+      "-map",
+      "0:a:0",
+      "-vn",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "64k",
+      "-ar",
+      "44100",
+      "-ac",
+      "1",
+      "-f",
+      "mp4",
+      "pipe:1",
+    ]);
+    const output: Buffer[] = [];
+    const errors: Buffer[] = [];
+    child.stdout.on("data", (chunk: Buffer) => output.push(chunk));
+    child.stderr.on("data", (chunk: Buffer) => errors.push(chunk));
+    child.on("error", reject);
+    child.on("close", (code: number | null) => {
+      if (code !== 0) {
+        reject(
+          new Error(
+            `Falha ao converter áudio: ${Buffer.concat(errors).toString("utf8").trim()}`,
+          ),
+        );
+        return;
+      }
+      const converted = new Uint8Array(Buffer.concat(output));
+      if (!isM4a(converted)) {
+        reject(new Error("A conversão não produziu um arquivo M4A válido."));
+        return;
+      }
+      resolve(converted);
+    });
+    child.stdin.end(Buffer.from(bytes));
+  });
+}
+
 export async function transcodeAudioToOggOpus(bytes: Uint8Array): Promise<Uint8Array> {
   const executable = ffmpegPath;
   if (!executable) {
