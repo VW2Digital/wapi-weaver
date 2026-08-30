@@ -192,6 +192,20 @@ Identity semantics:
 - Recipient = `ig_scoped_id` / `IGSID` for Instagram; E.164 phone for WhatsApp.
 - Credentials are resolved only at the transport boundary.
 
+### Shadow Contract Validation (`tests/jest/omnichannel-next/parity/`)
+
+A read-only, zero-network parity harness compares the current frozen runtime outbound contract with the Omnichannel Next contract.
+
+- `contract-descriptor.ts` — `SafeOutboundContractDescriptor` with provenance.
+- `contract-normalizer.ts` — produces `current` and `next` descriptors.
+- `contract-diff.ts` — semantic diff with `MATCH | EXPECTED_ARCHITECTURAL_DIFFERENCE | API_VARIANT_DIFFERENCE | INTENTIONAL_IMPROVEMENT | MIGRATION_RISK`.
+- Tests prove no real credentials, no real network, and provider isolation.
+- Full report: `docs/architecture/OMNICHANNEL_NEXT_PARITY_REPORT.md`.
+
+Current findings:
+- **WhatsApp**: `INTENTIONAL_IMPROVEMENT` / `LOW` risk / `SHADOW_READY`.
+- **Instagram**: `API_VARIANT_DIFFERENCE` / `HIGH` risk / `BLOCKED` until variant selected.
+
 ## Freeze Compliance
 
 Protected runtime files are listed in `.omnichannel-freeze.json`. The guard
