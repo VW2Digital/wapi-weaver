@@ -3,6 +3,8 @@ import type { OutboundMessage } from "@/lib/omnichannel-next/domain/message-type
 export interface SendMessageCommand {
   tenantId: string;
   actorId?: string;
+  messageId?: string;
   conversationId: string;
+  recipient?: string;
   message: OutboundMessage;
 }

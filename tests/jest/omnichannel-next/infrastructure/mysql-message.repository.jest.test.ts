@@ -25,7 +25,7 @@ describe("MySQLMessageRepository", () => {
 
     await repo.createPending(makeRecord());
 
-    const query = sql.queries[0];
+    const query = sql.queries[1];
     expect(query.sql).toMatch(/INSERT INTO chat_message_outbox/);
     expect(query.params).toContain(MID);
     expect(query.params).toContain(TENANT);
@@ -116,7 +116,7 @@ describe("MySQLMessageRepository", () => {
 
     await repo.createPending(makeRecord());
 
-    const payload = sql.queries[0].params.find((p) => typeof p === "string" && p.includes("conversationId")) as string;
+    const payload = sql.queries[1].params.find((p) => typeof p === "string" && p.includes("conversationId")) as string;
     const json = JSON.parse(payload);
     expect(json).not.toHaveProperty("accessToken");
     expect(json).not.toHaveProperty("appSecret");

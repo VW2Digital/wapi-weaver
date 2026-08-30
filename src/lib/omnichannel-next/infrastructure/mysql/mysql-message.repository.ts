@@ -38,11 +38,24 @@ export class MySQLMessageRepository implements MessageRepositoryPort {
   async createPending(
     record: Omit<MessageRecord, "status">,
   ): Promise<MessageRecord> {
+    const existing = await this.sql.execute<{ id: string }>(
+      `SELECT id FROM chat_message_outbox WHERE message_id = ? AND tenant_id = ? LIMIT 1`,
+      [record.id, record.tenantId],
+    );
+
+    const existingId = existing[0]?.id;
+    if (existingId) {
+      const row = await this.getById(existingId);
+      if (row) return { ...row, status: "pending" };
+    }
+
     const payload = JSON.stringify({
       conversationId: record.conversationId,
       channelConnectionId: record.channelConnectionId,
       message: record.message,
     });
+
+    const id = record.id;
 
     await this.sql.execute(
       `INSERT INTO chat_message_outbox
@@ -50,7 +63,7 @@ export class MySQLMessageRepository implements MessageRepositoryPort {
         attempts, max_attempts, next_attempt_at, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())`,
       [
-        record.id,
+        id,
         record.tenantId,
         record.tenantId,
         record.id,
@@ -79,7 +92,8 @@ export class MySQLMessageRepository implements MessageRepositoryPort {
     const row = rows[0];
     if (!row) return null;
 
-    const payload = JSON.parse(row.payload) as {
+    const rawPayload = typeof row.payload === "string" ? row.payload : JSON.stringify(row.payload);
+    const payload = JSON.parse(rawPayload) as {
       conversationId: string;
       channelConnectionId: string;
       message: OutboundMessage;

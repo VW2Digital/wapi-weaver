@@ -56,7 +56,18 @@ export class SendMessageService {
       throw new ChannelUnavailableError();
     }
 
-    const messageId = randomUUID();
+    const directMessageId = command.messageId ?? randomUUID();
+
+    const record = await this.messageRepository.createPending({
+      id: directMessageId,
+      tenantId: command.tenantId,
+      conversationId: conversation.id,
+      channelConnectionId: channel.id,
+      provider: channel.provider,
+      message: command.message,
+    });
+
+    const messageId = record.id;
 
     const job = OutboundJobService.build({
       tenantId: command.tenantId,
@@ -64,26 +75,18 @@ export class SendMessageService {
       conversationId: conversation.id,
       channelConnectionId: channel.id,
       provider: channel.provider,
-      recipient: conversation.contactId,
+      recipient: command.recipient ?? conversation.contactId,
       message: command.message,
     });
 
     await this.transactionPort.run(async () => {
-      await this.messageRepository.createPending({
-        id: messageId,
-        tenantId: command.tenantId,
-        conversationId: conversation.id,
-        channelConnectionId: channel.id,
-        provider: channel.provider,
-        message: command.message,
-      });
-
       await this.messageRepository.markQueued(messageId);
       await this.outboundJobPort.enqueue(job);
     });
 
     return {
       messageId,
+      jobId: job.id,
       conversationId: conversation.id,
       channelConnectionId: channel.id,
       provider: channel.provider,

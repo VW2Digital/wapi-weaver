@@ -1,11 +1,10 @@
-import { randomUUID } from "node:crypto";
 import type { IOutboundAdapter, OutboundMessageContext, OutboundSendResult } from "@/lib/messaging/outbound/types";
 import { FetchHttpClient } from "@/lib/omnichannel-next/infrastructure/http/fetch-http-client";
 import { buildOmnichannelNextProductionContainer } from "@/lib/omnichannel-next/composition/omnichannel-next.production.container";
 import { RealMySqlExecutor } from "@/lib/messaging/bridges/real-mysql-executor";
-import { getBullMQWhatsAppQueue } from "@/lib/messaging/bridges/bullmq-whatsapp-queue";
+import { getBullMQWhatsAppQueue, waitForWhatsAppJob } from "@/lib/messaging/bridges/bullmq-whatsapp-queue";
 import { UnsupportedProviderError } from "@/lib/messaging/outbound/types";
-import type { OutboundJob } from "@/lib/omnichannel-next/application/outbox/outbound-job";
+import type { ProviderWorkerResult } from "@/lib/omnichannel-next/application/workers/provider-worker.types";
 
 function buildMessage(command: OutboundMessageContext) {
   const { payload, type } = command;
@@ -56,31 +55,21 @@ export class WhatsAppNextOutboundAdapter implements IOutboundAdapter {
 
     const result = await container.sendMessageService.execute({
       tenantId: context.tenantId,
+      actorId: context.userId,
+      messageId: context.messageId,
       conversationId,
+      recipient: context.contactPhone,
       message,
     });
 
-    const job: OutboundJob = {
-      id: randomUUID(),
-      tenantId: context.tenantId,
-      messageId: result.messageId,
-      conversationId: result.conversationId,
-      channelConnectionId: result.channelConnectionId,
-      provider: result.provider,
-      recipient: context.contactPhone,
-      message,
-      attempt: 0,
-      createdAt: new Date().toISOString(),
-    };
-
-    const workerResult = await container.whatsappWorker.process(job);
+    const jobResult = await waitForWhatsAppJob<ProviderWorkerResult>(result.jobId ?? "", 60_000);
 
     return {
       provider: "whatsapp",
-      providerMessageId: workerResult.providerMessageId ?? null,
+      providerMessageId: jobResult.providerMessageId ?? null,
       providerAccountId: context.providerAccountId ?? null,
-      status: workerResult.status as OutboundSendResult["status"],
-      responsePayload: { status: workerResult.status, jobId: workerResult.jobId },
+      status: jobResult.status as OutboundSendResult["status"],
+      responsePayload: { status: jobResult.status, jobId: jobResult.jobId },
     };
   }
 }
