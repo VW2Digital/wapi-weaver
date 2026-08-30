@@ -114,7 +114,7 @@ export async function findConversationByContactPhone(
      FROM chat_sessions cs
      JOIN contacts c ON c.id = cs.contact_id
      WHERE cs.tenant_id = ? AND c.phone_e164 = ?
-     ORDER BY cs.created_at DESC`,
+     ORDER BY cs.started_at DESC`,
     [tenantId, contactPhone],
   )) as any[];
 
