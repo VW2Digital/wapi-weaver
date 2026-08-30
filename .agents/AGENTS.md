@@ -134,6 +134,13 @@ Toda tarefa deve terminar com:
 Se qualquer uma dessas seções não puder ser preenchida com honestidade,
 isso é um sinal de que a tarefa não está realmente concluída.
 
+## 9. CONGELAMENTO DE ESCOPO DO INSTAGRAM
+
+- **O módulo de Instagram está CONGELADO em funcionalidade.** A base atual (mensagens de texto, imagem, áudio, vídeo, documento e sticker) atinge o objetivo do projeto e NÃO deve ser expandida.
+- NÃO adicione novos endpoints, colunas, tabelas, telas, canais, mídias, interações ou automações relacionadas ao Instagram sem aprovação explícita do usuário.
+- Correções de bugs no fluxo existente são permitidas, mas NÃO representam expansão de escopo.
+- Sempre que um pedido envolver Instagram, pare e confirme se trata-se de (a) correção de bug no escopo congelado ou (b) nova funcionalidade. No caso (b), avise que o escopo está congelado e peça autorização para prosseguir.
+
 ## 8. REGRA PERMANENTE DE PARIDADE E EVOLUÇÃO DO INSTALLER
 
 - **O `install.sh` DEVE ACOMPANHAR A EVOLUÇÃO DA APLICAÇÃO**: Toda nova tabela, coluna, índice, FK, migration, variável de ambiente ou dependência de infra DEVE ser integrada ao contrato do repositório (`canonical-schema.sql`, `required-tables.json`, `required-columns.json`, `database/migrations/`) e o `install.sh` DEVE ser auditado.
