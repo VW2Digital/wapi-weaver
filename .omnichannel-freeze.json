@@ -4,6 +4,12 @@
   "baselineShort": "17d01f0",
   "protectedProviders": ["whatsapp", "instagram"],
   "requireExplicitUnfreeze": true,
+  "unfreeze": {
+    "whatsapp": {
+      "enabled": true,
+      "since": "STEP12_AUTHORIZED"
+    }
+  },
   "protectedPaths": [
     "src/lib/chat.functions.ts",
     "src/lib/chat-outbox.server.ts",

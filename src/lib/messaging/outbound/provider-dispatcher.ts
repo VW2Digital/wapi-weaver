@@ -1,11 +1,11 @@
 import type { IOutboundAdapter, OutboundMessageContext, OutboundSendResult } from "./types";
 import { providerRegistry } from "./provider-registry";
 import { UnsupportedProviderError } from "./types";
-import { WhatsAppOutboundAdapter } from "./adapters/whatsapp.outbound-adapter";
+import { WhatsAppRuntimeAdapter } from "./adapters/whatsapp-runtime-adapter";
 import { InstagramOutboundAdapter } from "./adapters/instagram.outbound-adapter";
 import { MessengerOutboundAdapter } from "./adapters/messenger.outbound-adapter";
 
-providerRegistry.register(new WhatsAppOutboundAdapter());
+providerRegistry.register(new WhatsAppRuntimeAdapter());
 providerRegistry.register(new InstagramOutboundAdapter());
 providerRegistry.register(new MessengerOutboundAdapter());
 
