@@ -64,6 +64,8 @@ export async function transcodeAudioToM4a(bytes: Uint8Array): Promise<Uint8Array
       "44100",
       "-ac",
       "1",
+      "-movflags",
+      "frag_keyframe+empty_moov+default_base_moof",
       "-f",
       "mp4",
       "pipe:1",
