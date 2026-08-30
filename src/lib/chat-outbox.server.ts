@@ -310,7 +310,7 @@ async function dispatchInstagram(job: ChatOutboxRow): Promise<DispatchResult> {
     recipientId: job.provider_recipient_id,
     data,
     replyToMessageId: data.reply_to_message_id,
-    useHumanAgentTag: true,
+    useHumanAgentTag: false,
   });
   if (!result.ok) {
     throw new DispatchError(result.error || "Falha ao enviar DM no Instagram.", true, result.body);
