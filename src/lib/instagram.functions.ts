@@ -86,12 +86,13 @@ export async function sendInstagramMessage(
       message_id: params.data.reaction?.message_id || "",
       reaction: params.data.reaction?.emoji || "",
     };
-  } else if (["image", "audio", "video", "document"].includes(params.data.type)) {
+  } else if (["image", "audio", "video", "document", "sticker"].includes(params.data.type)) {
     const media = params.data[params.data.type as keyof typeof params.data] as
       | { id?: string; link?: string }
       | undefined;
     let attachmentType = params.data.type;
     if (attachmentType === "document") attachmentType = "file";
+    if (attachmentType === "sticker") attachmentType = "image";
     const attachmentId = media?.id || "";
     const mediaUrl = media?.link || "";
 
