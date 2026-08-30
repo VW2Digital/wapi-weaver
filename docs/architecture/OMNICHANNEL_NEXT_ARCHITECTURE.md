@@ -206,6 +206,19 @@ Current findings:
 - **WhatsApp**: `INTENTIONAL_IMPROVEMENT` / `LOW` risk / `SHADOW_READY`.
 - **Instagram**: `API_VARIANT_DIFFERENCE` / `HIGH` risk / `BLOCKED` until variant selected.
 
+### Read-Only Configuration Resolution (`src/lib/omnichannel-next/infrastructure/mysql/read-model/`)
+
+Real database tables are read through a `ReadOnlySqlExecutor` that rejects any non-SELECT statement.
+
+- `MySQLWhatsAppChannelConfigReadRepository` resolves `phoneNumberId` and a `CredentialReference` from `channel_connections`.
+- `MySQLInstagramChannelConfigReadRepository` discovers identities (`externalAccountId`, optional `pageId`/`igUserId` from `metadata`) without selecting a sender node.
+- `MySQLMetaAppReadRepository` reads Meta App metadata without exposing `app_secret_encrypted` or `webhook_verify_token_encrypted`.
+- `MySQLCredentialRecordReadRepository` confirms ciphertext presence for a `CredentialReference` without decryption.
+- `channel-readiness.ts` produces `CONFIG_READY` for WhatsApp and `BLOCKED_API_VARIANT` for Instagram.
+
+No decryption, no real network, no queue, no worker start.
+Full report: `docs/architecture/OMNICHANNEL_NEXT_CONFIG_READINESS.md`.
+
 ## Freeze Compliance
 
 Protected runtime files are listed in `.omnichannel-freeze.json`. The guard
