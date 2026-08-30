@@ -533,24 +533,18 @@ export const getChatMessages = createServerFn({ method: "POST" })
 
     // O chat não precisa trazer anos de mensagens para abrir uma única
     // conversa. O limite evita que uma tabela grande deixe a interface em
-    // carregamento indefinido
-    const baseMessagesQuery = `SELECT * FROM (
-       SELECT id, direction, created_at, body, status
+    // carregamento indefinido. Inverte no JS para evitar estourar o sort_buffer.
+    const baseMessagesQuery = `SELECT id, direction, created_at, body, status
        FROM direct_messages
        WHERE (user_id = ? OR tenant_id = ?) AND contact_phone = ?
        ORDER BY created_at DESC
-       LIMIT 500
-     ) AS recent_messages
-     ORDER BY created_at ASC`;
-    const richMessagesQuery = `SELECT * FROM (
-       SELECT id, wa_message_id, provider_message_id, direction, created_at, type, body, status,
+       LIMIT 500`;
+    const richMessagesQuery = `SELECT id, wa_message_id, provider_message_id, direction, created_at, type, body, status,
               reply_to_message_id, metadata, raw_payload, channel, sender_name, sender_wa_id
        FROM direct_messages
        WHERE (user_id = ? OR tenant_id = ?) AND contact_phone = ?
        ORDER BY created_at DESC
-       LIMIT 500
-     ) AS recent_messages
-     ORDER BY created_at ASC`;
+       LIMIT 500`;
 
     let messages: unknown[];
     try {
