@@ -2,6 +2,7 @@
 
 import { createHmac, timingSafeEqual } from "crypto";
 import { instagramAdapter } from "@/lib/messaging/adapters/instagram.adapter";
+import type { CanonicalIdentity } from "@/lib/messaging/types";
 import { resolveInstagramTenant } from "@/lib/messaging/services/tenant-resolution.service";
 import { getInstagramChannelConfig } from "@/lib/messaging/services/channel.service";
 import { fetchInstagramUserProfile } from "@/lib/instagram.functions";
