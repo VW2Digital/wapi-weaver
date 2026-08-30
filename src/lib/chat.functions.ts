@@ -539,16 +539,26 @@ export const getChatMessages = createServerFn({ method: "POST" })
        WHERE (user_id = ? OR tenant_id = ?) AND contact_phone = ?
        ORDER BY created_at DESC
        LIMIT 500`;
-    const richMessagesQuery = `SELECT id, wa_message_id, provider_message_id, direction, created_at, type, body, status,
-              reply_to_message_id, metadata, raw_payload, channel, sender_name, sender_wa_id
-       FROM direct_messages
-       WHERE (user_id = ? OR tenant_id = ?) AND contact_phone = ?
+    const richMessagesQuery = `
+       (SELECT id, wa_message_id, provider_message_id, direction, created_at, type, body, status,
+               reply_to_message_id, metadata, raw_payload, channel, sender_name, sender_wa_id
+        FROM direct_messages
+        WHERE user_id = ? AND contact_phone = ?
+        ORDER BY created_at DESC
+        LIMIT 500)
+       UNION ALL
+       (SELECT id, wa_message_id, provider_message_id, direction, created_at, type, body, status,
+               reply_to_message_id, metadata, raw_payload, channel, sender_name, sender_wa_id
+        FROM direct_messages
+        WHERE tenant_id = ? AND contact_phone = ?
+        ORDER BY created_at DESC
+        LIMIT 500)
        ORDER BY created_at DESC
        LIMIT 500`;
 
     let messages: unknown[];
     try {
-      messages = (await db.query(richMessagesQuery, [effectiveUserId, effectiveUserId, phone])) as unknown[];
+      messages = (await db.query(richMessagesQuery, [effectiveUserId, phone, effectiveUserId, phone])) as unknown[];
       console.log("[MESSAGES] Query rich executada com sucesso:", { messageCount: messages?.length });
     } catch (error) {
       console.warn(
