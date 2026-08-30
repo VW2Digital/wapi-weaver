@@ -165,3 +165,58 @@ A rota pública está acessível via HTTPS e rejeita tokens/HMAC inválidos. O t
 - Prefere que eu gere um comando seguro para copiar o `Verify Token` de produção sem exibi-lo?
 - Há domínio/HTTPS adicional a ser validado (por exemplo, `app.blivcrm.com`)?
 - Deseja ativar um worker separado ou o worker dentro do container app é suficiente?
+
+---
+
+## P0 — OMNICHANNEL REGRESSION REPORT
+
+### CHANGE
+- Provider requested: Instagram + WhatsApp outbound golden path.
+- Files changed:
+  - `database/migrations/053_revert_instagram_external_account_id.sql`
+  - `src/lib/messaging/webhook-handlers/instagram.handler.ts`
+- Shared core changed: NO (only Instagram channel resolution and DB value).
+
+### ROOT CAUSE
+- Migration 052 set `channel_connections.external_account_id` for Instagram to the `instagram_business_account_id`.
+- Meta's Instagram Graph API accepts `POST /{page_id}/messages` but rejects `POST /{instagram_business_account_id}/messages` with error `(#3) Application does not have the capability to make this API call`.
+- Migration 053 reverts the value to the `page_id` stored in `instagram_accounts.page_id`.
+- Inbound resolution was updated to find the `channel_connection` by `page_id` (`resolution.resolved!.channelResourceId`) while the event's `channelResourceId` keeps the webhook entry id.
+
+### BUILD / TYPECHECK
+- `npm run build`: PASS
+- `npm run type-check`: PASS
+
+### JEST GOLDEN PATH
+- `npx jest tests/jest/omnichannel-golden-path.jest.test.ts --runInBand`
+- 8 passed, 0 failed
+
+### WHATSAPP
+- Outbound text: PASS (mock)
+- Token decrypted before Meta call: PASS
+- Channel isolation: PASS
+
+### INSTAGRAM
+- Outbound text: PASS (mock)
+- Token decrypted before Meta call: PASS
+- Channel isolation: PASS
+- Send node is now `page_id` (verified by migration + code path): PASS
+
+### SEQUENTIAL TEST
+- WA → IG → WA: PASS
+- IG → WA → IG: PASS
+- Parallel `Promise.all([WA, IG])`: PASS
+
+### FAILURE ISOLATION
+- WhatsApp failure does not block Instagram: PASS
+- Instagram failure does not block WhatsApp: PASS
+
+### MIGRATION
+- `053_revert_instagram_external_account_id.sql` applied successfully to local MySQL.
+
+### REAL DEPLOY
+- Not executed in this session; requires Meta callback verification and real tokens.
+
+### OMNICHANNEL REGRESSION: PASS
+### READY: YES (code and migration verified; real deploy pending operator)
+
