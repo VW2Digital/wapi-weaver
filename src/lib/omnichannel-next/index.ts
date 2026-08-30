@@ -38,3 +38,10 @@ export { WhatsAppProvider } from "./providers/whatsapp";
 export { InstagramProvider } from "./providers/instagram";
 export type { WhatsAppChannelConfigPort, WhatsAppTransportPort } from "./providers/whatsapp";
 export type { InstagramChannelConfigPort, InstagramTransportPort } from "./providers/instagram";
+
+export {
+  createOmnichannelNext,
+  createWhatsappWorker,
+  createInstagramWorker,
+} from "./composition";
+export type { OmnichannelNextConfig, OmnichannelNextContainer, WorkerRuntime } from "./composition";

@@ -114,6 +114,40 @@ src/lib/omnichannel-next/**
 - New architecture uses in-memory fakes for tests.
 - `OutboundJob` carries only domain intent: no access tokens, no Meta payloads.
 - `ProviderQueueRouter` has no `default` to any provider; unknown providers fail closed.
+### Composition (`src/lib/omnichannel-next/composition/`)
+
+- `create-omnichannel-next.ts` — `createOmnichannelNext(config)` factory
+- `create-whatsapp-worker.ts` / `create-instagram-worker.ts` — explicit worker bootstrap factories
+- `worker-runtime.ts` — `WorkerRuntime` lifecycle contract
+- `omnichannel-next.config.ts` — typed dependency configuration
+- `omnichannel-next.container.ts` — `OmnichannelNextContainer` interface
+- `noop-transaction.ts` — no-op `TransactionPort` implementation for isolated tests
+
+```text
+                     Composition Root
+                           │
+            ┌──────────────┼──────────────┐
+            ↓              ↓              ↓
+       Application      Providers     Infrastructure
+                            │
+                    ┌───────┴───────┐
+                    ↓               ↓
+               WhatsApp Next   Instagram Next
+                    ↓               ↓
+            WhatsApp Worker    Instagram Worker
+```
+
+### Startup Policy
+
+```text
+IMPORT != START
+CREATE != START
+START MUST BE EXPLICIT
+```
+
+The composition root is implemented but not wired to the current runtime.
+No worker is started in production.
+
 - `ProviderWorker` refuses to process a job whose `provider` does not match its own.
 - `queued ≠ processing ≠ accepted ≠ delivered`. Accepted only means the provider accepted the request; delivery/read are separate future events.
 - Idempotency is enforced by the worker using `MessageRepositoryPort.getById` and `accepted` status.
@@ -121,6 +155,9 @@ src/lib/omnichannel-next/**
 - MySQL adapters receive a `SqlExecutor` by constructor; no global connection or pool.
 - BullMQ adapters receive a `Queue` by constructor; no Redis connection on module import.
 - All SQL uses parameters; no runtime mutation; no real DB or Redis needed for unit tests.
+- `Composition` is the only layer that can wire `Application`, `Infrastructure` and `Providers`.
+- `IMPORT != START`, `CREATE != START`, `START` must be explicit.
+- Worker runtimes are isolated per provider and are never started on import.
 
 ## Freeze Compliance
 

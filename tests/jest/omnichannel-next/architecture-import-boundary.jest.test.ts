@@ -19,6 +19,34 @@ function getTsFiles(dir: string): string[] {
   return files;
 }
 
+function assertNoImport(
+  files: string[],
+  pattern: RegExp,
+  message: string,
+): void {
+  const violations: { file: string; line: number; text: string }[] = [];
+  for (const file of files) {
+    const content = fs.readFileSync(file, "utf8");
+    const lines = content.split("\n");
+    lines.forEach((line, index) => {
+      if (pattern.test(line)) {
+        violations.push({
+          file: path.relative(process.cwd(), file),
+          line: index + 1,
+          text: line.trim(),
+        });
+      }
+    });
+  }
+
+  if (violations.length > 0) {
+    const details = violations
+      .map((v) => `${v.file}:${v.line} → ${v.text}`)
+      .join("\n");
+    throw new Error(`${message}:\n${details}`);
+  }
+}
+
 function getTsFilesExcept(dir: string, except: string): string[] {
   const files: string[] = [];
   const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -203,6 +231,38 @@ describe("omnichannel-next architecture import boundary", () => {
       throw new Error(`Domain imported infrastructure:\n${details}`);
     }
 
+    expect(files.length).toBeGreaterThan(0);
+  });
+
+  test("domain does not import composition", () => {
+    const root = path.join(process.cwd(), "src/lib/omnichannel-next/domain");
+    const files = getTsFiles(root);
+    const pattern = /from\s+['"]@\/lib\/omnichannel-next\/composition/;
+    assertNoImport(files, pattern, "Domain imported composition");
+    expect(files.length).toBeGreaterThan(0);
+  });
+
+  test("application does not import composition", () => {
+    const root = path.join(process.cwd(), "src/lib/omnichannel-next/application");
+    const files = getTsFiles(root);
+    const pattern = /from\s+['"]@\/lib\/omnichannel-next\/composition/;
+    assertNoImport(files, pattern, "Application imported composition");
+    expect(files.length).toBeGreaterThan(0);
+  });
+
+  test("providers do not import composition", () => {
+    const root = path.join(process.cwd(), "src/lib/omnichannel-next/providers");
+    const files = getTsFiles(root);
+    const pattern = /from\s+['"]@\/lib\/omnichannel-next\/composition/;
+    assertNoImport(files, pattern, "Providers imported composition");
+    expect(files.length).toBeGreaterThan(0);
+  });
+
+  test("infrastructure does not import composition", () => {
+    const root = path.join(process.cwd(), "src/lib/omnichannel-next/infrastructure");
+    const files = getTsFiles(root);
+    const pattern = /from\s+['"]@\/lib\/omnichannel-next\/composition/;
+    assertNoImport(files, pattern, "Infrastructure imported composition");
     expect(files.length).toBeGreaterThan(0);
   });
 });
