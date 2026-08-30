@@ -465,3 +465,32 @@ Nunca usar esse valor diretamente como Bearer token. Sempre resolver via
 `resolveChannelAccessToken()` em `src/lib/messaging/channel-connection.service.ts`.
 Caminhos legacy que colocam texto plano no mesmo campo continuam suportados pela
 detecção de formato — não "consertar" isso removendo a decriptação.
+
+---
+
+## 21. STABLE BASELINE MODE
+
+Omnichannel está congelado no baseline funcional registrado em
+`.omnichannel-freeze.json`.
+
+Regras durante o freeze:
+
+- baseline funcional = protegido;
+- nenhum fix especulativo em providers;
+- nenhuma refatoração oportunística;
+- nenhuma alteração de identificadores de provider;
+- nenhuma migration que mude identidade de provider;
+- Golden Path é obrigatório;
+- `UNFREEZE` explícito é necessário.
+
+Para verificar se uma alteração é permitida, rodar:
+
+```bash
+npm run guard:omnichannel
+```
+
+Só libera alteração em provider/core com uma das instruções:
+
+- `UNFREEZE WHATSAPP`
+- `UNFREEZE INSTAGRAM`
+- `UNFREEZE OMNICHANNEL CORE`

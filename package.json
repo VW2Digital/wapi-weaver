@@ -22,6 +22,7 @@
     "format": "prettier --write .",
     "type-check": "tsc --noEmit",
     "test": "jest",
+    "guard:omnichannel": "node scripts/check-omnichannel-freeze.mjs",
     "test:subscription-trial": "node --import tsx/esm scripts/test-subscription-trial-smoke.js",
     "test:license-admin": "node scripts/test-license-admin-smoke.js",
     "test:billing": "node --env-file=.env --import tsx/esm scripts/test-billing-payment-flow.mjs",

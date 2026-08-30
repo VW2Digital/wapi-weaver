@@ -240,3 +240,30 @@ Regras:
 - **NUNCA HARDCODAR QUANTIDADE DE TABELAS**: A validação lê dinamicamente a contagem do manifesto `database/schema/required-tables.json`.
 - **SEMPRE AUDITAR IMPACTO DE DEPLOY**: Ao criar qualquer funcionalidade nova, verificar se há impacto em banco, env, serviços ou dependências. Se houver, atualizar manifests e installer. Se não houver, registrar explicitamente `INSTALL.SH REVIEWED — NO CHANGE REQUIRED`.
 
+---
+
+# OMNICHANNEL FREEZE — MANDATORY
+
+WhatsApp and Instagram are currently a protected stable baseline.
+
+Do not modify their runtime behavior unless the user explicitly authorizes an
+`OMNICHANNEL UNFREEZE`.
+
+A feature request is **not** authorization to modify provider routing,
+credentials, webhook handlers, adapters or shared golden-path code.
+
+Explicit unfreeze phrases required:
+
+- `UNFREEZE WHATSAPP`
+- `UNFREEZE INSTAGRAM`
+- `UNFREEZE OMNICHANNEL CORE`
+
+Protected surface is listed in `.omnichannel-freeze.json` and enforced by:
+
+```bash
+npm run guard:omnichannel
+```
+
+Before any messaging change, the agent must run the guard and confirm
+`OMNICHANNEL FREEZE: PASS`.
+
