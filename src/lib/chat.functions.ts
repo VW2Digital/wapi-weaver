@@ -673,7 +673,7 @@ export const getChatMessages = createServerFn({ method: "POST" })
     }
 
     const formattedMessages = typedMessages.map((row: any) => {
-      const storedMeta = asJsonRecord(row.metadata);
+      const storedMeta = asJsonRecord(parseJsonField(row.metadata));
       const stepId = getStringValue(storedMeta?.step_id);
       const botStep =
         (stepId ? botStepsById.get(stepId) : null) ||
@@ -695,7 +695,7 @@ export const getChatMessages = createServerFn({ method: "POST" })
               message_build: rebuiltBuildMeta,
             }
           : storedMeta;
-      const rawPayload = asJsonRecord(row.raw_payload);
+      const rawPayload = asJsonRecord(parseJsonField(row.raw_payload));
       const metaMessage = asJsonRecord(meta?.message);
       const rawMessages = asJsonRecordArray(rawPayload?.messages);
       const rawMessage =
