@@ -35,7 +35,7 @@ import {
   toggleBotActive,
 } from "@/lib/chat-actions.functions";
 import { listFunnels, listAllUserStages, createOpportunity, createActivity, bulkAssignToKanban, createNote } from "@/lib/crm.functions";
-import { uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
+import { uploadMetaMediaViaApi, uploadInstagramMediaViaApi } from "@/lib/meta-media-upload";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -3847,8 +3847,9 @@ function ChatPage() {
       return;
     }
 
+    const isInstagram = selectedContact?.channel === "instagram" || selectedPhone?.startsWith("ig_");
     const phoneId = profile?.whatsapp_phone_number_id;
-    if (!phoneId) {
+    if (!isInstagram && !phoneId) {
       toast.error("ID do número de telefone não configurado. Vá em Configurações.");
       return;
     }
@@ -3857,20 +3858,31 @@ function ChatPage() {
     const toastId = toast.loading(`Enviando ${pendingMediaType} para a Meta...`);
 
     try {
-      const res = await uploadMetaMediaViaApi(phoneId, file, pendingMediaType);
+      let res: any;
+      let isInstagramMedia = false;
+
+      if (isInstagram) {
+        isInstagramMedia = true;
+        res = await uploadInstagramMediaViaApi(file, pendingMediaType);
+      } else {
+        res = await uploadMetaMediaViaApi(phoneId!, file, pendingMediaType);
+      }
 
       if (!res.ok || (!res.data?.id && !res.data?.link)) {
         throw new Error(res.error || "Falha ao preparar a mídia.");
       }
 
       const mediaId = res.data.id;
+      const mediaLink = res.data.link;
 
       const payload: SendMessagePayload =
         pendingMediaType === "document"
           ? {
               to: selectedPhone,
               type: "document",
-              document: { id: mediaId, filename: file.name },
+              document: isInstagramMedia
+                ? { link: mediaLink, filename: file.name }
+                : { id: mediaId, filename: file.name },
               local_media: res.data.local_media,
               reply_to_message_id: replyingTo?.wa_message_id || replyingTo?.id || undefined,
             }
@@ -3878,7 +3890,7 @@ function ChatPage() {
             ? {
                 to: selectedPhone,
                 type: "image",
-                image: { id: mediaId },
+                image: isInstagramMedia ? { link: mediaLink } : { id: mediaId },
                 local_media: res.data.local_media,
                 reply_to_message_id: replyingTo?.wa_message_id || replyingTo?.id || undefined,
               }
@@ -3886,7 +3898,11 @@ function ChatPage() {
               ? {
                   to: selectedPhone,
                   type: "audio",
-                  audio: mediaId ? { id: mediaId } : { link: res.data.link },
+                  audio: isInstagramMedia
+                    ? { link: mediaLink }
+                    : mediaId
+                      ? { id: mediaId }
+                      : { link: res.data.link },
                   local_media: res.data.local_media,
                   reply_to_message_id: replyingTo?.wa_message_id || replyingTo?.id || undefined,
                 }
@@ -3894,14 +3910,14 @@ function ChatPage() {
                 ? {
                     to: selectedPhone,
                     type: "video",
-                    video: { id: mediaId },
+                    video: isInstagramMedia ? { link: mediaLink } : { id: mediaId },
                     local_media: res.data.local_media,
                     reply_to_message_id: replyingTo?.wa_message_id || replyingTo?.id || undefined,
                   }
                 : {
                     to: selectedPhone,
                     type: "sticker",
-                    sticker: { id: mediaId },
+                    sticker: isInstagramMedia ? { link: mediaLink } : { id: mediaId },
                     local_media: res.data.local_media,
                     reply_to_message_id: replyingTo?.wa_message_id || replyingTo?.id || undefined,
                   };
