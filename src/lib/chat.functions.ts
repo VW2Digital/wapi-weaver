@@ -905,10 +905,10 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
 
     if (isInstagram) {
       const igAccounts = (await db.query(
-        `SELECT instagram_business_account_id as ig_user_id, access_token
+        `SELECT ig_user_id, instagram_business_account_id, page_id, access_token
          FROM instagram_accounts
          WHERE (user_id = ? OR tenant_id = ?) AND is_active = 1
-         ORDER BY (user_id = ?) DESC
+         ORDER BY (user_id = ?) DESC, created_at DESC
          LIMIT 1`,
         [effectiveUserId, effectiveUserId, effectiveUserId],
       )) as InstagramAccountRow[];
