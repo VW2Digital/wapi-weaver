@@ -97,7 +97,9 @@ async function persistLocalMedia({
   await fs.promises.mkdir(directory, { recursive: true });
   await fs.promises.writeFile(path.join(directory, fileName), buffer);
 
-  const url = `/api/storage/file?path=${encodeURIComponent(relativePath)}`;
+  const relativeUrl = `/api/storage/file?path=${encodeURIComponent(relativePath)}`;
+  const baseUrl = (process.env.APP_URL || "").replace(/\/$/, "");
+  const url = baseUrl ? `${baseUrl}${relativeUrl}` : relativeUrl;
 
   return {
     path: relativePath,
