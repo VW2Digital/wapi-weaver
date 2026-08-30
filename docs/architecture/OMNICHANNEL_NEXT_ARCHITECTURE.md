@@ -233,6 +233,18 @@ Real encrypted WhatsApp channel access tokens are decrypted only at the last bou
 
 Full report: `docs/architecture/OMNICHANNEL_NEXT_CREDENTIAL_SECURITY.md`.
 
+### Real WhatsApp Dry-Run Validation (`src/lib/omnichannel-next/infrastructure/validation/`)
+
+With explicit authorization, the Next architecture can validate a real WhatsApp channel and real encrypted credential without sending any network request.
+
+- `NoNetworkCaptureHttpClient` — captures the real request, redacts `Authorization` to `Bearer [REDACTED]`, validates `graph.facebook.com` endpoint, and never opens a socket.
+- `WhatsAppRealDryRun` — orchestrates real channel resolution, real credential resolution, real decryption with the existing master key, and real request build, ending at the no-network client.
+- `scripts/validation/omnichannel-next-whatsapp-dry-run.ts` — manual entrypoint only; not auto-executed, no route, no worker, no cron.
+- Requires explicit `--tenant <id> --channel <id>` and `META_CREDENTIALS_ENCRYPTION_KEY`.
+- `0` real HTTP requests, `0` real Meta messages, `0` DB writes.
+
+Full report: `docs/architecture/OMNICHANNEL_NEXT_WHATSAPP_DRY_RUN.md`.
+
 ## Freeze Compliance
 
 Protected runtime files are listed in `.omnichannel-freeze.json`. The guard
