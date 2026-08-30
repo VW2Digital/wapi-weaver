@@ -105,6 +105,35 @@ async function resolveLegacyConversationChannel(session: any, tenantId: string):
   };
 }
 
+export async function findConversationByContactPhone(
+  tenantId: string,
+  contactPhone: string,
+): Promise<{ id: string; channelConnectionId: string | null } | null> {
+  const sessions = (await db.query(
+    `SELECT cs.id, cs.channel_connection_id
+     FROM chat_sessions cs
+     JOIN contacts c ON c.id = cs.contact_id
+     WHERE cs.tenant_id = ? AND c.phone_e164 = ?
+     ORDER BY cs.created_at DESC`,
+    [tenantId, contactPhone],
+  )) as any[];
+
+  if (sessions.length === 0) return null;
+  if (sessions.length === 1) {
+    return { id: sessions[0].id, channelConnectionId: sessions[0].channel_connection_id };
+  }
+
+  const withChannel = sessions.find((s: any) => s.channel_connection_id);
+  if (withChannel) {
+    return { id: withChannel.id, channelConnectionId: withChannel.channel_connection_id };
+  }
+
+  throw new ConversationChannelError(
+    "AMBIGUOUS_CONVERSATION",
+    "Múltiplas conversas para este contato. Envie conversation_id ou channel_connection_id explicitamente.",
+  );
+}
+
 export async function persistConversationChannel(
   conversationId: string,
   channelConnectionId: string,

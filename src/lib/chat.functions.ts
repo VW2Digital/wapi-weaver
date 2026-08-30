@@ -8,7 +8,7 @@ import { enqueueChatOutboxMessage } from "@/lib/chat-outbox.server";
 import { publishChatRealtimeEvent } from "@/lib/chat-realtime.server";
 import { resolveSharedContactsData } from "@/lib/chat-message-content";
 import { getChannelConnection, requireActiveChannel, type ChannelConnection } from "@/lib/messaging/channel-connection.service";
-import { resolveConversationChannel } from "@/lib/messaging/conversation-channel.service";
+import { resolveConversationChannel, findConversationByContactPhone } from "@/lib/messaging/conversation-channel.service";
 import db from "./db";
 
 type JsonValue = string | number | boolean | null | undefined | JsonRecord | JsonValue[];
@@ -905,6 +905,8 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
 
     let messageChannel: "whatsapp" | "instagram" | "messenger" = isInstagram ? "instagram" : isMessenger ? "messenger" : "whatsapp";
     let resolvedChannel: ChannelConnection | null = null;
+    let resolvedConversationId: string | null = data.conversation_id || null;
+    let resolvedChannelConnectionId: string | null = data.channel_connection_id || null;
     let providerRecipientId: string | null = null;
     let providerAccountId: string | null = null;
 
@@ -918,6 +920,15 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
         resolvedChannel = await getChannelConnection(resolved.channelConnectionId, effectiveUserId);
         await requireActiveChannel(resolvedChannel);
         messageChannel = resolvedChannel.provider;
+      } else {
+        const found = await findConversationByContactPhone(effectiveUserId, digits);
+        if (found && found.channelConnectionId) {
+          resolvedConversationId = found.id;
+          resolvedChannelConnectionId = found.channelConnectionId;
+          resolvedChannel = await getChannelConnection(found.channelConnectionId, effectiveUserId);
+          await requireActiveChannel(resolvedChannel);
+          messageChannel = resolvedChannel.provider;
+        }
       }
     } catch (e: any) {
       return { ok: false, error: e?.message || "Falha ao resolver canal de envio." };
@@ -1086,8 +1097,8 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       clientMessageId: data.client_message_id || crypto.randomUUID(),
       contactPhone: digits,
       channel: messageChannel,
-      channelConnectionId: resolvedChannel?.id,
-      conversationId: data.conversation_id || null,
+      channelConnectionId: resolvedChannelConnectionId,
+      conversationId: resolvedConversationId,
       providerRecipientId,
       providerAccountId,
       type: data.type,
