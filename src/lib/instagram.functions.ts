@@ -30,20 +30,11 @@ export interface InstagramSendResult {
   retries?: number;
 }
 
+import { buildInstagramGraphUrl } from "@/lib/messaging/outbound/adapters/instagram.api";
+export { buildInstagramGraphUrl } from "@/lib/messaging/outbound/adapters/instagram.api";
+
 const MAX_RETRIES = 3;
 const BASE_DELAY = 1000;
-
-export function buildInstagramGraphUrl(
-  nodeId: string,
-  path = "",
-  configuredVersion = process.env.META_GRAPH_VERSION || "v26.0",
-) {
-  const apiVersion = configuredVersion.startsWith("v")
-    ? configuredVersion
-    : `v${configuredVersion}`;
-  const suffix = path ? `/${path.replace(/^\/+/, "")}` : "";
-  return `https://graph.facebook.com/${apiVersion}/${encodeURIComponent(nodeId)}${suffix}`;
-}
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));

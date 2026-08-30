@@ -1,30 +1,47 @@
+"use server";
+
+import db from "@/lib/db";
 import type { IOutboundAdapter, OutboundMessageContext, OutboundSendResult } from "../types";
-import { dispatchInstagram } from "@/lib/chat-outbox.server";
+import { buildInstagramOutboundPayload } from "./instagram.payload-builder";
+import { InstagramClient } from "./instagram.api";
 
 export class InstagramOutboundAdapter implements IOutboundAdapter {
   readonly provider = "instagram" as const;
 
   async send(context: OutboundMessageContext): Promise<OutboundSendResult> {
-    const result = await dispatchInstagram({
-      id: context.messageId,
-      tenant_id: context.tenantId,
-      user_id: context.userId,
-      message_id: context.messageId,
-      channel: this.provider,
-      recipient: context.contactPhone,
-      provider_recipient_id: context.providerRecipientId ?? null,
-      provider_account_id: context.providerAccountId ?? null,
-      payload: context.payload,
-      attempts: 0,
-      max_attempts: 3,
-    } as any);
+    if (context.provider !== this.provider) {
+      throw new Error(`InstagramOutboundAdapter cannot send for provider: ${context.provider}`);
+    }
+
+    const accounts = (await db.query(
+      `SELECT ig_user_id, access_token
+       FROM instagram_accounts WHERE user_id = ? AND is_active = 1 LIMIT 1`,
+      [context.userId],
+    )) as Array<{ ig_user_id: string; access_token: string }>;
+
+    const account = accounts[0];
+    if (!account || !context.providerRecipientId) {
+      throw new Error("Conta ou destinatário do Instagram indisponível.");
+    }
+
+    const payload = buildInstagramOutboundPayload(context.providerRecipientId, context.payload as any, {
+      replyToMessageId: context.payload.reply_to_message_id,
+      useHumanAgentTag: false,
+    });
+
+    const client = new InstagramClient({
+      igUserId: account.ig_user_id,
+      accessToken: account.access_token,
+    });
+
+    const result = await client.send({ payload });
 
     return {
       provider: this.provider,
       providerMessageId: result.providerMessageId,
-      providerAccountId: result.providerAccountId,
+      providerAccountId: account.ig_user_id,
       status: "sent",
-      responsePayload: result.responsePayload,
+      responsePayload: result.body,
     };
   }
 }

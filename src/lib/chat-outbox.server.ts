@@ -3,7 +3,6 @@
 import { randomUUID } from "node:crypto";
 import db from "./db";
 import { normalizeWaMessageId } from "./wa-message-id";
-import { sendInstagramMessage } from "./instagram.functions";
 import { publishChatRealtimeEvent } from "./chat-realtime.server";
 import { providerDispatcher } from "@/lib/messaging/outbound/provider-dispatcher";
 
@@ -175,35 +174,7 @@ function networkDispatchError(error: unknown): DispatchError {
 
 
 
-export async function dispatchInstagram(job: ChatOutboxRow): Promise<DispatchResult> {
-  const accounts = (await db.query(
-    `SELECT ig_user_id, access_token
-     FROM instagram_accounts WHERE user_id = ? AND is_active = 1 LIMIT 1`,
-    [job.user_id],
-  )) as Array<{ ig_user_id: string; access_token: string }>;
-  const account = accounts[0];
-  if (!account || !job.provider_recipient_id) {
-    throw new DispatchError("Conta ou destinatário do Instagram indisponível.", false);
-  }
 
-  const data = parsePayload(job.payload);
-  const result = await sendInstagramMessage({
-    igUserId: account.ig_user_id,
-    accessToken: account.access_token,
-    recipientId: job.provider_recipient_id,
-    data,
-    replyToMessageId: data.reply_to_message_id,
-    useHumanAgentTag: false,
-  });
-  if (!result.ok) {
-    throw new DispatchError(result.error || "Falha ao enviar DM no Instagram.", true, result.body);
-  }
-  return {
-    providerMessageId: result.wamid,
-    providerAccountId: account.ig_user_id,
-    responsePayload: result.body,
-  };
-}
 
 export async function dispatchMessenger(job: ChatOutboxRow): Promise<DispatchResult> {
   const pages = (await db.query(
