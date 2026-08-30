@@ -5,6 +5,7 @@ import db from "./db";
 import { normalizeWaMessageId } from "./wa-message-id";
 import { sendInstagramMessage } from "./instagram.functions";
 import { publishChatRealtimeEvent } from "./chat-realtime.server";
+import { providerDispatcher } from "@/lib/messaging/outbound/provider-dispatcher";
 
 type ChatChannel = "whatsapp" | "instagram" | "messenger";
 
@@ -42,7 +43,7 @@ export interface EnqueueChatMessageInput {
   payload: ChatProviderPayload;
 }
 
-interface ChatOutboxRow {
+export interface ChatOutboxRow {
   id: string;
   tenant_id: string;
   user_id: string;
@@ -212,7 +213,7 @@ function networkDispatchError(error: unknown): DispatchError {
   );
 }
 
-async function dispatchWhatsApp(job: ChatOutboxRow): Promise<DispatchResult> {
+export async function dispatchWhatsApp(job: ChatOutboxRow): Promise<DispatchResult> {
   const profiles = (await db.query(
     `SELECT whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version
      FROM profiles WHERE id = ? LIMIT 1`,
@@ -292,7 +293,7 @@ async function dispatchWhatsApp(job: ChatOutboxRow): Promise<DispatchResult> {
   };
 }
 
-async function dispatchInstagram(job: ChatOutboxRow): Promise<DispatchResult> {
+export async function dispatchInstagram(job: ChatOutboxRow): Promise<DispatchResult> {
   const accounts = (await db.query(
     `SELECT ig_user_id, access_token
      FROM instagram_accounts WHERE user_id = ? AND is_active = 1 LIMIT 1`,
@@ -322,7 +323,7 @@ async function dispatchInstagram(job: ChatOutboxRow): Promise<DispatchResult> {
   };
 }
 
-async function dispatchMessenger(job: ChatOutboxRow): Promise<DispatchResult> {
+export async function dispatchMessenger(job: ChatOutboxRow): Promise<DispatchResult> {
   const pages = (await db.query(
     `SELECT page_id, page_access_token
      FROM facebook_pages WHERE user_id = ? AND status = 'active' LIMIT 1`,
@@ -363,9 +364,24 @@ async function dispatchMessenger(job: ChatOutboxRow): Promise<DispatchResult> {
 
 async function dispatch(job: ChatOutboxRow): Promise<DispatchResult> {
   try {
-    if (job.channel === "instagram") return await dispatchInstagram(job);
-    if (job.channel === "messenger") return await dispatchMessenger(job);
-    return await dispatchWhatsApp(job);
+    const payloadData = parsePayload(job.payload);
+    const result = await providerDispatcher.dispatch({
+      tenantId: job.tenant_id,
+      userId: job.user_id,
+      messageId: job.message_id,
+      provider: job.channel,
+      contactPhone: job.recipient,
+      providerRecipientId: job.provider_recipient_id ?? null,
+      providerAccountId: job.provider_account_id ?? null,
+      type: payloadData.type,
+      payload: payloadData as any,
+      metadata: null,
+    });
+    return {
+      providerMessageId: result.providerMessageId,
+      providerAccountId: result.providerAccountId,
+      responsePayload: result.responsePayload,
+    };
   } catch (error) {
     if (error instanceof DispatchError) throw error;
     throw networkDispatchError(error);
