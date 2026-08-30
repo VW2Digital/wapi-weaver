@@ -1,5 +1,5 @@
 import mysql from "mysql2/promise";
-import type { SqlExecutor } from "@/lib/omnichannel-next/infrastructure/mysql";
+import type { SqlExecutor } from "./sql-executor.types";
 
 export interface RealMySqlExecutorOptions {
   host: string;

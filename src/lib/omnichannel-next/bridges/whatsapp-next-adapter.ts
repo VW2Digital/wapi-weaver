@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
-import type { IOutboundAdapter, OutboundMessageContext, OutboundSendResult } from "../types";
+import type { IOutboundAdapter, OutboundMessageContext, OutboundSendResult } from "@/lib/messaging/outbound/types";
 import { FetchHttpClient } from "@/lib/omnichannel-next/infrastructure/http/fetch-http-client";
 import { buildOmnichannelNextProductionContainer } from "@/lib/omnichannel-next/composition/omnichannel-next.production.container";
 import { RealMySqlExecutor } from "@/lib/messaging/bridges/real-mysql-executor";
 import { getBullMQWhatsAppQueue } from "@/lib/messaging/bridges/bullmq-whatsapp-queue";
-import { UnsupportedProviderError } from "../types";
+import { UnsupportedProviderError } from "@/lib/messaging/outbound/types";
 import type { OutboundJob } from "@/lib/omnichannel-next/application/outbox/outbound-job";
 
 function buildMessage(command: OutboundMessageContext) {
