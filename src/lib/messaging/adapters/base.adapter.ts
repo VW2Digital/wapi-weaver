@@ -46,6 +46,8 @@ export function buildEventBase(
   options: {
     userId?: string | null;
     providerTimestamp?: number | null;
+    channelConnectionId?: string | null;
+    metaAppConnectionId?: string | null;
   } = {},
 ): CanonicalEvent {
   return {
@@ -56,6 +58,8 @@ export function buildEventBase(
     eventType,
     externalEventId,
     channelResourceId,
+    channelConnectionId: options.channelConnectionId ?? null,
+    metaAppConnectionId: options.metaAppConnectionId ?? null,
     receivedAt: new Date().toISOString(),
     providerTimestamp: options.providerTimestamp ?? null,
     payload,

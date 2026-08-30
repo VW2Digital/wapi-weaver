@@ -9,9 +9,11 @@ export interface SaveMessageOptions {
   tenantId: string;
   userId: string;
   contactId: string;
+  conversationId?: string | null;
   contactPhone: string;
   provider: MessagingProvider;
   channelResourceId: string;
+  channelConnectionId?: string | null;
   message: CanonicalMessage;
   rawPayload?: unknown;
   status?: "sent" | "delivered" | null;
@@ -40,9 +42,11 @@ export async function saveMessage(options: SaveMessageOptions): Promise<SaveMess
     tenantId,
     userId,
     contactId,
+    conversationId,
     contactPhone,
     provider,
     channelResourceId,
+    channelConnectionId,
     message,
     rawPayload = null,
     status = message.direction === "outgoing" ? "sent" : null,
@@ -69,17 +73,18 @@ export async function saveMessage(options: SaveMessageOptions): Promise<SaveMess
 
     const [insertResult] = await conn.execute(
       `INSERT INTO direct_messages (
-         id, tenant_id, user_id, contact_phone, direction, type,
+         id, tenant_id, user_id, contact_phone, conversation_id, direction, type,
          body, wa_message_id, status, reply_to_message_id,
-         channel, provider_message_id, provider_account_id,
+         channel, channel_connection_id, provider_message_id, provider_account_id,
          sender_wa_id, sender_name, external_group_id,
          metadata, raw_payload, created_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
         messageId,
         tenantId,
         userId,
         contactPhone,
+        conversationId ?? null,
         message.direction,
         message.type,
         body,
@@ -87,6 +92,7 @@ export async function saveMessage(options: SaveMessageOptions): Promise<SaveMess
         status,
         message.replyToMessageId ?? null,
         provider,
+        channelConnectionId ?? null,
         message.providerMessageId,
         channelResourceId,
         message.senderWaId ?? null,

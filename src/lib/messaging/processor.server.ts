@@ -40,17 +40,21 @@ export async function processCanonicalEvent(event: CanonicalEvent): Promise<void
     throw new Error(`Event ${event.id} has no tenantId`);
   }
 
-  const config = await getChannelConfig(
-    event.provider,
-    event.tenantId,
-    event.channelResourceId,
-  );
+  let channelConnectionId = event.channelConnectionId ?? null;
 
-  if (!config) {
-    throw new Error(`[messaging:processor] Channel config not resolved for provider=${event.provider} tenant=${event.tenantId} resource=${event.channelResourceId}. FAIL_CLOSED.`);
+  if (!channelConnectionId) {
+    const config = await getChannelConfig(
+      event.provider,
+      event.tenantId,
+      event.channelResourceId,
+    );
+    if (!config) {
+      throw new Error(`[messaging:processor] Channel config not resolved for provider=${event.provider} tenant=${event.tenantId} resource=${event.channelResourceId}. FAIL_CLOSED.`);
+    }
+    channelConnectionId = config.channelConnectionId ?? null;
   }
 
-  const userId = config.userId || event.userId || event.tenantId;
+  const userId = event.userId || event.tenantId;
 
   switch (event.eventType) {
     case "message.received":
@@ -67,10 +71,11 @@ export async function processCanonicalEvent(event: CanonicalEvent): Promise<void
         markUnread: event.eventType === "message.received",
       });
 
-      await ensureConversation({
+      const conversation = await ensureConversation({
         tenantId: event.tenantId,
         userId,
         contactId: contactResult.contactId,
+        channelConnectionId,
         status: "aguardando",
       });
 
@@ -78,9 +83,11 @@ export async function processCanonicalEvent(event: CanonicalEvent): Promise<void
         tenantId: event.tenantId,
         userId,
         contactId: contactResult.contactId,
+        conversationId: conversation.sessionId,
         contactPhone,
         provider: event.provider,
         channelResourceId: event.channelResourceId,
+        channelConnectionId,
         message,
         rawPayload: event.rawPayload,
         status: event.eventType === "message.echo" ? "sent" : null,

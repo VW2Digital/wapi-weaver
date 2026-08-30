@@ -152,6 +152,10 @@ export interface CanonicalEvent {
   externalEventId: string;
   /** Channel resource id (phone_number_id, page_id, instagram_account_id, etc.). */
   channelResourceId: string;
+  /** Resolved channel_connection id. */
+  channelConnectionId?: string | null;
+  /** Resolved meta_app_connection id. */
+  metaAppConnectionId?: string | null;
   /** Timestamp the event was received by our server. */
   receivedAt: string;
   /** Timestamp the event occurred at the provider (if known). */

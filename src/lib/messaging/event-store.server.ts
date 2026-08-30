@@ -21,6 +21,8 @@ export interface MessagingEventRow {
   user_id: string | null;
   provider: string;
   channel_resource_id: string;
+  channel_connection_id: string | null;
+  meta_app_connection_id: string | null;
   external_event_id: string;
   event_type: string;
   payload_json: string;
@@ -50,9 +52,10 @@ export async function persistCanonicalEvent(event: CanonicalEvent): Promise<Pers
   const result = await db.query<{ affectedRows: number; insertId: number }>(
     `INSERT INTO messaging_events (
        id, tenant_id, user_id, provider, channel_resource_id,
+       channel_connection_id, meta_app_connection_id,
        external_event_id, event_type, payload_json, raw_payload_json,
        status, attempt_count, received_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        id = id`, // no-op para manter o registro original
     [
@@ -61,6 +64,8 @@ export async function persistCanonicalEvent(event: CanonicalEvent): Promise<Pers
       event.userId ?? null,
       event.provider,
       event.channelResourceId,
+      event.channelConnectionId ?? null,
+      event.metaAppConnectionId ?? null,
       event.externalEventId,
       event.eventType,
       JSON.stringify(event.payload),
@@ -99,9 +104,10 @@ export async function persistCanonicalEvents(events: CanonicalEvent[]): Promise<
       const [insertResult] = await conn.execute(
         `INSERT INTO messaging_events (
            id, tenant_id, user_id, provider, channel_resource_id,
+           channel_connection_id, meta_app_connection_id,
            external_event_id, event_type, payload_json, raw_payload_json,
            status, attempt_count, received_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE id = id`,
         [
           eventId,
@@ -109,6 +115,8 @@ export async function persistCanonicalEvents(events: CanonicalEvent[]): Promise<
           event.userId ?? null,
           event.provider,
           event.channelResourceId,
+          event.channelConnectionId ?? null,
+          event.metaAppConnectionId ?? null,
           event.externalEventId,
           event.eventType,
           JSON.stringify(event.payload),
@@ -220,6 +228,8 @@ export function hydrateCanonicalEvent(row: MessagingEventRow): CanonicalEvent {
     eventType: row.event_type as CanonicalEvent["eventType"],
     externalEventId: row.external_event_id,
     channelResourceId: row.channel_resource_id,
+    channelConnectionId: row.channel_connection_id,
+    metaAppConnectionId: row.meta_app_connection_id,
     receivedAt: new Date(row.received_at).toISOString(),
     payload: safeParseJson(row.payload_json),
     rawPayload: safeParseJson(row.raw_payload_json),

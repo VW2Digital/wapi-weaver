@@ -5,6 +5,7 @@ import { decryptMetaCredential } from "@/lib/encryption";
 import type { MessagingProvider } from "../types";
 
 export interface WhatsAppChannelConfig {
+  channelConnectionId: string | null;
   tenantId: string;
   userId: string;
   provider: "whatsapp";
@@ -19,6 +20,7 @@ export interface WhatsAppChannelConfig {
 }
 
 export interface InstagramChannelConfig {
+  channelConnectionId: string | null;
   tenantId: string;
   userId: string;
   provider: "instagram";
@@ -32,6 +34,7 @@ export interface InstagramChannelConfig {
 }
 
 export interface MessengerChannelConfig {
+  channelConnectionId: string | null;
   tenantId: string;
   userId: string;
   provider: "messenger";
@@ -106,6 +109,7 @@ export async function getWhatsAppChannelConfig(
       }
     }
     return {
+      channelConnectionId: v3.channel_id,
       tenantId: v3.tenant_id,
       userId: v3.tenant_id,
       provider: "whatsapp",
@@ -150,6 +154,7 @@ export async function getWhatsAppChannelConfig(
   if (!profile) return null;
 
   return {
+    channelConnectionId: null,
     tenantId: profile.id,
     userId: profile.id,
     provider: "whatsapp",
@@ -168,6 +173,69 @@ export async function getInstagramChannelConfig(
   tenantId: string,
   resourceId: string,
 ): Promise<InstagramChannelConfig | null> {
+  const v3Rows = (await db.query(
+    `SELECT
+       cc.id AS channel_id,
+       cc.tenant_id,
+       cc.external_account_id,
+       cc.metadata,
+       cc.access_token_encrypted,
+       mac.id AS meta_app_connection_id,
+       mac.app_id,
+       mac.app_secret_encrypted,
+       mac.graph_version
+     FROM channel_connections cc
+     JOIN meta_app_connections mac ON mac.id = cc.meta_app_connection_id
+     WHERE cc.tenant_id = ?
+       AND cc.provider = 'instagram'
+       AND cc.external_account_id = ?
+     LIMIT 1`,
+    [tenantId, resourceId],
+  )) as Array<{
+    channel_id: string;
+    tenant_id: string;
+    external_account_id: string;
+    metadata: any;
+    access_token_encrypted: string | null;
+    meta_app_connection_id: string;
+    app_id: string;
+    app_secret_encrypted: string;
+    graph_version: string;
+  }>;
+
+  const v3 = v3Rows[0];
+  if (v3) {
+    const metadata = typeof v3.metadata === "string" ? JSON.parse(v3.metadata) : v3.metadata || {};
+    let appSecret = "";
+    let accessToken = "";
+    try {
+      appSecret = decryptMetaCredential(v3.app_secret_encrypted);
+    } catch (err) {
+      console.error(`[channel.service] V3 Meta App secret decrypt failed for tenant ${tenantId}:`, err);
+      return null;
+    }
+    if (v3.access_token_encrypted) {
+      try {
+        accessToken = decryptMetaCredential(v3.access_token_encrypted);
+      } catch (err) {
+        console.error(`[channel.service] V3 Instagram access token decrypt failed for tenant ${tenantId}:`, err);
+      }
+    }
+    return {
+      channelConnectionId: v3.channel_id,
+      tenantId: v3.tenant_id,
+      userId: v3.tenant_id,
+      provider: "instagram",
+      pageId: metadata?.page_id || null,
+      instagramBusinessAccountId: metadata?.instagram_business_account_id || v3.external_account_id,
+      igUserId: v3.external_account_id,
+      accessToken,
+      appSecret,
+      graphVersion: v3.graph_version || DEFAULT_GRAPH_VERSION,
+      architecture: "v3",
+    };
+  }
+
   const rows = (await db.query(
     `SELECT
        tenant_id,
@@ -195,6 +263,7 @@ export async function getInstagramChannelConfig(
   if (!account) return null;
 
   return {
+    channelConnectionId: null,
     tenantId: account.tenant_id,
     userId: account.user_id,
     provider: "instagram",
@@ -228,6 +297,7 @@ export async function getMessengerChannelConfig(
   if (!page) return null;
 
   return {
+    channelConnectionId: null,
     tenantId: page.user_id,
     userId: page.user_id,
     provider: "messenger",

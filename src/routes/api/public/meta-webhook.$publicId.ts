@@ -7,8 +7,7 @@ import { enqueueMessagingEvent } from "@/lib/queue/webhook-queue";
 import { whatsappAdapter } from "@/lib/messaging/adapters/whatsapp.adapter";
 import { instagramAdapter } from "@/lib/messaging/adapters/instagram.adapter";
 import { messengerAdapter } from "@/lib/messaging/adapters/messenger.adapter";
-import { processInstagramWebhook } from "@/lib/messaging/webhook-handlers/instagram.handler";
-import db from "@/lib/db";
+import { getChannelConnectionByExternalAccount } from "@/lib/messaging/channel-connection.service";
 
 function timingSafeMatch(a: string, b: string): boolean {
   if (typeof a !== "string" || typeof b !== "string") return false;
@@ -66,13 +65,11 @@ export const Route = createFileRoute("/api/public/meta-webhook/$publicId")({
           return new Response("Public ID missing", { status: 400 });
         }
 
-        // 1. Resolve Meta App Connection by public_id BEFORE parsing payload
         const connection = await getMetaAppConnectionByPublicId(publicId);
         if (!connection) {
           return new Response("Meta connection not found", { status: 404 });
         }
 
-        // 2. Validate HMAC SHA-256 on original raw body using decrypted app_secret
         const sigResult = verifyHmacSignature(rawBody, sig, connection.appSecret);
         if (!sigResult.valid) {
           await logWebhookDelivery({
@@ -86,7 +83,6 @@ export const Route = createFileRoute("/api/public/meta-webhook/$publicId")({
           return new Response("Forbidden (Invalid Signature)", { status: 403 });
         }
 
-        // 3. Parse JSON only after HMAC verification
         let payload: any = null;
         try {
           payload = JSON.parse(rawBody);
@@ -94,7 +90,6 @@ export const Route = createFileRoute("/api/public/meta-webhook/$publicId")({
           return new Response("Bad Request", { status: 400 });
         }
 
-        // 4. Detect provider
         const objectType = payload?.object;
         let provider: "whatsapp" | "instagram" | "messenger" = "whatsapp";
         if (objectType === "instagram") {
@@ -105,154 +100,88 @@ export const Route = createFileRoute("/api/public/meta-webhook/$publicId")({
           provider = "whatsapp";
         }
 
-        // 5. Asset resolution & Tenant cross-check
+        let resourceId: string | null = null;
+
         if (provider === "whatsapp") {
           const entry = payload?.entry?.[0];
           const change = entry?.changes?.[0];
-          const phoneNumberId = change?.value?.metadata?.phone_number_id;
+          resourceId = change?.value?.metadata?.phone_number_id || null;
+        } else if (provider === "instagram") {
+          resourceId = payload?.entry?.[0]?.id || null;
+        } else {
+          resourceId = payload?.entry?.[0]?.id || null;
+        }
 
-          if (!phoneNumberId) {
-            return new Response("phone_number_id missing", { status: 400 });
-          }
+        if (!resourceId) {
+          return new Response(`missing resource id for provider ${provider}`, { status: 400 });
+        }
 
-          // Cross-check: verify asset ownership in channel_connections if registered
-          const channelRows = await db.query<Array<any>>(
-            `SELECT tenant_id, meta_app_connection_id FROM channel_connections
-             WHERE provider = 'whatsapp' AND external_account_id = ?
-             LIMIT 1`,
-            [phoneNumberId],
-          );
-          const channel = channelRows?.[0];
-          if (channel) {
-            if (channel.tenant_id !== connection.tenantId || (channel.meta_app_connection_id && channel.meta_app_connection_id !== connection.connectionId)) {
-              await logWebhookDelivery({
-                provider: "whatsapp",
-                tenantId: connection.tenantId,
-                channelResourceId: phoneNumberId,
-                httpStatus: 403,
-                outcome: "rejected_unconfigured",
-                rawBody,
-                errorMessage: "SECURITY_CROSS_TENANT_ASSET_MISMATCH",
-              }).catch(() => {});
-              return new Response("Forbidden (Asset Cross-Tenant Mismatch)", { status: 403 });
-            }
-          }
+        const channel = await getChannelConnectionByExternalAccount(
+          connection.tenantId,
+          provider,
+          resourceId,
+        );
 
-          // Normalize
-          const { events } = whatsappAdapter.normalize(payload);
-          for (const ev of events) {
-            ev.tenantId = connection.tenantId;
-            ev.userId = connection.tenantId;
-            ev.channelResourceId = phoneNumberId;
-          }
-
-          if (events.length > 0) {
-            const persisted = await persistCanonicalEvents(events);
-            for (const item of persisted) {
-              if (!item.skipped) {
-                await enqueueMessagingEvent(item.eventId);
-              }
-            }
-          }
-
+        if (!channel) {
           await logWebhookDelivery({
-            provider: "whatsapp",
+            provider,
             tenantId: connection.tenantId,
-            channelResourceId: phoneNumberId,
-            httpStatus: 200,
-            outcome: "queued",
-            rawBody: payload,
+            channelResourceId: resourceId,
+            httpStatus: 404,
+            outcome: "rejected_unconfigured",
+            rawBody,
+            errorMessage: `CHANNEL_NOT_FOUND: no ${provider} channel for resource ${resourceId}`,
           }).catch(() => {});
-
-          return new Response("ok", { status: 200 });
+          return new Response(`Channel not found for resource ${resourceId}`, { status: 404 });
         }
 
-        if (provider === "instagram") {
-          const entryId = payload?.entry?.[0]?.id;
-
-          if (entryId) {
-            const channelRows = await db.query<Array<any>>(
-              `SELECT tenant_id, meta_app_connection_id FROM channel_connections
-               WHERE provider = 'instagram' AND external_account_id = ?
-               LIMIT 1`,
-              [entryId],
-            );
-            const channel = channelRows?.[0];
-            if (channel) {
-              if (channel.tenant_id !== connection.tenantId || (channel.meta_app_connection_id && channel.meta_app_connection_id !== connection.connectionId)) {
-                await logWebhookDelivery({
-                  provider: "instagram",
-                  tenantId: connection.tenantId,
-                  channelResourceId: entryId,
-                  httpStatus: 403,
-                  outcome: "rejected_unconfigured",
-                  rawBody,
-                  errorMessage: "SECURITY_CROSS_TENANT_ASSET_MISMATCH",
-                }).catch(() => {});
-                return new Response("Forbidden (Asset Cross-Tenant Mismatch)", { status: 403 });
-              }
-            }
-          }
-
-          const { events } = instagramAdapter.normalize(payload);
-          for (const ev of events) {
-            ev.tenantId = connection.tenantId;
-            ev.userId = connection.tenantId;
-            ev.channelResourceId = entryId || "";
-          }
-
-          if (events.length > 0) {
-            const persisted = await persistCanonicalEvents(events);
-            for (const item of persisted) {
-              if (!item.skipped) {
-                await enqueueMessagingEvent(item.eventId);
-              }
-            }
-          }
-
+        if (channel.tenantId !== connection.tenantId) {
           await logWebhookDelivery({
-            provider: "instagram",
+            provider,
             tenantId: connection.tenantId,
-            channelResourceId: entryId,
-            httpStatus: 200,
-            outcome: "queued",
-            rawBody: payload,
+            channelResourceId: resourceId,
+            httpStatus: 403,
+            outcome: "rejected_unconfigured",
+            rawBody,
+            errorMessage: "SECURITY_CROSS_TENANT_ASSET_MISMATCH",
           }).catch(() => {});
-
-          return new Response("ok", { status: 200 });
+          return new Response("Forbidden (Asset Cross-Tenant Mismatch)", { status: 403 });
         }
 
-        // Messenger
-        const pageId = payload?.entry?.[0]?.id;
-        if (pageId) {
-          const channelRows = await db.query<Array<any>>(
-            `SELECT tenant_id, meta_app_connection_id FROM channel_connections
-             WHERE provider = 'messenger' AND external_account_id = ?
-             LIMIT 1`,
-            [pageId],
-          );
-          const channel = channelRows?.[0];
-          if (channel) {
-            if (channel.tenant_id !== connection.tenantId || (channel.meta_app_connection_id && channel.meta_app_connection_id !== connection.connectionId)) {
-              await logWebhookDelivery({
-                provider: "messenger",
-                tenantId: connection.tenantId,
-                channelResourceId: pageId,
-                httpStatus: 403,
-                outcome: "rejected_unconfigured",
-                rawBody,
-                errorMessage: "SECURITY_CROSS_TENANT_ASSET_MISMATCH",
-              }).catch(() => {});
-              return new Response("Forbidden (Asset Cross-Tenant Mismatch)", { status: 403 });
-            }
-          }
+        if (channel.metaAppConnectionId && channel.metaAppConnectionId !== connection.connectionId) {
+          await logWebhookDelivery({
+            provider,
+            tenantId: connection.tenantId,
+            channelResourceId: resourceId,
+            httpStatus: 403,
+            outcome: "rejected_unconfigured",
+            rawBody,
+            errorMessage: "SECURITY_META_APP_MISMATCH",
+          }).catch(() => {});
+          return new Response("Forbidden (Meta App Mismatch)", { status: 403 });
         }
 
-        const { events } = messengerAdapter.normalize(payload);
+        if (channel.status !== "active") {
+          await logWebhookDelivery({
+            provider,
+            tenantId: connection.tenantId,
+            channelResourceId: resourceId,
+            httpStatus: 403,
+            outcome: "rejected_unconfigured",
+            rawBody,
+            errorMessage: `CHANNEL_${channel.status.toUpperCase()}_NOT_ACTIVE`,
+          }).catch(() => {});
+          return new Response(`Channel ${channel.id} is not active`, { status: 403 });
+        }
+
+        const adapter = provider === "whatsapp" ? whatsappAdapter : provider === "instagram" ? instagramAdapter : messengerAdapter;
+        const { events } = adapter.normalize(payload);
         for (const ev of events) {
           ev.tenantId = connection.tenantId;
           ev.userId = connection.tenantId;
-          ev.channelResourceId = pageId || "";
+          ev.channelResourceId = resourceId;
+          ev.channelConnectionId = channel.id;
+          ev.metaAppConnectionId = connection.connectionId;
         }
 
         if (events.length > 0) {
@@ -263,6 +192,15 @@ export const Route = createFileRoute("/api/public/meta-webhook/$publicId")({
             }
           }
         }
+
+        await logWebhookDelivery({
+          provider,
+          tenantId: connection.tenantId,
+          channelResourceId: resourceId,
+          httpStatus: 200,
+          outcome: "queued",
+          rawBody: payload,
+        }).catch(() => {});
 
         return new Response("ok", { status: 200 });
       },
