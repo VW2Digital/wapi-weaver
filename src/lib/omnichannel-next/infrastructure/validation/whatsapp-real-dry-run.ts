@@ -11,6 +11,7 @@ import {
 import type { SqlExecutor } from "@/lib/omnichannel-next/infrastructure/mysql";
 import { NoNetworkCaptureHttpClient } from "./no-network-capture-http-client";
 import type { CapturedHttpDescriptor } from "./no-network-capture-http-client";
+import { SingleShotMetaHttpClient } from "./single-shot-meta-http-client";
 
 export type DryRunEnvironment = "LOCAL" | "TEST" | "STAGING" | "PRODUCTION" | "UNKNOWN";
 
@@ -23,7 +24,7 @@ export interface WhatsAppRealDryRunOptions {
   graphApiVersion?: string;
   recipient?: string;
   messageText?: string;
-  http?: NoNetworkCaptureHttpClient;
+  http?: NoNetworkCaptureHttpClient | SingleShotMetaHttpClient;
 }
 
 export interface SafeDryRunResult {
@@ -95,6 +96,8 @@ export class WhatsAppRealDryRun {
       baseResult.realDecryption = "PASS";
       baseResult.whatsappRequestBuilt = true;
       baseResult.networkAttempts = http.networkAttempts;
+      baseResult.metaRequestsSent = (http as { sentRequests?: number }).sentRequests ?? 0;
+      baseResult.realMessagesSent = baseResult.metaRequestsSent;
       baseResult.captured = this.maskCaptured(http.captured());
 
       return baseResult;

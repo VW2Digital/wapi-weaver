@@ -245,6 +245,18 @@ With explicit authorization, the Next architecture can validate a real WhatsApp 
 
 Full report: `docs/architecture/OMNICHANNEL_NEXT_WHATSAPP_DRY_RUN.md`.
 
+### Controlled Real WhatsApp Meta Smoke Test (`src/lib/omnichannel-next/infrastructure/validation/`)
+
+With explicit authorization, the Next architecture can execute one real HTTPS request to the WhatsApp Cloud API.
+
+- `SingleShotMetaHttpClient` — validates endpoint, sender, recipient, and sends exactly one `POST` to `graph.facebook.com`. Second request is blocked before network. No retry.
+- `scripts/validation/omnichannel-next-whatsapp-real-smoke.ts` — manual one-shot script. Requires explicit `--tenant`, `--channel`, `--recipient`, and `--execute-real-send`. Pre-send dry-run with `NoNetworkCaptureHttpClient`, then one real `fetch`.
+- `SmokeResult` contains no token, no ciphertext, no master key, no full phone number, no full recipient.
+- `0` queue jobs, `0` workers, `0` automatic retries, `0` DB writes.
+- Delivery confirmation is pending manual confirmation unless the existing webhook correlates.
+
+Full report: `docs/architecture/OMNICHANNEL_NEXT_WHATSAPP_SMOKE.md`.
+
 ## Freeze Compliance
 
 Protected runtime files are listed in `.omnichannel-freeze.json`. The guard
