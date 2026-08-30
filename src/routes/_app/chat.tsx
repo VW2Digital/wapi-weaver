@@ -3772,6 +3772,7 @@ function ChatPage() {
             type: "audio",
             audio: {
               ...(mediaId ? { id: mediaId } : { link: res.data.link }),
+              voice: isVoiceNote,
             },
             local_media: res.data.local_media,
             reply_to_message_id: replyingTo?.wa_message_id || replyingTo?.id || undefined,
