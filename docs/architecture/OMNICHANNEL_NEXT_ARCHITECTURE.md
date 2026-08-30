@@ -219,6 +219,20 @@ Real database tables are read through a `ReadOnlySqlExecutor` that rejects any n
 No decryption, no real network, no queue, no worker start.
 Full report: `docs/architecture/OMNICHANNEL_NEXT_CONFIG_READINESS.md`.
 
+### Secure Credential Vault (`src/lib/omnichannel-next/infrastructure/security/`)
+
+Real encrypted WhatsApp channel access tokens are decrypted only at the last boundary before the HTTP request.
+
+- `AesGcmCredentialDecryptor` — AES-256-GCM decryptor compatible with the audited current `iv:ciphertext:authTag` format.
+- `MySQLEncryptedCredentialRepository` — read-only `SELECT` by exact `(recordId, tenantId, provider='whatsapp')`.
+- `SecureCredentialVault` — loads and decrypts inside the secret boundary.
+- `WhatsAppCredentialResolver` — validates `provider=whatsapp` and resolves tokens for `MetaWhatsAppTransport` only.
+- No import of `src/lib/encryption` or `src/lib/token-crypto` from `omnichannel-next`.
+- Plaintext token never flows to Application, OutboundJob, Queue, Worker result, Provider result, MessageRepository, or logs.
+- Instagram credential support: NOT IMPLEMENTED.
+
+Full report: `docs/architecture/OMNICHANNEL_NEXT_CREDENTIAL_SECURITY.md`.
+
 ## Freeze Compliance
 
 Protected runtime files are listed in `.omnichannel-freeze.json`. The guard
