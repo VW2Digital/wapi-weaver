@@ -153,16 +153,18 @@ export async function processInstagramWebhook(rawBody: string, signature: string
     return new Response("EVENT_RECEIVED", { status: 200 });
   }
 
+  // For Instagram, channel_connections.external_account_id is the outbound send
+  // node (page_id), while the webhook entry id is the IG business account id.
+  // Resolve through the account's page_id so the two never diverge.
   const channel = await getChannelConnectionByExternalAccount(
     resolution.resolved!.tenantId,
     "instagram",
-    pageId,
+    resolution.resolved!.channelResourceId,
   );
   const metaApp = channel?.metaAppConnectionId ? await getMetaAppConnectionById(channel.metaAppConnectionId) : null;
   for (const event of events) {
     event.tenantId = resolution.resolved!.tenantId;
     event.userId = resolution.resolved!.userId;
-    event.channelResourceId = pageId;
     event.channelConnectionId = channel?.id ?? null;
     event.metaAppConnectionId = metaApp?.connectionId ?? null;
   }
