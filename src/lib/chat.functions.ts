@@ -7,7 +7,7 @@ import { buildWhatsAppBotMessage, type WhatsAppBotStep } from "@/lib/meta-whatsa
 import { enqueueChatOutboxMessage } from "@/lib/chat-outbox.server";
 import { publishChatRealtimeEvent } from "@/lib/chat-realtime.server";
 import { resolveSharedContactsData } from "@/lib/chat-message-content";
-import { getChannelConnection, requireActiveChannel, type ChannelConnection } from "@/lib/messaging/channel-connection.service";
+import { getChannelConnection, requireActiveChannel, listChannelConnectionsForTenant, type ChannelConnection } from "@/lib/messaging/channel-connection.service";
 import { resolveConversationChannel, findConversationByContactPhone } from "@/lib/messaging/conversation-channel.service";
 import db from "./db";
 
@@ -934,6 +934,17 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       return { ok: false, error: e?.message || "Falha ao resolver canal de envio." };
     }
 
+    // Se a conversa ainda não tem canal V3 vinculado, resolve pelo active channel.
+    // Isso impede o envio cair no fallback legacy instagram_accounts.
+    if (isInstagram && !resolvedChannel) {
+      const igChannels = await listChannelConnectionsForTenant(effectiveUserId, "instagram");
+      const activeIgChannel = igChannels.find((c) => c.status === "active");
+      if (activeIgChannel) {
+        resolvedChannel = activeIgChannel;
+        resolvedChannelConnectionId = activeIgChannel.id;
+      }
+    }
+
     if (isInstagram) {
       const igAccounts = (await db.query(
         `SELECT ig_user_id, instagram_business_account_id, page_id, access_token
@@ -960,7 +971,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       }
 
       providerRecipientId = externalId;
-      providerAccountId = resolvedChannel?.externalAccountId || account.ig_user_id;
+      providerAccountId = resolvedChannel?.externalAccountId || null;
     } else if (isMessenger) {
       // 1. Busca página do Facebook conectada
       const fbPages = (await db.query(
