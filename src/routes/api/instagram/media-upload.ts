@@ -156,7 +156,7 @@ export const Route = createFileRoute("/api/instagram/media-upload")({
 
           let fileBuffer = Buffer.from(await file.arrayBuffer());
 
-          if (mediaType === "audio" && (declaredMime === "audio/webm" || declaredMime.startsWith("audio/ogg"))) {
+          if (mediaType === "audio") {
             try {
               fileBuffer = Buffer.from(await transcodeAudioToM4a(new Uint8Array(fileBuffer)));
               declaredMime = "audio/mp4";
