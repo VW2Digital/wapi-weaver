@@ -159,6 +159,39 @@ No worker is started in production.
 - `IMPORT != START`, `CREATE != START`, `START` must be explicit.
 - Worker runtimes are isolated per provider and are never started on import.
 
+### Meta Transport Contracts (`src/lib/omnichannel-next/infrastructure/meta/`)
+
+Implemented in **shadow/contract mode only** — no real network.
+
+- `HttpClientPort` — generic HTTP client boundary
+- `CredentialResolverPort` — secret resolution boundary
+- `MetaWhatsAppTransport` — implements `WhatsAppTransportPort`
+- `MetaInstagramTransport` — implements `InstagramTransportPort`
+
+WhatsApp contract:
+- `POST https://graph.facebook.com/{graphApiVersion}/{phoneNumberId}/messages`
+- `Authorization: Bearer <resolved-token>`
+- `Content-Type: application/json`
+- Body: `{ messaging_product: "whatsapp", recipient_type: "individual", to: <phone>, type: "text", text: { preview_url: false, body: "..." } }`
+- Success: `messages[0].id` → `providerMessageId`
+- Normalized HTTP error codes for auth/429/5xx
+
+Instagram contract:
+- `POST https://graph.instagram.com/{graphApiVersion}/{ig_user_id}/messages`
+- `Authorization: Bearer <resolved-token>`
+- `Content-Type: application/json`
+- Body: `{ recipient: { id: <IGSID> }, message: { text: "..." } }`
+- Normal text send does **not** include `HUMAN_AGENT` or `MESSAGE_TAG`
+- Success: `message_id` → `providerMessageId`
+- Normalized HTTP error codes for auth/429/5xx
+
+Identity semantics:
+- Channel canonical identity is **not** used as Graph sender node.
+- WhatsApp sender node = `phoneNumberId` from channel config.
+- Instagram sender node = `ig_user_id` from channel config.
+- Recipient = `ig_scoped_id` / `IGSID` for Instagram; E.164 phone for WhatsApp.
+- Credentials are resolved only at the transport boundary.
+
 ## Freeze Compliance
 
 Protected runtime files are listed in `.omnichannel-freeze.json`. The guard

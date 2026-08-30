@@ -258,6 +258,14 @@ describe("omnichannel-next architecture import boundary", () => {
     expect(files.length).toBeGreaterThan(0);
   });
 
+  test("providers do not import infrastructure", () => {
+    const root = path.join(process.cwd(), "src/lib/omnichannel-next/providers");
+    const files = getTsFiles(root);
+    const pattern = /from\s+['"]@\/lib\/omnichannel-next\/infrastructure/;
+    assertNoImport(files, pattern, "Providers imported infrastructure");
+    expect(files.length).toBeGreaterThan(0);
+  });
+
   test("infrastructure does not import composition", () => {
     const root = path.join(process.cwd(), "src/lib/omnichannel-next/infrastructure");
     const files = getTsFiles(root);
