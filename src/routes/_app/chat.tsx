@@ -6187,10 +6187,10 @@ function ChatPage() {
                                       };
 
                                       // Helper to get media source URL (agnóstico para WhatsApp e Instagram)
-                                      const getMediaUrl = (urlOrId: string) => {
+                                      const getMediaUrl = (urlOrId: string, messageId: string) => {
                                         if (!urlOrId) return "";
                                         if (urlOrId.startsWith("/") || isUrl(urlOrId)) return urlOrId;
-                                        return `/api/whatsapp/media?id=${encodeURIComponent(urlOrId)}`;
+                                        return `/api/whatsapp/media?id=${encodeURIComponent(urlOrId)}&messageId=${encodeURIComponent(messageId)}`;
                                       };
 
                                       const isCallEventMessage = (text: string) => {
@@ -6410,7 +6410,7 @@ function ChatPage() {
                                             {headerMediaType === "image" && headerMediaUrl && (
                                               <div className="w-full overflow-hidden bg-black/10 rounded-t-xl">
                                                 <img
-                                                  src={getMediaUrl(headerMediaUrl)}
+                                                  src={getMediaUrl(headerMediaUrl, msg.id)}
                                                   alt="Header"
                                                   className="w-full max-h-64 object-cover"
                                                 />
@@ -6419,7 +6419,7 @@ function ChatPage() {
                                             {headerMediaType === "video" && headerMediaUrl && (
                                               <div className="w-full overflow-hidden bg-black/10 rounded-t-xl">
                                                 <video
-                                                  src={getMediaUrl(headerMediaUrl)}
+                                                  src={getMediaUrl(headerMediaUrl, msg.id)}
                                                   controls
                                                   className="w-full max-h-64 object-cover"
                                                 />
@@ -6439,7 +6439,7 @@ function ChatPage() {
                                                   asChild
                                                 >
                                                   <a
-                                                    href={getMediaUrl(headerMediaUrl)}
+                                                    href={getMediaUrl(headerMediaUrl, msg.id)}
                                                     target="_blank"
                                                     rel="noreferrer"
                                                   >
@@ -6466,6 +6466,7 @@ function ChatPage() {
                                                       (msg.metadata as any)?.media_url ||
                                                       (msg.metadata as any)?.mediaUrl ||
                                                       (isUrl(bodyText) || /^\d{15,18}$/.test(bodyText) ? bodyText : ""),
+                                                    msg.id,
                                                   );
                                                   return imageSrc ? (
                                                     <img
@@ -6509,6 +6510,7 @@ function ChatPage() {
                                                       (msg.metadata as any)?.media_url ||
                                                       (msg.metadata as any)?.mediaUrl ||
                                                       (isUrl(bodyText) || /^\d{15,18}$/.test(bodyText) ? bodyText : ""),
+                                                    msg.id,
                                                   );
                                                   return audioSrc ? (
                                                     <ChatVoiceMessage
@@ -6541,6 +6543,7 @@ function ChatPage() {
                                                       (msg.metadata as any)?.media_url ||
                                                       (msg.metadata as any)?.mediaUrl ||
                                                       (isUrl(bodyText) || /^\d{15,18}$/.test(bodyText) ? bodyText : ""),
+                                                    msg.id,
                                                   );
                                                   return videoSrc ? (
                                                     <video
@@ -6590,15 +6593,16 @@ function ChatPage() {
                                                     (msg.metadata as any)?.media_url ||
                                                     (msg.metadata as any)?.mediaUrl ||
                                                     (isUrl(bodyText) || /^\d{15,18}$/.test(bodyText) ? bodyText : ""),
+                                                  msg.id,
                                                 )}
                                               />
                                             )}
 
                                             {type === "sticker" && (
                                               <div className="p-1">
-                                                {getMediaUrl(msg.sticker?.link || msg.sticker?.id || (msg.metadata as any)?.sticker?.link || (msg.metadata as any)?.sticker?.id || (msg.metadata as any)?.media_url || (msg.metadata as any)?.mediaUrl || (isUrl(bodyText) || /^\d{15,18}$/.test(bodyText) ? bodyText : "")) ? (
+                                                {getMediaUrl(msg.sticker?.link || msg.sticker?.id || (msg.metadata as any)?.sticker?.link || (msg.metadata as any)?.sticker?.id || (msg.metadata as any)?.media_url || (msg.metadata as any)?.mediaUrl || (isUrl(bodyText) || /^\d{15,18}$/.test(bodyText) ? bodyText : ""), msg.id) ? (
                                                   <img
-                                                    src={getMediaUrl(msg.sticker?.link || msg.sticker?.id || (msg.metadata as any)?.sticker?.link || (msg.metadata as any)?.sticker?.id || (msg.metadata as any)?.media_url || (msg.metadata as any)?.mediaUrl || (isUrl(bodyText) || /^\d{15,18}$/.test(bodyText) ? bodyText : ""))}
+                                                    src={getMediaUrl(msg.sticker?.link || msg.sticker?.id || (msg.metadata as any)?.sticker?.link || (msg.metadata as any)?.sticker?.id || (msg.metadata as any)?.media_url || (msg.metadata as any)?.mediaUrl || (isUrl(bodyText) || /^\d{15,18}$/.test(bodyText) ? bodyText : ""), msg.id)}
                                                     alt="Sticker"
                                                     className="h-24 w-24 object-contain"
                                                   />

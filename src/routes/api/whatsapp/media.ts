@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import jwt from "jsonwebtoken";
-import { dbAdmin } from "@/integrations/mysql/client.server";
 import { JWT_SECRET } from "@/lib/jwt-secret";
 import { resolveMediaContentType } from "@/lib/media-content-type";
+import db from "@/lib/db";
+import { decryptMetaCredential } from "@/lib/encryption";
 
 function getAuthUserId(request: Request): string {
   const url = new URL(request.url);
@@ -34,44 +35,116 @@ export const Route = createFileRoute("/api/whatsapp/media")({
           const userId = getAuthUserId(request);
           const url = new URL(request.url);
           const mediaId = url.searchParams.get("id");
+          const messageId = url.searchParams.get("messageId");
           const download = url.searchParams.get("download") === "1";
 
           if (!mediaId) {
             return new Response("Missing media id parameter", { status: 400 });
           }
 
-          // 1. Fetch user credentials from DB (using effectiveUserId)
-          const { resolveEffectiveUserId } = await import("@/lib/chat-helpers");
-          const effectiveUserId = await resolveEffectiveUserId(userId);
-
-          const { data: p, error: profErr } = await dbAdmin
-            .from("profiles")
-            .select("whatsapp_access_token, whatsapp_phone_number_id, meta_graph_version")
-            .eq("id", effectiveUserId)
-            .maybeSingle();
-
-          if (profErr || !p?.whatsapp_access_token) {
-            return new Response("Unauthorized or WhatsApp credentials missing", { status: 401 });
+          if (!messageId) {
+            return new Response("Missing messageId parameter", { status: 400 });
           }
 
-          const accessToken = p.whatsapp_access_token.trim();
-          const phoneNumberId = p.whatsapp_phone_number_id?.trim() || "";
-          let apiVersion = p.meta_graph_version || "v26.0";
-          if (apiVersion.startsWith("v") && parseFloat(apiVersion.slice(1)) < 24.0) {
-            apiVersion = "v26.0";
+          // Resolve the message and its exact channel context
+          const [rows] = (await db.query(
+            `SELECT
+               dm.tenant_id,
+               dm.user_id,
+               dm.channel,
+               dm.channel_connection_id,
+               dm.raw_payload
+             FROM direct_messages dm
+             WHERE dm.id = ? AND dm.user_id = ?
+             LIMIT 1`,
+            [messageId, userId],
+          )) as Array<{
+            tenant_id: string;
+            user_id: string;
+            channel: string;
+            channel_connection_id: string | null;
+            raw_payload: unknown;
+          }>[];
+
+          const message = rows?.[0];
+          if (!message) {
+            return new Response("Message not found or access denied", { status: 403 });
           }
 
-          // 2. Query Meta to get download URL and mime type
-          // Retrieve Media URL: https://graph.facebook.com/{{Version}}/{{Media-ID}}?phone_number_id=<PHONE_NUMBER_ID>
+          if (message.user_id !== userId) {
+            return new Response("Cross-tenant access denied", { status: 403 });
+          }
+
+          const channelConnectionId = message.channel_connection_id;
+          if (!channelConnectionId) {
+            return new Response("Message has no channel connection", { status: 400 });
+          }
+
+          const [channelRows] = (await db.query(
+            `SELECT
+               cc.provider,
+               cc.external_account_id,
+               cc.access_token_encrypted,
+               mac.app_secret_encrypted,
+               mac.graph_version
+             FROM channel_connections cc
+             JOIN meta_app_connections mac ON mac.id = cc.meta_app_connection_id
+             WHERE cc.id = ? AND cc.tenant_id = ?
+             LIMIT 1`,
+            [channelConnectionId, message.tenant_id],
+          )) as Array<{
+            provider: string;
+            external_account_id: string;
+            access_token_encrypted: string | null;
+            app_secret_encrypted: string | null;
+            graph_version: string | null;
+          }>[];
+
+          const channel = channelRows?.[0];
+          if (!channel) {
+            return new Response("Channel not found or access denied", { status: 403 });
+          }
+
+          const provider = channel.provider as "whatsapp" | "instagram";
+          if (!["whatsapp", "instagram"].includes(provider)) {
+            return new Response("Unsupported media provider", { status: 400 });
+          }
+
+          let accessToken = "";
+          if (channel.access_token_encrypted) {
+            try {
+              accessToken = decryptMetaCredential(channel.access_token_encrypted);
+            } catch (err) {
+              console.error("[media.ts] Failed to decrypt access token:", err);
+              return new Response("Failed to decrypt channel credentials", { status: 500 });
+            }
+          }
+
+          if (!accessToken) {
+            return new Response("Channel access token not available", { status: 401 });
+          }
+
+          const apiVersion = channel.graph_version?.startsWith("v")
+            ? channel.graph_version
+            : `v${channel.graph_version || "26.0"}`;
+          const accountId = channel.external_account_id;
+          const phoneNumberId = provider === "whatsapp" ? accountId : "";
+
           const metaUrl = phoneNumberId
-            ? `https://graph.facebook.com/${apiVersion}/${mediaId}?phone_number_id=${encodeURIComponent(phoneNumberId)}`
-            : `https://graph.facebook.com/${apiVersion}/${mediaId}`;
+            ? `https://graph.facebook.com/${apiVersion}/${encodeURIComponent(mediaId)}?phone_number_id=${encodeURIComponent(phoneNumberId)}`
+            : `https://graph.facebook.com/${apiVersion}/${encodeURIComponent(mediaId)}`;
 
           const metadataResponse = await fetch(metaUrl, {
             headers: { Authorization: `Bearer ${accessToken}` },
           });
 
-          const metaBody = await metadataResponse.json();
+          const metaBody = await metadataResponse.json() as {
+            url?: string;
+            mime_type?: string;
+            filename?: string;
+            error?: { message?: string };
+          };
+
           if (!metadataResponse.ok || !metaBody?.url) {
             console.error("[Media Proxy API Error] Meta metadata fetch failed:", metaBody);
             return new Response(
@@ -84,8 +157,7 @@ export const Route = createFileRoute("/api/whatsapp/media")({
           if (!mediaDownloadUrl.startsWith("http://") && !mediaDownloadUrl.startsWith("https://")) {
             mediaDownloadUrl = `https://graph.facebook.com/${apiVersion}/${mediaDownloadUrl.replace(/^\/+/, "")}`;
           }
-          // 3. Download binary data from Meta
-          // Download Media: https://graph.facebook.com/{{Version}}/{{Media-URL}}
+
           const downloadResponse = await fetch(mediaDownloadUrl, {
             headers: { Authorization: `Bearer ${accessToken}` },
           });
@@ -105,7 +177,6 @@ export const Route = createFileRoute("/api/whatsapp/media")({
             bytes: mediaBytes,
           });
 
-          // 4. Return to client with correct mime type and byte-range support
           const headers = new Headers();
           headers.set("Content-Type", mimeType);
           headers.set("Accept-Ranges", "bytes");
@@ -129,9 +200,7 @@ export const Route = createFileRoute("/api/whatsapp/media")({
 
             const requestedStart = match[1] ? Number(match[1]) : undefined;
             const requestedEnd = match[2] ? Number(match[2]) : undefined;
-            const start =
-              requestedStart ??
-              Math.max(mediaBytes.byteLength - (requestedEnd ?? 0), 0);
+            const start = requestedStart ?? Math.max(mediaBytes.byteLength - (requestedEnd ?? 0), 0);
             const end =
               requestedStart === undefined
                 ? mediaBytes.byteLength - 1
@@ -155,11 +224,7 @@ export const Route = createFileRoute("/api/whatsapp/media")({
           }
 
           headers.set("Content-Length", String(mediaBytes.byteLength));
-
-          return new Response(mediaBytes, {
-            status: 200,
-            headers,
-          });
+          return new Response(mediaBytes, { status: 200, headers });
         } catch (e: any) {
           console.error("[Media Proxy API Error]:", e.message);
           return new Response(e.message || "Internal Server Error", {
