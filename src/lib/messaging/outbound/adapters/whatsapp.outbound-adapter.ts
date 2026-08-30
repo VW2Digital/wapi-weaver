@@ -1,7 +1,7 @@
 "use server";
 
 import db from "@/lib/db";
-import { getChannelConnection, requireActiveChannel, type ChannelConnection } from "@/lib/messaging/channel-connection.service";
+import { getChannelConnection, requireActiveChannel, resolveChannelAccessToken, type ChannelConnection } from "@/lib/messaging/channel-connection.service";
 import type { IOutboundAdapter, OutboundMessageContext, OutboundSendResult } from "../types";
 import { WhatsAppClient } from "./whatsapp.api";
 
@@ -18,7 +18,7 @@ export class WhatsAppOutboundAdapter implements IOutboundAdapter {
 
     const client = new WhatsAppClient({
       phoneNumberId: channel.externalAccountId || "",
-      accessToken: channel.accessTokenEncrypted || "",
+      accessToken: resolveChannelAccessToken(channel),
       graphVersion,
     });
 

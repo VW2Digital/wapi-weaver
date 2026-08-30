@@ -1,7 +1,7 @@
 "use server";
 
 import db from "@/lib/db";
-import { getChannelConnection, requireActiveChannel, type ChannelConnection } from "@/lib/messaging/channel-connection.service";
+import { getChannelConnection, requireActiveChannel, resolveChannelAccessToken, type ChannelConnection } from "@/lib/messaging/channel-connection.service";
 import type { IOutboundAdapter, OutboundMessageContext, OutboundSendResult } from "../types";
 import { buildInstagramOutboundPayload } from "./instagram.payload-builder";
 import { InstagramClient } from "./instagram.api";
@@ -23,7 +23,7 @@ export class InstagramOutboundAdapter implements IOutboundAdapter {
 
     const client = new InstagramClient({
       igUserId: channel.externalAccountId || "",
-      accessToken: channel.accessTokenEncrypted || "",
+      accessToken: resolveChannelAccessToken(channel),
     });
 
     const result = await client.send({ payload });

@@ -1,6 +1,7 @@
 "use server";
 
 import db from "@/lib/db";
+import { decryptMetaCredential } from "@/lib/encryption";
 
 export interface ChannelConnection {
   id: string;
@@ -77,6 +78,44 @@ export async function listChannelConnectionsForTenant(
   )) as any[];
 
   return rows.map(mapChannelConnection);
+}
+
+const ENCRYPTED_CREDENTIAL_PATTERN = /^[0-9a-f]{24,32}:[0-9a-f]+:[0-9a-f]{32}$/i;
+
+/**
+ * Resolves the usable (plaintext) access token for a channel connection.
+ *
+ * V3 channels store an AES-256-GCM credential in `access_token_encrypted`.
+ * Legacy resolution paths put the plaintext token in the same field, so the
+ * value is only decrypted when it matches the `iv:ciphertext:authTag` shape.
+ */
+export function resolveChannelAccessToken(channel: ChannelConnection): string {
+  const raw = channel.accessTokenEncrypted?.trim() || "";
+  if (!raw) {
+    throw new ChannelConnectionError(
+      "CHANNEL_TOKEN_MISSING",
+      `Channel ${channel.id} has no access token configured.`,
+    );
+  }
+
+  if (!ENCRYPTED_CREDENTIAL_PATTERN.test(raw)) return raw;
+
+  try {
+    const decrypted = decryptMetaCredential(raw);
+    if (!decrypted) {
+      throw new ChannelConnectionError(
+        "CHANNEL_TOKEN_MISSING",
+        `Channel ${channel.id} decrypted to an empty access token.`,
+      );
+    }
+    return decrypted;
+  } catch (error) {
+    if (error instanceof ChannelConnectionError) throw error;
+    throw new ChannelConnectionError(
+      "CHANNEL_TOKEN_DECRYPT_FAILED",
+      `Channel ${channel.id} access token could not be decrypted.`,
+    );
+  }
 }
 
 export async function requireActiveChannel(channel: ChannelConnection): Promise<void> {
