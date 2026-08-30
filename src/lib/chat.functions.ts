@@ -533,28 +533,28 @@ export const getChatMessages = createServerFn({ method: "POST" })
 
     // O chat não precisa trazer anos de mensagens para abrir uma única
     // conversa. O limite evita que uma tabela grande deixe a interface em
-    // carregamento indefinido. Inverte no JS para evitar estourar o sort_buffer.
-    const baseMessagesQuery = `SET SESSION sort_buffer_size = 2097152;
+    // carregamento indefinido
+    const baseMessagesQuery = `SELECT * FROM (
        SELECT id, direction, created_at, body, status
        FROM direct_messages
        WHERE (user_id = ? OR tenant_id = ?) AND contact_phone = ?
        ORDER BY created_at DESC
-       LIMIT 500`;
-    const richMessagesQuery = `SET SESSION sort_buffer_size = 2097152;
+       LIMIT 500
+     ) AS recent_messages
+     ORDER BY created_at ASC`;
+    const richMessagesQuery = `SELECT * FROM (
        SELECT id, wa_message_id, provider_message_id, direction, created_at, type, body, status,
               reply_to_message_id, metadata, raw_payload, channel, sender_name, sender_wa_id
        FROM direct_messages
        WHERE (user_id = ? OR tenant_id = ?) AND contact_phone = ?
        ORDER BY created_at DESC
-       LIMIT 500`;
+       LIMIT 500
+     ) AS recent_messages
+     ORDER BY created_at ASC`;
 
     let messages: unknown[];
     try {
       messages = (await db.query(richMessagesQuery, [effectiveUserId, effectiveUserId, phone])) as unknown[];
-      // mysql2 returns an array of result sets for multi-statement queries; pick the last one
-      if (Array.isArray(messages) && Array.isArray(messages[0]) && Array.isArray(messages[messages.length - 1])) {
-        messages = messages[messages.length - 1] as unknown[];
-      }
       console.log("[MESSAGES] Query rich executada com sucesso:", { messageCount: messages?.length });
     } catch (error) {
       console.warn(
