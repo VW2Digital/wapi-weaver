@@ -8,6 +8,23 @@
     "whatsapp": {
       "enabled": false,
       "since": "STEP12_AUTHORIZED"
+    },
+    "webchat": {
+      "enabled": true,
+      "since": "CONTROLLED_WEBCHAT_UNFREEZE",
+      "patterns": [
+        "database/migrations/054_webchat.sql",
+        "src/lib/messaging/types.ts",
+        "src/lib/messaging/processor.server.ts",
+        "src/lib/messaging/services/contact-identity.service.ts",
+        "src/lib/messaging/outbound/provider-dispatcher.ts",
+        "src/lib/messaging/outbound/provider-registry.ts",
+        "src/lib/messaging/outbound/adapters/webchat-outbound-adapter.ts",
+        "src/lib/messaging/adapters/webchat.adapter.ts",
+        "src/lib/webchat/",
+        "src/routes/api/public/webchat",
+        "src/routes/_app/webchat.tsx"
+      ]
     }
   },
   "protectedPaths": [

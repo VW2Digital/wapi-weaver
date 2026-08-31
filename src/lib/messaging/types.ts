@@ -5,7 +5,7 @@
  * (WhatsApp, Instagram, Messenger) into these canonical events.
  */
 
-export type MessagingProvider = "whatsapp" | "instagram" | "messenger";
+export type MessagingProvider = "whatsapp" | "instagram" | "messenger" | "webchat";
 
 export type MessageDirection = "incoming" | "outgoing";
 

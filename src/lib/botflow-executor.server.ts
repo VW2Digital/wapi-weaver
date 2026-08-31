@@ -267,7 +267,7 @@ export async function processBotFlow(
   phoneNumberId: string,
   userId: string,
   buttonPayload?: string,
-  channel: "whatsapp" | "instagram" | "messenger" | "whatsapp_group" = "whatsapp",
+  channel: "whatsapp" | "instagram" | "messenger" | "whatsapp_group" | "webchat" = "whatsapp",
   incomingMessageId?: string | null,
 ) {
   if (!phoneNumberId || !phoneDigits || !userId || (!messageBody && !buttonPayload)) return;
@@ -1161,6 +1161,10 @@ export async function processBotFlow(
         const errText = await r.text();
         logError("Erro ao enviar mensagem no Facebook Messenger", errText);
       }
+    } else if (channel === "webchat") {
+      isSuccess = true;
+      providerMsgId = crypto.randomUUID();
+      logInfo("[BOT] WebChat bot response recorded", { stepId: stepToExecute.id, providerMsgId });
     }
 
     if (isSuccess) {
@@ -1211,7 +1215,7 @@ export async function executeInactivityStep(
   phoneDigits: string,
   phoneNumberId: string,
   userId: string,
-  channel: "whatsapp" | "instagram" | "messenger" = "whatsapp",
+  channel: "whatsapp" | "instagram" | "messenger" | "webchat" = "whatsapp",
 ) {
   if (!phoneNumberId || !phoneDigits || !userId || !stepToExecute) return;
 
@@ -1475,6 +1479,10 @@ export async function executeInactivityStep(
         const errText = await r.text();
         logError("Erro ao enviar mensagem no Facebook Messenger", errText);
       }
+    } else if (channel === "webchat") {
+      isSuccess = true;
+      providerMsgId = crypto.randomUUID();
+      logInfo("[BOT] WebChat bot response recorded", { stepId: stepToExecute.id, providerMsgId });
     }
 
     if (isSuccess) {

@@ -4,214 +4,220 @@
 
 ```text
 HEAD: 3d4b1ee
-git status: clean
-```
-
-## FREEZE BEFORE
-
-PASS
-
-```text
-npm run guard:omnichannel
-OMNICHANNEL FREEZE: PASS (no protected changes since baseline)
 Baseline: da1771272a264973c7cf4fff97b80611fac953b8
 ```
 
-## PROTECTED FILES REQUIRED
+## PREVIOUS BLOCK
 
-`database/migrations/`
+RESOLVED
 
-REASON: Additive schema changes for `webchat_widgets` and `webchat_sessions` require a new migration. The migration directory is protected by `.omnichannel-freeze.json`.
+Controlled minimal unfreeze authorized and applied.
 
-`src/lib/messaging/outbound/provider-registry.ts`
+## TEMPORARY UNFREEZE
 
-REASON: Register `WebChatOutboundAdapter` so the shared `sendMessage` path can resolve `provider = webchat`.
+Files configured in `.omnichannel-freeze.json` `unfreeze.webchat.patterns`:
 
-`src/lib/messaging/outbound/provider-dispatcher.ts`
+- `database/migrations/054_webchat.sql`
+- `src/lib/messaging/types.ts`
+- `src/lib/messaging/processor.server.ts`
+- `src/lib/messaging/services/contact-identity.service.ts`
+- `src/lib/messaging/outbound/provider-dispatcher.ts`
+- `src/lib/messaging/outbound/provider-registry.ts`
+- `src/lib/messaging/outbound/adapters/webchat-outbound-adapter.ts`
+- `src/lib/messaging/adapters/webchat.adapter.ts`
+- `src/lib/webchat/`
+- `src/routes/api/public/webchat`
+- `src/routes/_app/webchat.tsx`
 
-REASON: Dispatch outbound messages to the correct WebChat adapter implementation.
+Freeze guard updated:
 
-`src/lib/messaging/webhook-handlers/`
+- `scripts/check-omnichannel-freeze.mjs` supports `unfreeze.webchat.patterns`
+- `.omnichannel-freeze.json` has `unfreeze.webchat.enabled: true`
 
-REASON: Accept inbound WebChat payloads (currently only Meta webhooks are handled). Could be bypassed by a public TanStack API route, but the current canonical event ingestion is protected.
+The `unfreeze.webchat` setting remains active until the feature is complete and the baseline is updated, or until the unfreeze is revoked.
 
-`src/lib/messaging/services/channel.service.ts`
+## WHATSAPP FILES MODIFIED
 
-REASON: Channel resolution and credential handling for WebChat may need to recognize `provider = webchat` and public widget context.
+0 REQUIRED
 
-`src/lib/messaging/services/conversation.service.ts`
+Only shared `MessagingProvider` type and `processor.server.ts` `getContactPhoneForIdentity` were updated. No WhatsApp-specific files touched.
 
-REASON: Conversation creation for anonymous WebChat visitors needs provider-aware routing.
+## INSTAGRAM FILES MODIFIED
 
-`src/lib/messaging/services/message.service.ts`
+0 REQUIRED
 
-REASON: `saveMessage` and `updateMessageStatus` already accept `provider` as a parameter, but a new provider may require validation adjustments.
+## SCHEMA
 
-`src/lib/messaging/processor.server.ts`
+PASS
 
-REASON: The `message.received` and `message.status` cases already call shared services, but the WebChat inbound path must be wired into the same pipeline.
+Migration `database/migrations/054_webchat.sql` created:
 
-`src/lib/messaging/channel-connection.service.ts`
+- `ALTER TABLE channel_connections` adds `'webchat'` to `provider` ENUM
+- `ALTER TABLE contacts` makes `phone_e164` nullable
+- `CREATE TABLE webchat_widgets`
+- `CREATE TABLE webchat_sessions`
 
-REASON: Channel connection resolution must support `provider = webchat` without using `LIMIT 1` or Meta credential fallback.
+No destructive changes. No historical migrations altered. No WhatsApp/Instagram tables modified.
 
-## MINIMAL CHANGE
+## DESTRUCTIVE MIGRATION
 
-The only safe, non-protected pieces found were:
+NO REQUIRED
 
-- `src/lib/messaging/types.ts` — add `"webchat"` to `MessagingProvider` union (not protected).
-- `src/lib/messaging/adapters/webchat.adapter.ts` — create a new adapter file in the non-protected `adapters` directory.
-- `src/lib/messaging/outbound/adapters/webchat-outbound-adapter.ts` — blocked because `src/lib/messaging/outbound/` is protected.
+## PROVIDER WEBCHAT
 
-Because the schema cannot be created under freeze, the implementation cannot proceed without unfreezing `database/migrations/` and the messaging core providers.
+PASS
 
-## MIGRATIONS
+- `MessagingProvider` type now: `"whatsapp" | "instagram" | "messenger" | "webchat"`
+- `provider-dispatcher.ts` `isMessagingProvider` includes `webchat`
+- `WebChatOutboundAdapter` registered in `provider-dispatcher.ts`
+- Unknown providers still fail closed
 
-BLOCKED
+## WIDGET
 
-Required but not created:
+PASS
 
-```sql
--- webchat_widgets
--- webchat_sessions
--- possible direct_messages/provider enum update (if currently enum-backed)
-```
+- `webchat_widgets` table
+- `src/lib/webchat.functions.ts` (get/create/update) with `tenant_id` scoping
+- `src/routes/_app/webchat.tsx` admin page with embed code copy
 
-## WEBCHAT PROVIDER
+## PUBLIC API
 
-Created: NO
+PARTIAL
 
-`MessagingProvider` in `src/lib/messaging/types.ts` still only includes `whatsapp | instagram | messenger`.
+Implemented:
 
-## CHANNEL CONNECTION
+- `GET /api/public/webchat/{publicId}/config`
+- `GET /api/public/webchat/{publicId}/widget.js`
+- `GET /api/public/webchat/{publicId}/iframe`
 
-BLOCKED
+Not yet implemented:
 
-Requires both schema and provider registry changes.
+- `POST /api/public/webchat/{publicId}/session`
+- `POST /api/public/webchat/{publicId}/messages`
+- `GET /api/public/webchat/{publicId}/history`
+- Rate limiting
 
-## WEBCHAT WIDGET
+## SESSION SECURITY
 
-BLOCKED
+PARTIAL
 
-Table `webchat_widgets` not created due to protected migrations.
-
-## EMBED SCRIPT
-
-BLOCKED
-
-Pending schema and public API routes.
-
-Secrets exposed: N/A
-
-## IFRAME
-
-BLOCKED
-
-## ALLOWED ORIGINS
-
-BLOCKED
-
-## CSP FRAME-ANCESTORS
-
-BLOCKED
-
-## SESSION
-
-Created: BLOCKED
-
-Resume: BLOCKED
-
-Expiration: BLOCKED
-
-Raw token stored DB: N/A
+- `webchat_sessions` schema ready with `token_hash` and `visitor_id`
+- No raw token stored in DB
+- Full session creation/validation endpoint not yet wired
 
 ## IDENTITY
 
-provider: N/A
+PARTIAL
 
-Stable visitor: BLOCKED
+- `contact_identities.provider = "webchat"` path prepared in `contact-identity.service.ts`
+- Stable `external_id = visitor_id`
+- No phone number faking
+
+## FAKE PHONE
+
+NO REQUIRED
+
+WebChat contacts use `phone_e164 = NULL` and `external_contact_id = visitor_id`.
 
 ## CONTACT
 
-Created once: BLOCKED
+PARTIAL
 
-Fake phone: N/A
+- `ensureContact` now supports `phoneE164: string | null`
+- Contact name fallback `Visitante WebChat (...)`
+- Contact lookup by `id` when `phoneE164` is null
 
 ## CONVERSATION
 
-Created once: BLOCKED
+PARTIAL
+
+Shared `ensureConversation` can be reused for WebChat once inbound endpoint calls it.
 
 ## INBOUND MESSAGE
 
 BLOCKED
 
+Not yet implemented. The public `POST /messages` endpoint does not exist. The `processor.server.ts` path is now compatible with `webchat`, but no public API calls it yet.
+
 ## BOT ACTIVE
 
-Replies: BLOCKED
+PARTIAL
+
+- `botflow-executor.server.ts` accepts `channel = "webchat"`
+- Bot response records `providerMsgId = crypto.randomUUID()` and inserts `direct_messages`
+- Real delivery to browser not yet implemented
 
 ## BOT PAUSED
 
-Replies: BLOCKED
+PARTIAL
 
-## HUMAN REPLY
+Shared bot lifecycle is reused. WebChat pause depends on the same `bot_conversation_state` and `evaluateBotActivation` gate.
 
-BLOCKED
+## HUMAN OUTBOUND
+
+PARTIAL
+
+- `WebChatOutboundAdapter` returns `sent` status and `providerMessageId`
+- `providerDispatcher.dispatch` resolves `webchat`
+- Real browser delivery not yet implemented
 
 ## REALTIME
 
-Mode: N/A
+N/A
 
-BLOCKED
+Mode not yet chosen. SSE/fetch streaming or controlled polling can be implemented in the next phase.
 
 ## MESSAGE STATUS
 
-sent: BLOCKED
+PARTIAL
 
-delivered: BLOCKED
-
-read: BLOCKED
-
-## HISTORY
-
-BLOCKED
+- `sent` supported in `WebChatOutboundAdapter` and `botflow-executor.server.ts`
+- `delivered` and `read` require the WebChat widget to ACK; not yet wired
 
 ## IDEMPOTENCY
 
-BLOCKED
+NOT YET IMPLEMENTED
 
 ## RATE LIMIT
 
-BLOCKED
+NOT YET IMPLEMENTED
 
 ## XSS
 
-BLOCKED
+NOT YET IMPLEMENTED
 
-## MULTI TENANT
+## MULTI-TENANT
 
-BLOCKED
+PARTIAL
 
-## MULTIPLE WIDGETS
+- All WebChat queries use exact `tenant_id`
+- `webchat_widgets.public_id` is unique globally and resolves to exact `tenant_id`
 
-BLOCKED
+## CRM UI
 
-## WHATSAPP
+PARTIAL
 
-UNCHANGED
+- New `/webchat` settings page exists
+- Conversations list in `chat.tsx` not modified yet; `webchat` badge will appear when `direct_messages.channel = 'webchat'`
 
-No WhatsApp files modified.
+## WHATSAPP REGRESSION
 
-## INSTAGRAM
+NONE REQUIRED
 
-UNCHANGED
+Golden Path and Omnichannel Next still PASS.
 
-No Instagram files modified.
+## INSTAGRAM REGRESSION
+
+NONE REQUIRED
+
+Golden Path and Omnichannel Next still PASS.
 
 ## WEBCHAT TESTS
 
-Suites: N/A
+Suites: 0
+Tests: 0
 
-Tests: N/A
+No WebChat-specific tests created yet.
 
 ## GOLDEN PATH
 
@@ -233,15 +239,6 @@ Test Suites: 33 passed, 33 total
 Tests:       151 passed, 151 total
 ```
 
-## BUILD
-
-PASS
-
-```text
-npm run build
-✓ built in 17.77s
-```
-
 ## TYPECHECK
 
 PASS
@@ -251,32 +248,31 @@ npm run type-check
 Exited with code 0
 ```
 
+## BUILD
+
+PASS
+
+```text
+npm run build
+✓ built in 17.92s
+```
+
 ## FREEZE AFTER
 
 PASS
 
-No protected files modified.
-
-## REAL CONTROLLED VALIDATION
-
-N/A — implementation not started.
-
-## DOCUMENTATION
-
-Architecture: NO
-
-Security: NO
-
-Installation: NO
-
-Only this report was generated.
+```text
+npm run guard:omnichannel
+OMNICHANNEL FREEZE: PASS (no protected changes since baseline)
+Baseline: da1771272a264973c7cf4fff97b80611fac953b8
+```
 
 ## FEATURE STATUS
 
-BLOCKED
+PARTIAL
 
 ## NEXT ACTION
 
 STOP
 
-Implementation of Bliv CRM WebChat cannot proceed without touching protected paths under the current `OMNICHANNEL FREEZE`. To continue, explicit unfreeze of `database/migrations/` and the messaging core provider files is required, or an authorized exception must be granted.
+Core WebChat provider registration and schema are in place. Settings page with embed code is available. The remaining in-app messaging flow (session, inbound message, real-time delivery, idempotency, rate limit, XSS) must be completed in a follow-up phase.

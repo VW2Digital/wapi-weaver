@@ -55,28 +55,42 @@ function getChangedFiles(baselineCommit) {
   return [...new Set([...tracked, ...untracked, ...staged])];
 }
 
+const WHATSAPP_PATTERNS = [
+  "src/lib/messaging/outbound/adapters/whatsapp/",
+  "src/lib/messaging/outbound/adapters/whatsapp-",
+  "src/lib/messaging/outbound/runtime-config.ts",
+  "src/lib/whatsapp",
+  "src/routes/api/public/whatsapp",
+  "src/lib/messaging/outbound/provider-dispatcher.ts",
+  "src/lib/messaging/outbound/provider-registry.ts",
+  "src/lib/messaging/processor.server.ts",
+  "src/lib/chat.functions.ts",
+  "src/lib/chat-outbox.server.ts",
+];
+
+function matchesPattern(file, pattern) {
+  if (pattern.endsWith("/")) return file.startsWith(pattern);
+  return file === pattern || file.startsWith(pattern + "/");
+}
+
 function isUnfrozen(file, manifest) {
   const unfreeze = manifest.unfreeze || {};
+
   if (unfreeze.whatsapp?.enabled) {
-    const whatsappPatterns = [
-      "src/lib/messaging/outbound/adapters/whatsapp/",
-      "src/lib/messaging/outbound/adapters/whatsapp-",
-      "src/lib/messaging/outbound/runtime-config.ts",
-      "src/lib/whatsapp",
-      "src/routes/api/public/whatsapp",
-      "src/lib/messaging/outbound/provider-dispatcher.ts",
-      "src/lib/messaging/outbound/provider-registry.ts",
-      "src/lib/messaging/processor.server.ts",
-      "src/lib/chat.functions.ts",
-      "src/lib/chat-outbox.server.ts",
-    ];
-    if (whatsappPatterns.some((p) => {
-      if (p.endsWith("/")) return file.startsWith(p);
-      return file === p || file.startsWith(p);
-    })) {
+    if (WHATSAPP_PATTERNS.some((p) => matchesPattern(file, p))) {
       return true;
     }
   }
+
+  if (unfreeze.webchat?.enabled) {
+    const patterns = Array.isArray(unfreeze.webchat.patterns)
+      ? unfreeze.webchat.patterns
+      : [];
+    if (patterns.some((p) => matchesPattern(file, p))) {
+      return true;
+    }
+  }
+
   return false;
 }
 

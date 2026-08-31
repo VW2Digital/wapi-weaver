@@ -1,6 +1,6 @@
 "use server";
 
-import type { CanonicalEvent, CanonicalMessage, CanonicalStatusUpdate } from "./types";
+import type { CanonicalEvent, CanonicalMessage, CanonicalStatusUpdate, MessagingProvider } from "./types";
 import { getChannelConfig } from "./services/channel.service";
 import { ensureContact } from "./services/contact-identity.service";
 import { ensureConversation } from "./services/conversation.service";
@@ -17,7 +17,7 @@ import { normalizePhoneDigits } from "./adapters/base.adapter";
 
 function getContactPhoneForIdentity(
   message: CanonicalMessage,
-  provider: "whatsapp" | "instagram" | "messenger",
+  provider: MessagingProvider,
 ): string {
   if (provider === "whatsapp") {
     return message.sender.phoneE164 || normalizePhoneDigits(message.sender.externalId);
@@ -27,6 +27,9 @@ function getContactPhoneForIdentity(
   }
   if (provider === "messenger") {
     return `fb_${message.sender.externalId}`;
+  }
+  if (provider === "webchat") {
+    return `wc_${message.sender.externalId}`;
   }
   return message.sender.externalId;
 }
@@ -61,12 +64,13 @@ export async function processCanonicalEvent(event: CanonicalEvent): Promise<void
     case "message.echo": {
       const message = event.payload as CanonicalMessage;
       const contactPhone = getContactPhoneForIdentity(message, event.provider);
+      const phoneE164 = event.provider === "webchat" ? null : contactPhone;
       const contactResult = await ensureContact({
         tenantId: event.tenantId,
         userId,
         provider: event.provider,
         identity: message.sender,
-        phoneE164: contactPhone,
+        phoneE164,
         source: `${event.provider}_${event.eventType === "message.echo" ? "echo" : "inbound"}`,
         markUnread: event.eventType === "message.received",
       });

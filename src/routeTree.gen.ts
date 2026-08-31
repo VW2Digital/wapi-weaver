@@ -21,6 +21,7 @@ import { Route as ApiQueryRouteImport } from './routes/api/query'
 import { Route as AppWhatsappBusinessProfileRouteImport } from './routes/_app/whatsapp-business-profile'
 import { Route as AppWebhooksRouteImport } from './routes/_app/webhooks'
 import { Route as AppWebhookEventsRouteImport } from './routes/_app/webhook-events'
+import { Route as AppWebchatRouteImport } from './routes/_app/webchat'
 import { Route as AppUsersRouteImport } from './routes/_app/users'
 import { Route as AppTemplatesRouteImport } from './routes/_app/templates'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
@@ -97,8 +98,11 @@ import { Route as ApiBillingCheckoutPixRouteImport } from './routes/api/billing/
 import { Route as ApiBillingCheckoutCardRouteImport } from './routes/api/billing/checkout/card'
 import { Route as ApiAdminPaymentGatewaysMercadopagoRouteImport } from './routes/api/admin/payment-gateways/mercadopago'
 import { Route as ApiPublicWebhooksIncomingTokenRouteImport } from './routes/api/public/webhooks/incoming/$token'
+import { Route as ApiPublicWebchatPublicIdIframeRouteImport } from './routes/api/public/webchat.$publicId.iframe'
+import { Route as ApiPublicWebchatPublicIdConfigRouteImport } from './routes/api/public/webchat.$publicId.config'
 import { Route as ApiBillingPaymentsIdStatusRouteImport } from './routes/api/billing/payments/$id/status'
 import { Route as ApiAdminPaymentGatewaysMercadopagoTestRouteImport } from './routes/api/admin/payment-gateways/mercadopago/test'
+import { Route as ApiPublicWebchatPublicIdWidgetJsRouteImport } from './routes/api/public/webchat.$publicId.widget.js'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -158,6 +162,11 @@ const AppWebhooksRoute = AppWebhooksRouteImport.update({
 const AppWebhookEventsRoute = AppWebhookEventsRouteImport.update({
   id: '/webhook-events',
   path: '/webhook-events',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppWebchatRoute = AppWebchatRouteImport.update({
+  id: '/webchat',
+  path: '/webchat',
   getParentRoute: () => AppRoute,
 } as any)
 const AppUsersRoute = AppUsersRouteImport.update({
@@ -556,6 +565,18 @@ const ApiPublicWebhooksIncomingTokenRoute =
     path: '/api/public/webhooks/incoming/$token',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicWebchatPublicIdIframeRoute =
+  ApiPublicWebchatPublicIdIframeRouteImport.update({
+    id: '/api/public/webchat/$publicId/iframe',
+    path: '/api/public/webchat/$publicId/iframe',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicWebchatPublicIdConfigRoute =
+  ApiPublicWebchatPublicIdConfigRouteImport.update({
+    id: '/api/public/webchat/$publicId/config',
+    path: '/api/public/webchat/$publicId/config',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiBillingPaymentsIdStatusRoute =
   ApiBillingPaymentsIdStatusRouteImport.update({
     id: '/api/billing/payments/$id/status',
@@ -567,6 +588,12 @@ const ApiAdminPaymentGatewaysMercadopagoTestRoute =
     id: '/test',
     path: '/test',
     getParentRoute: () => ApiAdminPaymentGatewaysMercadopagoRoute,
+  } as any)
+const ApiPublicWebchatPublicIdWidgetJsRoute =
+  ApiPublicWebchatPublicIdWidgetJsRouteImport.update({
+    id: '/api/public/webchat/$publicId/widget/js',
+    path: '/api/public/webchat/$publicId/widget/js',
+    getParentRoute: () => rootRouteImport,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -592,6 +619,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AppSettingsRouteWithChildren
   '/templates': typeof AppTemplatesRoute
   '/users': typeof AppUsersRoute
+  '/webchat': typeof AppWebchatRoute
   '/webhook-events': typeof AppWebhookEventsRoute
   '/webhooks': typeof AppWebhooksRoute
   '/whatsapp-business-profile': typeof AppWhatsappBusinessProfileRoute
@@ -658,7 +686,10 @@ export interface FileRoutesByFullPath {
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
   '/api/admin/payment-gateways/mercadopago/test': typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
   '/api/billing/payments/$id/status': typeof ApiBillingPaymentsIdStatusRoute
+  '/api/public/webchat/$publicId/config': typeof ApiPublicWebchatPublicIdConfigRoute
+  '/api/public/webchat/$publicId/iframe': typeof ApiPublicWebchatPublicIdIframeRoute
   '/api/public/webhooks/incoming/$token': typeof ApiPublicWebhooksIncomingTokenRoute
+  '/api/public/webchat/$publicId/widget/js': typeof ApiPublicWebchatPublicIdWidgetJsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -683,6 +714,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AppSettingsRouteWithChildren
   '/templates': typeof AppTemplatesRoute
   '/users': typeof AppUsersRoute
+  '/webchat': typeof AppWebchatRoute
   '/webhook-events': typeof AppWebhookEventsRoute
   '/webhooks': typeof AppWebhooksRoute
   '/whatsapp-business-profile': typeof AppWhatsappBusinessProfileRoute
@@ -749,7 +781,10 @@ export interface FileRoutesByTo {
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
   '/api/admin/payment-gateways/mercadopago/test': typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
   '/api/billing/payments/$id/status': typeof ApiBillingPaymentsIdStatusRoute
+  '/api/public/webchat/$publicId/config': typeof ApiPublicWebchatPublicIdConfigRoute
+  '/api/public/webchat/$publicId/iframe': typeof ApiPublicWebchatPublicIdIframeRoute
   '/api/public/webhooks/incoming/$token': typeof ApiPublicWebhooksIncomingTokenRoute
+  '/api/public/webchat/$publicId/widget/js': typeof ApiPublicWebchatPublicIdWidgetJsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -776,6 +811,7 @@ export interface FileRoutesById {
   '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/templates': typeof AppTemplatesRoute
   '/_app/users': typeof AppUsersRoute
+  '/_app/webchat': typeof AppWebchatRoute
   '/_app/webhook-events': typeof AppWebhookEventsRoute
   '/_app/webhooks': typeof AppWebhooksRoute
   '/_app/whatsapp-business-profile': typeof AppWhatsappBusinessProfileRoute
@@ -842,7 +878,10 @@ export interface FileRoutesById {
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
   '/api/admin/payment-gateways/mercadopago/test': typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
   '/api/billing/payments/$id/status': typeof ApiBillingPaymentsIdStatusRoute
+  '/api/public/webchat/$publicId/config': typeof ApiPublicWebchatPublicIdConfigRoute
+  '/api/public/webchat/$publicId/iframe': typeof ApiPublicWebchatPublicIdIframeRoute
   '/api/public/webhooks/incoming/$token': typeof ApiPublicWebhooksIncomingTokenRoute
+  '/api/public/webchat/$publicId/widget/js': typeof ApiPublicWebchatPublicIdWidgetJsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -869,6 +908,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/templates'
     | '/users'
+    | '/webchat'
     | '/webhook-events'
     | '/webhooks'
     | '/whatsapp-business-profile'
@@ -935,7 +975,10 @@ export interface FileRouteTypes {
     | '/api/whatsapp/business-profile/photo'
     | '/api/admin/payment-gateways/mercadopago/test'
     | '/api/billing/payments/$id/status'
+    | '/api/public/webchat/$publicId/config'
+    | '/api/public/webchat/$publicId/iframe'
     | '/api/public/webhooks/incoming/$token'
+    | '/api/public/webchat/$publicId/widget/js'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -960,6 +1003,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/templates'
     | '/users'
+    | '/webchat'
     | '/webhook-events'
     | '/webhooks'
     | '/whatsapp-business-profile'
@@ -1026,7 +1070,10 @@ export interface FileRouteTypes {
     | '/api/whatsapp/business-profile/photo'
     | '/api/admin/payment-gateways/mercadopago/test'
     | '/api/billing/payments/$id/status'
+    | '/api/public/webchat/$publicId/config'
+    | '/api/public/webchat/$publicId/iframe'
     | '/api/public/webhooks/incoming/$token'
+    | '/api/public/webchat/$publicId/widget/js'
   id:
     | '__root__'
     | '/'
@@ -1052,6 +1099,7 @@ export interface FileRouteTypes {
     | '/_app/settings'
     | '/_app/templates'
     | '/_app/users'
+    | '/_app/webchat'
     | '/_app/webhook-events'
     | '/_app/webhooks'
     | '/_app/whatsapp-business-profile'
@@ -1118,7 +1166,10 @@ export interface FileRouteTypes {
     | '/api/whatsapp/business-profile/photo'
     | '/api/admin/payment-gateways/mercadopago/test'
     | '/api/billing/payments/$id/status'
+    | '/api/public/webchat/$publicId/config'
+    | '/api/public/webchat/$publicId/iframe'
     | '/api/public/webhooks/incoming/$token'
+    | '/api/public/webchat/$publicId/widget/js'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1178,7 +1229,10 @@ export interface RootRouteChildren {
   ApiPublicMetaWebhookPublicIdRoute: typeof ApiPublicMetaWebhookPublicIdRoute
   ApiPublicWebhooksStripeRoute: typeof ApiPublicWebhooksStripeRoute
   ApiBillingPaymentsIdStatusRoute: typeof ApiBillingPaymentsIdStatusRoute
+  ApiPublicWebchatPublicIdConfigRoute: typeof ApiPublicWebchatPublicIdConfigRoute
+  ApiPublicWebchatPublicIdIframeRoute: typeof ApiPublicWebchatPublicIdIframeRoute
   ApiPublicWebhooksIncomingTokenRoute: typeof ApiPublicWebhooksIncomingTokenRoute
+  ApiPublicWebchatPublicIdWidgetJsRoute: typeof ApiPublicWebchatPublicIdWidgetJsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1265,6 +1319,13 @@ declare module '@tanstack/react-router' {
       path: '/webhook-events'
       fullPath: '/webhook-events'
       preLoaderRoute: typeof AppWebhookEventsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/webchat': {
+      id: '/_app/webchat'
+      path: '/webchat'
+      fullPath: '/webchat'
+      preLoaderRoute: typeof AppWebchatRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/users': {
@@ -1799,6 +1860,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWebhooksIncomingTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/webchat/$publicId/iframe': {
+      id: '/api/public/webchat/$publicId/iframe'
+      path: '/api/public/webchat/$publicId/iframe'
+      fullPath: '/api/public/webchat/$publicId/iframe'
+      preLoaderRoute: typeof ApiPublicWebchatPublicIdIframeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/webchat/$publicId/config': {
+      id: '/api/public/webchat/$publicId/config'
+      path: '/api/public/webchat/$publicId/config'
+      fullPath: '/api/public/webchat/$publicId/config'
+      preLoaderRoute: typeof ApiPublicWebchatPublicIdConfigRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/billing/payments/$id/status': {
       id: '/api/billing/payments/$id/status'
       path: '/api/billing/payments/$id/status'
@@ -1812,6 +1887,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/admin/payment-gateways/mercadopago/test'
       preLoaderRoute: typeof ApiAdminPaymentGatewaysMercadopagoTestRouteImport
       parentRoute: typeof ApiAdminPaymentGatewaysMercadopagoRoute
+    }
+    '/api/public/webchat/$publicId/widget/js': {
+      id: '/api/public/webchat/$publicId/widget/js'
+      path: '/api/public/webchat/$publicId/widget/js'
+      fullPath: '/api/public/webchat/$publicId/widget/js'
+      preLoaderRoute: typeof ApiPublicWebchatPublicIdWidgetJsRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -1844,6 +1926,7 @@ interface AppRouteChildren {
   AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppTemplatesRoute: typeof AppTemplatesRoute
   AppUsersRoute: typeof AppUsersRoute
+  AppWebchatRoute: typeof AppWebchatRoute
   AppWebhookEventsRoute: typeof AppWebhookEventsRoute
   AppWebhooksRoute: typeof AppWebhooksRoute
   AppWhatsappBusinessProfileRoute: typeof AppWhatsappBusinessProfileRoute
@@ -1873,6 +1956,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsRoute: AppSettingsRouteWithChildren,
   AppTemplatesRoute: AppTemplatesRoute,
   AppUsersRoute: AppUsersRoute,
+  AppWebchatRoute: AppWebchatRoute,
   AppWebhookEventsRoute: AppWebhookEventsRoute,
   AppWebhooksRoute: AppWebhooksRoute,
   AppWhatsappBusinessProfileRoute: AppWhatsappBusinessProfileRoute,
@@ -2014,7 +2098,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicMetaWebhookPublicIdRoute: ApiPublicMetaWebhookPublicIdRoute,
   ApiPublicWebhooksStripeRoute: ApiPublicWebhooksStripeRoute,
   ApiBillingPaymentsIdStatusRoute: ApiBillingPaymentsIdStatusRoute,
+  ApiPublicWebchatPublicIdConfigRoute: ApiPublicWebchatPublicIdConfigRoute,
+  ApiPublicWebchatPublicIdIframeRoute: ApiPublicWebchatPublicIdIframeRoute,
   ApiPublicWebhooksIncomingTokenRoute: ApiPublicWebhooksIncomingTokenRoute,
+  ApiPublicWebchatPublicIdWidgetJsRoute: ApiPublicWebchatPublicIdWidgetJsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

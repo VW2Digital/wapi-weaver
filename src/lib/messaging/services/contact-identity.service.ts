@@ -12,8 +12,8 @@ export interface EnsureContactOptions {
   userId: string;
   provider: MessagingProvider;
   identity: CanonicalIdentity;
-  /** Display phone for WhatsApp; placeholder for Instagram/Messenger. */
-  phoneE164: string;
+  /** Display phone for WhatsApp; placeholder for Instagram/Messenger/WebChat. */
+  phoneE164: string | null;
   source?: string;
   markUnread?: boolean;
   metadata?: Record<string, unknown> | null;
@@ -29,6 +29,7 @@ function buildContactName(identity: CanonicalIdentity, provider: MessagingProvid
   if (provider === "whatsapp") return `WhatsApp (${identity.phoneE164 || identity.externalId})`;
   if (provider === "instagram") return `Instagram (${identity.externalId})`;
   if (provider === "messenger") return `Facebook (${identity.externalId})`;
+  if (provider === "webchat") return `Visitante WebChat (${identity.externalId})`;
   return `Contato (${identity.externalId})`;
 }
 
@@ -130,7 +131,14 @@ export async function ensureContact(
 
     // 2. Upsert contact by (user_id, phone_e164)
     const contactId = existingContactByIdentity ?? randomUUID();
-    const channel = provider === "whatsapp" ? "whatsapp" : provider === "instagram" ? "instagram" : "messenger";
+    const channel =
+      provider === "whatsapp"
+        ? "whatsapp"
+        : provider === "instagram"
+          ? "instagram"
+          : provider === "webchat"
+            ? "webchat"
+            : "messenger";
     const instagramId = provider === "instagram" ? identity.externalId : null;
     const whatsappNumber = provider === "whatsapp" ? (identity.phoneE164 || phoneE164) : null;
 
@@ -174,15 +182,19 @@ export async function ensureContact(
 
     // Always fetch the resolved contact id from the unique key.
     const [contactRows] = await conn.execute(
-      `SELECT id, phone_e164 FROM contacts
-       WHERE user_id = ? AND phone_e164 = ?
-       LIMIT 1`,
-      [userId, phoneE164],
+      phoneE164
+        ? `SELECT id, phone_e164 FROM contacts
+           WHERE user_id = ? AND phone_e164 = ?
+           LIMIT 1`
+        : `SELECT id, phone_e164 FROM contacts
+           WHERE id = ?
+           LIMIT 1`,
+      phoneE164 ? [userId, phoneE164] : [contactId],
     );
 
     const resolvedContact = (contactRows as Array<{ id: string; phone_e164: string }>)?.[0];
     if (!resolvedContact?.id) {
-      throw new Error(`Failed to resolve contact for ${phoneE164}`);
+      throw new Error(`Failed to resolve contact for ${phoneE164 ?? identity.externalId}`);
     }
 
     // If the resolved contact has changed its phone, keep the original identity contact id.
