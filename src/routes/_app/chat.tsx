@@ -17,6 +17,7 @@ import {
   autoFetchContactPhoto,
 } from "@/lib/contacts.functions";
 import { getProfile } from "@/lib/profile.functions";
+import { resolveContactDisplayName } from "@/lib/messaging/services/contact-display.service";
 import {
   listTeams,
   listTeamMembers,
@@ -4740,6 +4741,7 @@ function ChatPage() {
               filteredContacts.map((c) => {
                 const isSelected = selectedContact?.id === c.id;
                 const avatarUrl = getContactAvatarUrl(c);
+                const displayName = resolveContactDisplayName(c);
                 const avatarBg = getAvatarColor(c.name ?? "");
                 const contactTags = cachedConvTags.filter(
                   (conversationTag) => conversationTag.contact_number === c.phone_e164,
@@ -4799,7 +4801,7 @@ function ChatPage() {
                           {avatarUrl ? (
                             <img
                               src={avatarUrl}
-                              alt={c.name ?? "Contato"}
+                              alt={displayName}
                               className="h-full w-full object-cover"
                               onError={(e) => {
                                 const target = e.currentTarget;
@@ -4826,7 +4828,7 @@ function ChatPage() {
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5 min-w-0">
                             <h4 className="font-bold text-sm text-foreground truncate leading-none">
-                              {c.name || "Sem Nome"}
+                              {displayName}
                             </h4>
                             {c.channel === "whatsapp_group" && (
                               <span className="bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase shrink-0">

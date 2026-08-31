@@ -4,6 +4,8 @@ import { randomUUID } from "crypto";
 import type { ResultSetHeader } from "mysql2/promise";
 import db, { transaction } from "@/lib/db";
 import type { CanonicalIdentity, MessagingProvider } from "../types";
+import { getInstagramChannelConfig } from "./channel.service";
+import { InstagramProfileEnrichmentService } from "./instagram-profile-enrichment.service";
 
 export interface EnsureContactOptions {
   tenantId: string;
@@ -30,6 +32,58 @@ function buildContactName(identity: CanonicalIdentity, provider: MessagingProvid
   return `Contato (${identity.externalId})`;
 }
 
+function isInstagramPlaceholderName(value: string): boolean {
+  if (!value || typeof value !== "string") return true;
+  const lower = value.toLowerCase().trim();
+  return lower.startsWith("instagram (") || lower.startsWith("ig_") || lower.startsWith("contato (") || lower.startsWith("facebook (") || lower === "instagram";
+}
+
+async function maybeEnrichInstagramIdentity(
+  tenantId: string,
+  identity: CanonicalIdentity,
+): Promise<CanonicalIdentity> {
+  if (!identity || !identity.externalId || !identity.metadata?.recipientId) {
+    return identity;
+  }
+
+  const enriched = (identity.metadata as Record<string, unknown>)?.enriched;
+  const instagramProfileName = (identity.metadata as Record<string, unknown>)?.instagram_profile_name;
+
+  // If a real name was already provided by the protected webhook handler,
+  // trust it and avoid a redundant second profile lookup.
+  if (identity.name && !isInstagramPlaceholderName(identity.name) && (instagramProfileName || enriched)) {
+    return identity;
+  }
+
+  try {
+    const channelConfig = await getInstagramChannelConfig(
+      tenantId,
+      String(identity.metadata.recipientId),
+    );
+    if (!channelConfig?.accessToken) return identity;
+
+    const service = new InstagramProfileEnrichmentService(channelConfig.graphVersion);
+    const profile = await service.fetchProfile(identity.externalId, channelConfig.accessToken);
+    if (!profile) return identity;
+
+    const displayName = profile.name ?? profile.username ?? identity.name ?? undefined;
+
+    return {
+      ...identity,
+      name: displayName,
+      avatarUrl: profile.profilePic ?? identity.avatarUrl ?? null,
+      metadata: {
+        ...(identity.metadata ?? {}),
+        enriched: true,
+        instagram_profile_name: profile.name ?? null,
+        instagram_username: profile.username ?? null,
+      },
+    };
+  } catch {
+    return identity;
+  }
+}
+
 export async function ensureContact(
   options: EnsureContactOptions,
 ): Promise<EnsureContactResult> {
@@ -44,10 +98,21 @@ export async function ensureContact(
     metadata = null,
   } = options;
 
-  const name = buildContactName(identity, provider);
-  const customFields = {
+  const enrichedIdentity =
+    provider === "instagram" ? await maybeEnrichInstagramIdentity(tenantId, identity) : identity;
+
+  const name = buildContactName(enrichedIdentity, provider);
+  const instagramProfileName = (enrichedIdentity.metadata as Record<string, unknown> | null)?.instagram_profile_name;
+  const instagramUsername = (enrichedIdentity.metadata as Record<string, unknown> | null)?.instagram_username;
+  const customFields: Record<string, unknown> = {
     ...(metadata ?? {}),
-    avatar_url: identity.avatarUrl ?? undefined,
+    avatar_url: enrichedIdentity.avatarUrl ?? undefined,
+    ...(provider === "instagram"
+      ? {
+          instagram_profile_name: typeof instagramProfileName === "string" ? instagramProfileName : undefined,
+          instagram_username: typeof instagramUsername === "string" ? instagramUsername : undefined,
+        }
+      : {}),
   };
 
   return transaction(async (conn) => {
@@ -127,11 +192,12 @@ export async function ensureContact(
     const isNewContact = !existingContactByIdentity && resolvedContactId === contactId;
 
     // 2. Upsert contact identity (external id per provider)
+    const enrichedMetadata = (enrichedIdentity.metadata ?? {}) as Record<string, unknown>;
     const identityMetadata: Record<string, unknown> = {
-      ...(identity.metadata ?? {}),
+      ...enrichedMetadata,
       source: `${provider}_inbound`,
-      raw_name: identity.name,
-      ...(provider === "instagram" && identity.avatarUrl
+      raw_name: enrichedIdentity.name,
+      ...(provider === "instagram" && enrichedIdentity.avatarUrl
         ? {
             avatar_source: "instagram_user_profile_api",
             avatar_fetched_at: new Date().toISOString(),
@@ -158,10 +224,10 @@ export async function ensureContact(
         userId,
         resolvedContactId,
         provider,
-        identity.externalId,
-        identity.phoneE164 ?? phoneE164,
-        identity.name ?? null,
-        identity.avatarUrl ?? null,
+        enrichedIdentity.externalId,
+        enrichedIdentity.phoneE164 ?? phoneE164,
+        (typeof instagramUsername === "string" ? instagramUsername : enrichedIdentity.name) ?? null,
+        enrichedIdentity.avatarUrl ?? null,
         JSON.stringify(identityMetadata),
       ],
     );
