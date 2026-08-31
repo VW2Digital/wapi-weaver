@@ -27,6 +27,10 @@ type InstagramEntry = {
   messaging?: InstagramMessagingEvent[];
 };
 
+type InstagramRead = {
+  mid?: string;
+};
+
 type InstagramMessagingEvent = {
   sender?: { id?: string; name?: string };
   recipient?: { id?: string };
@@ -34,6 +38,7 @@ type InstagramMessagingEvent = {
   message?: InstagramMessage;
   reaction?: InstagramReaction;
   message_edit?: InstagramMessage;
+  read?: InstagramRead;
   postback?: { title?: string; payload?: string; mid?: string };
 };
 
@@ -227,10 +232,34 @@ export class InstagramAdapter extends BaseMessagingAdapter {
             ),
           );
         }
+
+        if (item.read) {
+          if (item.read.mid) {
+            const statusUpdate = {
+              providerMessageId: item.read.mid,
+              status: "read" as const,
+              providerTimestamp: item.timestamp ?? null,
+            };
+            events.push(
+              buildEventBase(
+                this.provider,
+                "",
+                "message.status",
+                `seen:${item.read.mid}:${item.timestamp ?? Date.now()}`,
+                pageId,
+                statusUpdate,
+                payload,
+                { providerTimestamp: item.timestamp ?? null },
+              ),
+            );
+          } else {
+            reasons.push("missing read mid");
+          }
+        }
       }
     }
 
-    return { events, diagnostics: { entryCount: payload?.entry?.length, ignoredCount: reasons.length, reasons } };
+    return { events, diagnostics: { entryCount: payload?.entry?.length, ignoredCount: reasons.length, reasons } }
   }
 }
 

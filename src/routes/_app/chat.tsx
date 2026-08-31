@@ -6290,20 +6290,30 @@ function ChatPage() {
                                         );
                                       };
 
+                                      const statusLabels: Record<string, string> = {
+                                        sent: "Enviado",
+                                        delivered: "Entregue",
+                                        read: "Lido",
+                                        failed: "Falha ao enviar",
+                                      };
+
                                       const renderStatus = (status: string) => {
+                                        const title = statusLabels[status] || "Enviando...";
+                                        let icon: React.ReactNode = <Clock className="h-3 w-3 opacity-60" />;
                                         if (status === "read") {
-                                          return <CheckCheck className="h-3.5 w-3.5 text-sky-400 stroke-[2.5]" />;
+                                          icon = <CheckCheck className="h-3.5 w-3.5 text-sky-400 stroke-[2.5]" />;
+                                        } else if (status === "delivered") {
+                                          icon = <CheckCheck className="h-3.5 w-3.5 opacity-70 stroke-[2.2]" />;
+                                        } else if (status === "sent") {
+                                          icon = <Check className="h-3.5 w-3.5 opacity-70 stroke-[2.2]" />;
+                                        } else if (status === "failed") {
+                                          icon = <AlertCircle className="h-3.5 w-3.5 text-destructive" />;
                                         }
-                                        if (status === "delivered") {
-                                          return <CheckCheck className="h-3.5 w-3.5 opacity-70 stroke-[2.2]" />;
-                                        }
-                                        if (status === "sent") {
-                                          return <Check className="h-3.5 w-3.5 opacity-70 stroke-[2.2]" />;
-                                        }
-                                        if (status === "failed") {
-                                          return <AlertCircle className="h-3.5 w-3.5 text-destructive" />;
-                                        }
-                                        return <Clock className="h-3 w-3 opacity-60" />;
+                                        return (
+                                          <span title={title} aria-label={title} className="inline-flex items-center">
+                                            {icon}
+                                          </span>
+                                        );
                                       };
 
                                       const hasTopMedia =
