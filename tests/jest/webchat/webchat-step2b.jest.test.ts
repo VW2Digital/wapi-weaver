@@ -13,10 +13,6 @@ import type { CanonicalMessage } from "@/lib/messaging/types";
 const ORIGIN = "http://localhost:3000";
 const counters = new Map<string, number>();
 
-jest.mock("@tanstack/react-start/server", () => ({
-  setResponseStatus: jest.fn(),
-}));
-
 jest.mock("@/lib/cache", () => ({
   redis: {
     incr: jest.fn(async (key: string) => {
