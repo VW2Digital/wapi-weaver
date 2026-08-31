@@ -4,6 +4,7 @@ import { dbAdmin } from "@/integrations/mysql/client.server";
 import { transcodeAudioToMp3 } from "@/lib/audio-transcode.server";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
 import { buildWhatsAppBotMessage } from "@/lib/meta-whatsapp-message";
+import { getBotActivationContext, evaluateBotActivation } from "@/lib/messaging/services/bot-lifecycle.service";
 
 function logInfo(message: string, data?: any) {
   console.log(`[botflow] ${message}`, data ? JSON.stringify(data) : "");
@@ -977,6 +978,13 @@ export async function processBotFlow(
     // "Vincular Agente IA" é uma ação interna do construtor, não um tipo de
     // mensagem da Cloud API. Executamos a IA antes de montar um payload Meta.
     if (stepToExecute.message_type === "link_ai_agent" && channel === "whatsapp") {
+      const preAiDecision = await evaluateBotActivation(
+        await getBotActivationContext(userId, channel, phoneDigits),
+      );
+      if (!preAiDecision.active) {
+        logInfo("[BOT] Execução abortada antes da IA", { reason: preAiDecision.reason, phoneDigits, stepId: stepToExecute.id });
+        return;
+      }
       const { processAiAgent } = await import("./ai-agent.server");
       const handledByAi = await processAiAgent(messageBody, phoneDigits, phoneNumberId, userId);
       if (handledByAi) {
@@ -1004,6 +1012,14 @@ export async function processBotFlow(
     }
 
     // 4. Disparar o envio da mensagem para o canal correto
+    const preSendDecision = await evaluateBotActivation(
+      await getBotActivationContext(userId, channel, phoneDigits),
+    );
+    if (!preSendDecision.active) {
+      logInfo("[BOT] Envio abortado por desativação/pausa durante execução", { reason: preSendDecision.reason, phoneDigits, stepId: stepToExecute.id });
+      return;
+    }
+
     let isSuccess = false;
     let providerMsgId: string | null = null;
     let sentPayload: Record<string, unknown> | null = null;
