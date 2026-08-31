@@ -17,6 +17,7 @@ export interface SaveMessageOptions {
   message: CanonicalMessage;
   rawPayload?: unknown;
   status?: "sent" | "delivered" | null;
+  clientMessageId?: string | null;
 }
 
 export interface SaveMessageResult {
@@ -50,6 +51,7 @@ export async function saveMessage(options: SaveMessageOptions): Promise<SaveMess
     message,
     rawPayload = null,
     status = message.direction === "outgoing" ? "sent" : null,
+    clientMessageId = null,
   } = options;
 
   const messageId = randomUUID();
@@ -73,14 +75,15 @@ export async function saveMessage(options: SaveMessageOptions): Promise<SaveMess
 
     const [insertResult] = await conn.execute(
       `INSERT INTO direct_messages (
-         id, tenant_id, user_id, contact_phone, conversation_id, direction, type,
+         id, client_message_id, tenant_id, user_id, contact_phone, conversation_id, direction, type,
          body, wa_message_id, status, reply_to_message_id,
          channel, channel_connection_id, provider_message_id, provider_account_id,
          sender_wa_id, sender_name, external_group_id,
          metadata, raw_payload, created_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
         messageId,
+        clientMessageId,
         tenantId,
         userId,
         contactPhone,

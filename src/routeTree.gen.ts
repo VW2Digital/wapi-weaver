@@ -98,7 +98,10 @@ import { Route as ApiBillingCheckoutPixRouteImport } from './routes/api/billing/
 import { Route as ApiBillingCheckoutCardRouteImport } from './routes/api/billing/checkout/card'
 import { Route as ApiAdminPaymentGatewaysMercadopagoRouteImport } from './routes/api/admin/payment-gateways/mercadopago'
 import { Route as ApiPublicWebhooksIncomingTokenRouteImport } from './routes/api/public/webhooks/incoming/$token'
+import { Route as ApiPublicWebchatPublicIdSessionRouteImport } from './routes/api/public/webchat.$publicId.session'
+import { Route as ApiPublicWebchatPublicIdMessagesRouteImport } from './routes/api/public/webchat.$publicId.messages'
 import { Route as ApiPublicWebchatPublicIdIframeRouteImport } from './routes/api/public/webchat.$publicId.iframe'
+import { Route as ApiPublicWebchatPublicIdHistoryRouteImport } from './routes/api/public/webchat.$publicId.history'
 import { Route as ApiPublicWebchatPublicIdConfigRouteImport } from './routes/api/public/webchat.$publicId.config'
 import { Route as ApiBillingPaymentsIdStatusRouteImport } from './routes/api/billing/payments/$id/status'
 import { Route as ApiAdminPaymentGatewaysMercadopagoTestRouteImport } from './routes/api/admin/payment-gateways/mercadopago/test'
@@ -565,10 +568,28 @@ const ApiPublicWebhooksIncomingTokenRoute =
     path: '/api/public/webhooks/incoming/$token',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicWebchatPublicIdSessionRoute =
+  ApiPublicWebchatPublicIdSessionRouteImport.update({
+    id: '/api/public/webchat/$publicId/session',
+    path: '/api/public/webchat/$publicId/session',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicWebchatPublicIdMessagesRoute =
+  ApiPublicWebchatPublicIdMessagesRouteImport.update({
+    id: '/api/public/webchat/$publicId/messages',
+    path: '/api/public/webchat/$publicId/messages',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicWebchatPublicIdIframeRoute =
   ApiPublicWebchatPublicIdIframeRouteImport.update({
     id: '/api/public/webchat/$publicId/iframe',
     path: '/api/public/webchat/$publicId/iframe',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicWebchatPublicIdHistoryRoute =
+  ApiPublicWebchatPublicIdHistoryRouteImport.update({
+    id: '/api/public/webchat/$publicId/history',
+    path: '/api/public/webchat/$publicId/history',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicWebchatPublicIdConfigRoute =
@@ -687,7 +708,10 @@ export interface FileRoutesByFullPath {
   '/api/admin/payment-gateways/mercadopago/test': typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
   '/api/billing/payments/$id/status': typeof ApiBillingPaymentsIdStatusRoute
   '/api/public/webchat/$publicId/config': typeof ApiPublicWebchatPublicIdConfigRoute
+  '/api/public/webchat/$publicId/history': typeof ApiPublicWebchatPublicIdHistoryRoute
   '/api/public/webchat/$publicId/iframe': typeof ApiPublicWebchatPublicIdIframeRoute
+  '/api/public/webchat/$publicId/messages': typeof ApiPublicWebchatPublicIdMessagesRoute
+  '/api/public/webchat/$publicId/session': typeof ApiPublicWebchatPublicIdSessionRoute
   '/api/public/webhooks/incoming/$token': typeof ApiPublicWebhooksIncomingTokenRoute
   '/api/public/webchat/$publicId/widget/js': typeof ApiPublicWebchatPublicIdWidgetJsRoute
 }
@@ -782,7 +806,10 @@ export interface FileRoutesByTo {
   '/api/admin/payment-gateways/mercadopago/test': typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
   '/api/billing/payments/$id/status': typeof ApiBillingPaymentsIdStatusRoute
   '/api/public/webchat/$publicId/config': typeof ApiPublicWebchatPublicIdConfigRoute
+  '/api/public/webchat/$publicId/history': typeof ApiPublicWebchatPublicIdHistoryRoute
   '/api/public/webchat/$publicId/iframe': typeof ApiPublicWebchatPublicIdIframeRoute
+  '/api/public/webchat/$publicId/messages': typeof ApiPublicWebchatPublicIdMessagesRoute
+  '/api/public/webchat/$publicId/session': typeof ApiPublicWebchatPublicIdSessionRoute
   '/api/public/webhooks/incoming/$token': typeof ApiPublicWebhooksIncomingTokenRoute
   '/api/public/webchat/$publicId/widget/js': typeof ApiPublicWebchatPublicIdWidgetJsRoute
 }
@@ -879,7 +906,10 @@ export interface FileRoutesById {
   '/api/admin/payment-gateways/mercadopago/test': typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
   '/api/billing/payments/$id/status': typeof ApiBillingPaymentsIdStatusRoute
   '/api/public/webchat/$publicId/config': typeof ApiPublicWebchatPublicIdConfigRoute
+  '/api/public/webchat/$publicId/history': typeof ApiPublicWebchatPublicIdHistoryRoute
   '/api/public/webchat/$publicId/iframe': typeof ApiPublicWebchatPublicIdIframeRoute
+  '/api/public/webchat/$publicId/messages': typeof ApiPublicWebchatPublicIdMessagesRoute
+  '/api/public/webchat/$publicId/session': typeof ApiPublicWebchatPublicIdSessionRoute
   '/api/public/webhooks/incoming/$token': typeof ApiPublicWebhooksIncomingTokenRoute
   '/api/public/webchat/$publicId/widget/js': typeof ApiPublicWebchatPublicIdWidgetJsRoute
 }
@@ -976,7 +1006,10 @@ export interface FileRouteTypes {
     | '/api/admin/payment-gateways/mercadopago/test'
     | '/api/billing/payments/$id/status'
     | '/api/public/webchat/$publicId/config'
+    | '/api/public/webchat/$publicId/history'
     | '/api/public/webchat/$publicId/iframe'
+    | '/api/public/webchat/$publicId/messages'
+    | '/api/public/webchat/$publicId/session'
     | '/api/public/webhooks/incoming/$token'
     | '/api/public/webchat/$publicId/widget/js'
   fileRoutesByTo: FileRoutesByTo
@@ -1071,7 +1104,10 @@ export interface FileRouteTypes {
     | '/api/admin/payment-gateways/mercadopago/test'
     | '/api/billing/payments/$id/status'
     | '/api/public/webchat/$publicId/config'
+    | '/api/public/webchat/$publicId/history'
     | '/api/public/webchat/$publicId/iframe'
+    | '/api/public/webchat/$publicId/messages'
+    | '/api/public/webchat/$publicId/session'
     | '/api/public/webhooks/incoming/$token'
     | '/api/public/webchat/$publicId/widget/js'
   id:
@@ -1167,7 +1203,10 @@ export interface FileRouteTypes {
     | '/api/admin/payment-gateways/mercadopago/test'
     | '/api/billing/payments/$id/status'
     | '/api/public/webchat/$publicId/config'
+    | '/api/public/webchat/$publicId/history'
     | '/api/public/webchat/$publicId/iframe'
+    | '/api/public/webchat/$publicId/messages'
+    | '/api/public/webchat/$publicId/session'
     | '/api/public/webhooks/incoming/$token'
     | '/api/public/webchat/$publicId/widget/js'
   fileRoutesById: FileRoutesById
@@ -1230,7 +1269,10 @@ export interface RootRouteChildren {
   ApiPublicWebhooksStripeRoute: typeof ApiPublicWebhooksStripeRoute
   ApiBillingPaymentsIdStatusRoute: typeof ApiBillingPaymentsIdStatusRoute
   ApiPublicWebchatPublicIdConfigRoute: typeof ApiPublicWebchatPublicIdConfigRoute
+  ApiPublicWebchatPublicIdHistoryRoute: typeof ApiPublicWebchatPublicIdHistoryRoute
   ApiPublicWebchatPublicIdIframeRoute: typeof ApiPublicWebchatPublicIdIframeRoute
+  ApiPublicWebchatPublicIdMessagesRoute: typeof ApiPublicWebchatPublicIdMessagesRoute
+  ApiPublicWebchatPublicIdSessionRoute: typeof ApiPublicWebchatPublicIdSessionRoute
   ApiPublicWebhooksIncomingTokenRoute: typeof ApiPublicWebhooksIncomingTokenRoute
   ApiPublicWebchatPublicIdWidgetJsRoute: typeof ApiPublicWebchatPublicIdWidgetJsRoute
 }
@@ -1860,11 +1902,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWebhooksIncomingTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/webchat/$publicId/session': {
+      id: '/api/public/webchat/$publicId/session'
+      path: '/api/public/webchat/$publicId/session'
+      fullPath: '/api/public/webchat/$publicId/session'
+      preLoaderRoute: typeof ApiPublicWebchatPublicIdSessionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/webchat/$publicId/messages': {
+      id: '/api/public/webchat/$publicId/messages'
+      path: '/api/public/webchat/$publicId/messages'
+      fullPath: '/api/public/webchat/$publicId/messages'
+      preLoaderRoute: typeof ApiPublicWebchatPublicIdMessagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/webchat/$publicId/iframe': {
       id: '/api/public/webchat/$publicId/iframe'
       path: '/api/public/webchat/$publicId/iframe'
       fullPath: '/api/public/webchat/$publicId/iframe'
       preLoaderRoute: typeof ApiPublicWebchatPublicIdIframeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/webchat/$publicId/history': {
+      id: '/api/public/webchat/$publicId/history'
+      path: '/api/public/webchat/$publicId/history'
+      fullPath: '/api/public/webchat/$publicId/history'
+      preLoaderRoute: typeof ApiPublicWebchatPublicIdHistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/webchat/$publicId/config': {
@@ -2099,7 +2162,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicWebhooksStripeRoute: ApiPublicWebhooksStripeRoute,
   ApiBillingPaymentsIdStatusRoute: ApiBillingPaymentsIdStatusRoute,
   ApiPublicWebchatPublicIdConfigRoute: ApiPublicWebchatPublicIdConfigRoute,
+  ApiPublicWebchatPublicIdHistoryRoute: ApiPublicWebchatPublicIdHistoryRoute,
   ApiPublicWebchatPublicIdIframeRoute: ApiPublicWebchatPublicIdIframeRoute,
+  ApiPublicWebchatPublicIdMessagesRoute: ApiPublicWebchatPublicIdMessagesRoute,
+  ApiPublicWebchatPublicIdSessionRoute: ApiPublicWebchatPublicIdSessionRoute,
   ApiPublicWebhooksIncomingTokenRoute: ApiPublicWebhooksIncomingTokenRoute,
   ApiPublicWebchatPublicIdWidgetJsRoute: ApiPublicWebchatPublicIdWidgetJsRoute,
 }

@@ -17,6 +17,7 @@
         "src/lib/messaging/types.ts",
         "src/lib/messaging/processor.server.ts",
         "src/lib/messaging/services/contact-identity.service.ts",
+        "src/lib/messaging/services/message.service.ts",
         "src/lib/messaging/outbound/provider-dispatcher.ts",
         "src/lib/messaging/outbound/provider-registry.ts",
         "src/lib/messaging/outbound/adapters/webchat-outbound-adapter.ts",
