@@ -1171,18 +1171,16 @@ function isInventoryProduct(value: unknown): value is InventoryProduct {
   );
 }
 
-/** Extrai a URL de foto de perfil dos custom_fields do contato, ignorando links expirados do CDN temporário do WhatsApp */
+/** Extrai a URL de foto de perfil dos custom_fields do contato.
+ *  WhatsApp continua com fallback de iniciais (não usa avatares de terceiros).
+ *  Instagram e Messenger usam as URLs oficiais (fbcdn/fbsbx), com fallback
+ *  para iniciais via onError quando o link expirar.
+ */
 function getContactAvatarUrl(contact: ChatContactRecord | null): string {
   const cf = contact?.custom_fields;
   if (!cf || typeof cf !== "object") return "";
   const rawUrl = cf.avatar_url || cf.photo_url || cf.photo || cf.picture || cf.image_url || cf.image || "";
-  if (
-    typeof rawUrl === "string" &&
-    (rawUrl.includes("whatsapp.net") ||
-      rawUrl.includes("whatsapp.com") ||
-      rawUrl.includes("fbcdn.net") ||
-      rawUrl.includes("fbsbx.com"))
-  ) {
+  if (typeof rawUrl === "string" && (rawUrl.includes("whatsapp.net") || rawUrl.includes("whatsapp.com"))) {
     return "";
   }
   return typeof rawUrl === "string" ? rawUrl : "";

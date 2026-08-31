@@ -127,10 +127,16 @@ export async function ensureContact(
     const isNewContact = !existingContactByIdentity && resolvedContactId === contactId;
 
     // 2. Upsert contact identity (external id per provider)
-    const identityMetadata = {
+    const identityMetadata: Record<string, unknown> = {
       ...(identity.metadata ?? {}),
       source: `${provider}_inbound`,
       raw_name: identity.name,
+      ...(provider === "instagram" && identity.avatarUrl
+        ? {
+            avatar_source: "instagram_user_profile_api",
+            avatar_fetched_at: new Date().toISOString(),
+          }
+        : {}),
     };
 
     await conn.execute(
