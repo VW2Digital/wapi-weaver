@@ -66,17 +66,17 @@ export async function getBotActivationContext(
   channel: string,
   contactPhone: string,
 ): Promise<BotActivationContext> {
-  const [legacyRows] = (await db.query(
+  const legacyRows = (await db.query(
     "SELECT is_active, instance_id FROM bot_settings WHERE (user_id = ? OR tenant_id = ?) AND channel = ?",
     [userId, userId, channel],
-  )) as Array<{ is_active: number; instance_id: string | null }>[];
+  )) as Array<{ is_active: number; instance_id: string | null }>;
 
-  const [builderRows] = (await db.query(
+  const builderRows = (await db.query(
     "SELECT id, is_active, channel FROM bot_flows WHERE (user_id = ? OR tenant_id = ?) AND channel = ?",
     [userId, userId, channel],
-  )) as Array<{ id: string; is_active: number; channel: string }>[];
+  )) as Array<{ id: string; is_active: number; channel: string }>;
 
-  const [stateRows] = (await db.query(
+  const stateRows = (await db.query(
     `SELECT bot_active, is_paused, paused_until
      FROM bot_conversation_state
      WHERE (user_id = ? OR tenant_id = ?)
@@ -85,7 +85,7 @@ export async function getBotActivationContext(
      ORDER BY updated_at DESC
      LIMIT 1`,
     [userId, userId, contactPhone, channel],
-  )) as Array<{ bot_active: number; is_paused: number; paused_until: string | null }>[];
+  )) as Array<{ bot_active: number; is_paused: number; paused_until: string | null }>;
 
   return {
     legacySettings: legacyRows ?? [],

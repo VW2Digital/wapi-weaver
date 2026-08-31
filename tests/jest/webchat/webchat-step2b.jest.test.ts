@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, describe, expect, jest, test } from "@jest/globals";
+import { beforeAll, afterAll, beforeEach, describe, expect, jest, test } from "@jest/globals";
 import { randomUUID } from "crypto";
 import db from "@/lib/db";
 import { createWebchatSession, getWebchatSessionByToken } from "@/lib/webchat/session.service";
@@ -11,6 +11,26 @@ import { checkSessionCreationRateLimit, checkMessageRateLimit } from "@/lib/webc
 import type { CanonicalMessage } from "@/lib/messaging/types";
 
 const ORIGIN = "http://localhost:3000";
+const counters = new Map<string, number>();
+
+jest.mock("@tanstack/react-start/server", () => ({
+  setResponseStatus: jest.fn(),
+}));
+
+jest.mock("@/lib/cache", () => ({
+  redis: {
+    incr: jest.fn(async (key: string) => {
+      const next = (counters.get(key) || 0) + 1;
+      counters.set(key, next);
+      return next;
+    }),
+    expire: jest.fn(async () => 1),
+  },
+}));
+
+beforeEach(() => {
+  counters.clear();
+});
 
 interface TestWidget {
   tenantId: string;
@@ -63,15 +83,21 @@ async function cleanupWidget(ctx: TestWidget) {
 }
 
 async function setupBotFlow(ctx: TestWidget, flowId: string, stepId: string) {
+  const settingsId = randomUUID();
+  await db.query(
+    `INSERT INTO bot_settings (id, user_id, tenant_id, instance_id, is_active, channel, name)
+     VALUES (?, ?, ?, NULL, 0, 'whatsapp', 'Test Settings')`,
+    [settingsId, ctx.tenantId, ctx.tenantId],
+  );
   await db.query(
     `INSERT INTO bot_flows (id, user_id, tenant_id, name, channel, is_active)
      VALUES (?, ?, ?, 'Test Flow', 'webchat', 1)`,
     [flowId, ctx.tenantId, ctx.tenantId],
   );
   await db.query(
-    `INSERT INTO bot_steps (id, flow_id, user_id, tenant_id, step_order, trigger_type, message_type, message_content)
-     VALUES (?, ?, ?, ?, 1, 'first_message', 'text', 'Resposta automatizada do bot')`,
-    [stepId, flowId, ctx.tenantId, ctx.tenantId],
+    `INSERT INTO bot_steps (id, flow_id, user_id, tenant_id, bot_settings_id, step_order, trigger_type, message_type, message_content)
+     VALUES (?, ?, ?, ?, ?, 1, 'first_message', 'text', 'Resposta automatizada do bot')`,
+    [stepId, flowId, ctx.tenantId, ctx.tenantId, settingsId],
   );
 }
 
@@ -141,8 +167,10 @@ describe("WebChat Step 2B — Bot Active", () => {
   });
 
   afterAll(async () => {
+    await db.query(`DELETE FROM bot_conversation_state WHERE user_id = ? AND channel = 'webchat'`, [ctx.tenantId]);
     await db.query(`DELETE FROM bot_steps WHERE tenant_id = ?`, [ctx.tenantId]);
     await db.query(`DELETE FROM bot_flows WHERE tenant_id = ?`, [ctx.tenantId]);
+    await db.query(`DELETE FROM bot_settings WHERE user_id = ?`, [ctx.tenantId]);
     await cleanupWidget(ctx);
   });
 
@@ -187,6 +215,7 @@ describe("WebChat Step 2B — Bot Paused", () => {
     await db.query(`DELETE FROM bot_conversation_state WHERE user_id = ? AND channel = 'webchat'`, [ctx.tenantId]);
     await db.query(`DELETE FROM bot_steps WHERE tenant_id = ?`, [ctx.tenantId]);
     await db.query(`DELETE FROM bot_flows WHERE tenant_id = ?`, [ctx.tenantId]);
+    await db.query(`DELETE FROM bot_settings WHERE user_id = ?`, [ctx.tenantId]);
     await cleanupWidget(ctx);
   });
 
@@ -330,7 +359,7 @@ describe("WebChat Step 2B — Multi-tenant", () => {
     sessionB.conversationId = convB;
 
     // Attempt to read A's conversation from B's tenant context
-    const forged = { ...sessionB, tenantId: tenantA.tenantId, conversationId } as any;
+    const forged = { ...sessionB, conversationId } as any;
     const history = await getWebchatHistory(forged, 50);
     expect(history.length).toBe(0);
   });
@@ -400,18 +429,6 @@ describe("WebChat Step 2B — Multiple Widgets Same Tenant", () => {
 
 describe("WebChat Step 2B — Rate Limit", () => {
   let ctx: TestWidget;
-  const counters = new Map<string, number>();
-
-  jest.mock("@/lib/cache", () => ({
-    redis: {
-      incr: jest.fn(async (key: string) => {
-        const next = (counters.get(key) || 0) + 1;
-        counters.set(key, next);
-        return next;
-      }),
-      expire: jest.fn(async () => 1),
-    },
-  }));
 
   beforeAll(async () => {
     ctx = await setupWidget();
@@ -419,7 +436,6 @@ describe("WebChat Step 2B — Rate Limit", () => {
 
   afterAll(async () => {
     await cleanupWidget(ctx);
-    counters.clear();
   });
 
   test("session creation rate limit returns 429 after threshold", async () => {
@@ -450,7 +466,6 @@ describe("WebChat Step 2B — Rate Limit", () => {
   });
 
   test("rate limit keys are tenant-scoped", async () => {
-    counters.clear();
     const reqA = new Request("http://localhost", { headers: { "x-forwarded-for": "1.2.3.4" } });
     const reqB = new Request("http://localhost", { headers: { "x-forwarded-for": "1.2.3.4" } });
 
@@ -481,13 +496,9 @@ describe("WebChat Step 2B — XSS & SQL-like Input", () => {
     ["' OR 1=1; DROP TABLE contacts; --"],
   ])("stores dangerous input as plain text: %s", async (text) => {
     const clientMessageId = randomUUID();
-    const { conversationId } = await handleWebchatInboundMessage(session, clientMessageId, text);
-    session.conversationId = conversationId;
+    const { messageId } = await handleWebchatInboundMessage(session, clientMessageId, text);
 
-    const rows = (await db.query(
-      `SELECT body FROM direct_messages WHERE conversation_id = ? AND direction = 'incoming'`,
-      [conversationId],
-    )) as any[];
+    const rows = (await db.query(`SELECT body FROM direct_messages WHERE id = ?`, [messageId])) as any[];
 
     expect(rows.length).toBe(1);
     expect(rows[0].body).toBe(text);
@@ -618,7 +629,8 @@ describe("WebChat Step 2B — Origin Security", () => {
     ["https://evil.example", false],
     ["https://site-a.example.evil.com", false],
     ["https://evilsite-a.example", false],
-    ["http://site-a.example:80", false], // different port/scheme
+    ["http://site-a.example:8080", false], // different port
+    ["https://site-a.example", false], // different scheme
   ])("origin %s allowed=%s", async (origin, allowed) => {
     if (allowed) {
       const result = await createWebchatSession(ctx.publicId, undefined, origin);

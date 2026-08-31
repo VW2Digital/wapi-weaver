@@ -26,12 +26,12 @@ export async function getWebchatHistory(
 
   const resolvedLimit = Math.min(Math.max(1, limit || DEFAULT_LIMIT), MAX_LIMIT);
 
-  let params: any[] = [session.tenantId, session.conversationId, resolvedLimit];
+  let params: any[] = [session.tenantId, session.channelConnectionId, session.conversationId, resolvedLimit];
   let cursorClause = "";
 
   if (before) {
     cursorClause = "AND created_at < ?";
-    params = [session.tenantId, session.conversationId, before, resolvedLimit];
+    params = [session.tenantId, session.channelConnectionId, session.conversationId, before, resolvedLimit];
   }
 
   const rows = (await db.query(
@@ -46,6 +46,7 @@ export async function getWebchatHistory(
        created_at
      FROM direct_messages
      WHERE tenant_id = ?
+       AND channel_connection_id = ?
        AND conversation_id = ?
        ${cursorClause}
      ORDER BY created_at DESC
