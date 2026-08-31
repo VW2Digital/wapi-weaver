@@ -10,10 +10,11 @@ export interface TriggerBotOptions {
   message: CanonicalMessage;
   provider: MessagingProvider;
   messageId: string;
+  conversationId?: string | null;
 }
 
 export async function triggerBotForMessage(options: TriggerBotOptions): Promise<void> {
-  const { userId, phoneNumberId, contactPhone, message, provider, messageId } = options;
+  const { userId, phoneNumberId, contactPhone, message, provider, messageId, conversationId } = options;
 
   const body = message.body;
   const buttonPayload = message.buttonPayload;
@@ -45,5 +46,6 @@ export async function triggerBotForMessage(options: TriggerBotOptions): Promise<
     buttonPayload ?? undefined,
     provider,
     messageId,
+    conversationId,
   );
 }

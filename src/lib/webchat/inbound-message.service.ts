@@ -116,6 +116,7 @@ export async function handleWebchatInboundMessage(
         message: canonicalMessage,
         provider: "webchat",
         messageId: saved.messageId,
+        conversationId: conversation.sessionId,
       });
       botTriggered = true;
     } catch (err) {

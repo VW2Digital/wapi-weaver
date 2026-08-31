@@ -73,46 +73,61 @@ export async function saveMessage(options: SaveMessageOptions): Promise<SaveMess
       return { messageId: existing.id, isNew: false };
     }
 
-    const [insertResult] = await conn.execute(
-      `INSERT INTO direct_messages (
-         id, client_message_id, tenant_id, user_id, contact_phone, conversation_id, direction, type,
-         body, wa_message_id, status, reply_to_message_id,
-         channel, channel_connection_id, provider_message_id, provider_account_id,
-         sender_wa_id, sender_name, external_group_id,
-         metadata, raw_payload, created_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [
-        messageId,
-        clientMessageId,
-        tenantId,
-        userId,
-        contactPhone,
-        conversationId ?? null,
-        message.direction,
-        message.type,
-        body,
-        message.providerMessageId,
-        status,
-        message.replyToMessageId ?? null,
-        provider,
-        channelConnectionId ?? null,
-        message.providerMessageId,
-        channelResourceId,
-        message.senderWaId ?? null,
-        message.senderName ?? null,
-        message.externalGroupId ?? null,
-        JSON.stringify({
-          attachments: message.attachments ?? [],
-          buttonPayload: message.buttonPayload ?? null,
-          primaryAttachment,
-          raw: message.raw,
-        }),
-        rawPayload ? JSON.stringify(rawPayload) : null,
-      ],
-    );
+    try {
+      const [insertResult] = await conn.execute(
+        `INSERT INTO direct_messages (
+           id, client_message_id, tenant_id, user_id, contact_phone, conversation_id, direction, type,
+           body, wa_message_id, status, reply_to_message_id,
+           channel, channel_connection_id, provider_message_id, provider_account_id,
+           sender_wa_id, sender_name, external_group_id,
+           metadata, raw_payload, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        [
+          messageId,
+          clientMessageId,
+          tenantId,
+          userId,
+          contactPhone,
+          conversationId ?? null,
+          message.direction,
+          message.type,
+          body,
+          message.providerMessageId,
+          status,
+          message.replyToMessageId ?? null,
+          provider,
+          channelConnectionId ?? null,
+          message.providerMessageId,
+          channelResourceId,
+          message.senderWaId ?? null,
+          message.senderName ?? null,
+          message.externalGroupId ?? null,
+          JSON.stringify({
+            attachments: message.attachments ?? [],
+            buttonPayload: message.buttonPayload ?? null,
+            primaryAttachment,
+            raw: message.raw,
+          }),
+          rawPayload ? JSON.stringify(rawPayload) : null,
+        ],
+      );
 
-    const result = insertResult as unknown as ResultSetHeader;
-    return { messageId: result.affectedRows === 1 ? messageId : existing?.id ?? messageId, isNew: result.affectedRows === 1 };
+      const result = insertResult as unknown as ResultSetHeader;
+      return { messageId: result.affectedRows === 1 ? messageId : existing?.id ?? messageId, isNew: result.affectedRows === 1 };
+    } catch (error: any) {
+      // Race: another request inserted the same client_message_id / wa_message_id.
+      if (error?.code === "ER_DUP_ENTRY") {
+        const [raceRows] = await conn.execute(
+          `SELECT id FROM direct_messages
+           WHERE user_id = ? AND (wa_message_id = ? OR provider_message_id = ? OR client_message_id = ?)
+           LIMIT 1`,
+          [userId, message.providerMessageId, message.providerMessageId, clientMessageId],
+        );
+        const race = (raceRows as Array<{ id: string }>)?.[0];
+        return { messageId: race?.id ?? messageId, isNew: false };
+      }
+      throw error;
+    }
   });
 }
 

@@ -269,6 +269,7 @@ export async function processBotFlow(
   buttonPayload?: string,
   channel: "whatsapp" | "instagram" | "messenger" | "whatsapp_group" | "webchat" = "whatsapp",
   incomingMessageId?: string | null,
+  conversationId?: string | null,
 ) {
   if (!phoneNumberId || !phoneDigits || !userId || (!messageBody && !buttonPayload)) return;
 
@@ -1184,6 +1185,7 @@ export async function processBotFlow(
         tenant_id: userId,
         user_id: userId,
         contact_phone: phoneDigits,
+        conversation_id: conversationId ?? null,
         direction: "outgoing",
         type: msgType,
         body: msgBody,
@@ -1216,6 +1218,7 @@ export async function executeInactivityStep(
   phoneNumberId: string,
   userId: string,
   channel: "whatsapp" | "instagram" | "messenger" | "webchat" = "whatsapp",
+  conversationId?: string | null,
 ) {
   if (!phoneNumberId || !phoneDigits || !userId || !stepToExecute) return;
 
@@ -1515,6 +1518,7 @@ export async function executeInactivityStep(
         tenant_id: userId,
         user_id: userId,
         contact_phone: phoneDigits,
+        conversation_id: conversationId ?? null,
         direction: "outgoing",
         type: msgType,
         body: msgBody,
