@@ -348,7 +348,7 @@ function WidgetPreview({
   return (
     <div className="space-y-2">
       <Label>Visualização</Label>
-      <div className="relative h-96 bg-muted/30 rounded-lg border overflow-hidden">
+      <div className="relative h-80 md:h-96 bg-muted/30 rounded-lg border overflow-hidden">
         {!enabled && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/70 text-sm font-medium">
             Widget inativo
@@ -357,7 +357,7 @@ function WidgetPreview({
 
         {isOpen && (
           <div
-            className={`absolute bottom-20 ${isLeft ? "left-4" : "right-4"} w-80 h-[22rem] bg-background rounded-2xl shadow-xl border overflow-hidden flex flex-col z-10`}
+            className={`absolute bottom-20 ${isLeft ? "left-4" : "right-4"} w-[calc(100%-2rem)] max-w-sm h-[22rem] max-h-[calc(100%-6rem)] bg-background rounded-2xl shadow-xl border overflow-hidden flex flex-col z-10`}
           >
             <div
               className="px-4 py-3 text-white font-semibold text-sm flex items-center gap-2"
