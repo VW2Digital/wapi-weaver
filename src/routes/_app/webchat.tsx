@@ -8,8 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { usePageHeader } from "@/components/layout/page-header-provider";
-import { Copy, Plus, ArrowLeft, MessageCircle, ChevronRight } from "lucide-react";
+import { Copy, Plus, ArrowLeft, MessageCircle, ChevronRight, X, User, Mail, Phone } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import {
   getWebchatWidgets,
   createWebchatWidget,
@@ -343,7 +344,131 @@ function WidgetPreview({
   enabled: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [step, setStep] = useState<"form" | "chat">("form");
+  const [prechat, setPrechat] = useState({ name: "", email: "", phone: "" });
   const isLeft = position === "bottom-left";
+
+  const handleStart = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!prechat.name || !prechat.email || !prechat.phone) return;
+    setStep("chat");
+  };
+
+  const toggleOpen = () => {
+    if (!enabled) return;
+    setIsOpen((open) => {
+      const next = !open;
+      if (next) setStep("form");
+      return next;
+    });
+  };
+
+  const header = (
+    <div
+      className="px-4 py-3 text-white flex items-center justify-between gap-3"
+      style={{ backgroundColor: accentColor }}
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+          <MessageCircle className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <div className="font-semibold text-sm truncate">{title || "Chat"}</div>
+          <div className="text-xs text-white/90 flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-green-400" />
+            Online agora
+          </div>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => setIsOpen(false)}
+        className="text-white/90 hover:text-white transition-colors"
+        aria-label="Fechar"
+      >
+        <X className="h-5 w-5" />
+      </button>
+    </div>
+  );
+
+  const formView = (
+    <div className="flex-1 overflow-y-auto p-5 flex flex-col items-center text-center bg-white dark:bg-slate-950">
+      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-3xl mb-4">💬</div>
+      <h3 className="text-lg font-bold text-foreground">VAMOS CONVERSAR?</h3>
+      <p className="text-sm text-muted-foreground mb-6 max-w-[17rem]">
+        Preencha seus dados e fale com nossa equipe no WhatsApp.
+      </p>
+      <form onSubmit={handleStart} className="w-full max-w-[17rem] space-y-3">
+        <div className="relative">
+          <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            type="text"
+            value={prechat.name}
+            onChange={(e) => setPrechat({ ...prechat, name: e.target.value })}
+            placeholder="Seu nome"
+            required
+            className="w-full pl-9 pr-3 py-2.5 bg-muted border rounded-lg text-sm outline-none focus:border-ring"
+          />
+        </div>
+        <div className="relative">
+          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            type="email"
+            value={prechat.email}
+            onChange={(e) => setPrechat({ ...prechat, email: e.target.value })}
+            placeholder="Seu e-mail"
+            required
+            className="w-full pl-9 pr-3 py-2.5 bg-muted border rounded-lg text-sm outline-none focus:border-ring"
+          />
+        </div>
+        <div className="relative">
+          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            type="tel"
+            value={prechat.phone}
+            onChange={(e) => setPrechat({ ...prechat, phone: e.target.value })}
+            placeholder="WhatsApp (com DDD)"
+            required
+            className="w-full pl-9 pr-3 py-2.5 bg-muted border rounded-lg text-sm outline-none focus:border-ring"
+          />
+        </div>
+        <button
+          type="submit"
+          className="w-full py-2.5 rounded-lg text-white text-sm font-semibold transition-transform active:scale-95"
+          style={{ backgroundColor: accentColor }}
+        >
+          Iniciar conversa →
+        </button>
+      </form>
+      <p className="text-xs text-muted-foreground mt-5">Resposta em ate 15 minutos, em horario comercial.</p>
+    </div>
+  );
+
+  const chatView = (
+    <>
+      <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50 dark:bg-slate-950">
+        <div className="self-start bg-background border text-foreground max-w-[80%] px-3 py-2 rounded-2xl rounded-bl-sm text-sm shadow-sm">
+          {welcomeMessage || "Olá! Como podemos ajudar?"}
+        </div>
+      </div>
+      <div className="p-3 border-t bg-background flex items-center gap-2">
+        <input
+          type="text"
+          readOnly
+          placeholder={placeholder || "Digite uma mensagem..."}
+          className="flex-1 bg-muted px-3 py-2 rounded-lg text-sm outline-none"
+        />
+        <button
+          type="button"
+          className="px-3 py-2 rounded-lg text-white text-sm font-medium"
+          style={{ backgroundColor: accentColor }}
+          disabled
+        >
+          Enviar
+        </button>
+      </div>
+    </>
+  );
 
   return (
     <div className="space-y-2">
@@ -357,49 +482,42 @@ function WidgetPreview({
 
         {isOpen && (
           <div
-            className={`absolute bottom-20 ${isLeft ? "left-4" : "right-4"} w-[calc(100%-2rem)] max-w-sm h-[22rem] max-h-[calc(100%-6rem)] bg-background rounded-2xl shadow-xl border overflow-hidden flex flex-col z-10`}
+            className={cn(
+              "absolute bottom-20 w-[calc(100%-2rem)] max-w-sm h-[22rem] max-h-[calc(100%-6rem)] bg-background rounded-2xl shadow-xl border overflow-hidden flex flex-col z-10",
+              isLeft ? "left-4" : "right-4",
+            )}
           >
-            <div
-              className="px-4 py-3 text-white font-semibold text-sm flex items-center gap-2"
-              style={{ backgroundColor: accentColor }}
-            >
-              <MessageCircle className="h-4 w-4" />
-              {title || "Chat"}
-            </div>
-            <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50 dark:bg-slate-950">
-              {(welcomeMessage || "Olá! Como podemos ajudar?") && (
-                <div className="self-start bg-white dark:bg-slate-900 border text-foreground max-w-[80%] px-3 py-2 rounded-2xl rounded-bl-sm text-sm">
-                  {welcomeMessage || "Olá! Como podemos ajudar?"}
-                </div>
-              )}
-            </div>
-            <div className="p-3 border-t bg-background flex items-center gap-2">
-              <input
-                type="text"
-                readOnly
-                placeholder={placeholder || "Digite uma mensagem..."}
-                className="flex-1 bg-muted px-3 py-2 rounded-lg text-sm outline-none"
-              />
-              <button
-                type="button"
-                className="px-3 py-2 rounded-lg text-white text-sm font-medium"
-                style={{ backgroundColor: accentColor }}
-                disabled
-              >
-                Enviar
-              </button>
-            </div>
+            {header}
+            {step === "form" ? formView : chatView}
           </div>
         )}
 
         <button
           type="button"
-          onClick={() => enabled && setIsOpen((v) => !v)}
-          className={`absolute bottom-4 ${isLeft ? "left-4" : "right-4"} w-14 h-14 rounded-full text-white shadow-lg flex items-center justify-center transition-transform hover:scale-105 z-10`}
-          style={{ backgroundColor: enabled ? accentColor : "#9ca3af" }}
+          onClick={toggleOpen}
           disabled={!enabled}
+          aria-label={isOpen ? "Fechar chat" : "Abrir chat"}
+          className={cn(
+            "absolute bottom-4 w-14 h-14 rounded-full text-white shadow-lg flex items-center justify-center transition-all duration-200 z-10",
+            isLeft ? "left-4" : "right-4",
+            enabled ? "hover:scale-110 active:scale-95" : "",
+          )}
+          style={{ backgroundColor: enabled ? accentColor : "#9ca3af" }}
         >
-          <MessageCircle className="h-6 w-6" />
+          <div className="relative w-6 h-6">
+            <MessageCircle
+              className={cn(
+                "absolute inset-0 h-6 w-6 transition-all duration-200",
+                isOpen ? "opacity-0 rotate-90 scale-50" : "opacity-100 rotate-0 scale-100",
+              )}
+            />
+            <X
+              className={cn(
+                "absolute inset-0 h-6 w-6 transition-all duration-200",
+                isOpen ? "opacity-100 rotate-0 scale-100" : "opacity-0 -rotate-90 scale-50",
+              )}
+            />
+          </div>
         </button>
       </div>
     </div>
