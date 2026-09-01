@@ -4390,6 +4390,21 @@ function ChatPage() {
                   {filterView === "messenger" && "Site"}
                 </button>
               )}
+              {configuredChannels.includes("webchat") && (
+                <button
+                  type="button"
+                  onClick={() => setFilterView("webchat")}
+                  className={cn(
+                    "flex items-center justify-center rounded-full text-xs font-semibold transition-all",
+                    filterView === "webchat"
+                      ? "h-10 px-4 gap-2 bg-sky-500 text-white shadow-sm"
+                      : "h-10 w-10 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                  )}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  {filterView === "webchat" && "WebChat"}
+                </button>
+              )}
             </div>
           </div>
 

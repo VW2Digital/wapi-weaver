@@ -6,7 +6,7 @@ import { normalizeWaMessageId } from "./wa-message-id";
 import { publishChatRealtimeEvent } from "./chat-realtime.server";
 import { providerDispatcher } from "@/lib/messaging/outbound/provider-dispatcher";
 
-type ChatChannel = "whatsapp" | "instagram" | "messenger";
+type ChatChannel = "whatsapp" | "instagram" | "messenger" | "webchat";
 
 export interface ChatProviderPayload {
   type: string;
