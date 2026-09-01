@@ -222,20 +222,25 @@ function WidgetCard({
       toast.error("Código de instalação indisponível");
       return;
     }
+
+    const fallbackCopy = () => {
+      const textarea = document.createElement("textarea");
+      textarea.value = snippet;
+      textarea.readOnly = true;
+      textarea.style.cssText = "position: fixed; top: 0; left: 0; width: 1px; height: 1px; opacity: 0; overflow: hidden;";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      if (!ok) throw new Error("execCommand copy failed");
+    };
+
     try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(snippet);
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(snippet).catch(fallbackCopy);
       } else {
-        const textarea = document.createElement("textarea");
-        textarea.value = snippet;
-        textarea.style.position = "fixed";
-        textarea.style.left = "-9999px";
-        document.body.appendChild(textarea);
-        textarea.focus();
-        textarea.select();
-        const ok = document.execCommand("copy");
-        document.body.removeChild(textarea);
-        if (!ok) throw new Error("execCommand copy failed");
+        fallbackCopy();
       }
       toast.success("Código copiado");
       setCopied(true);
