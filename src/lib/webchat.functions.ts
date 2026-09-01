@@ -4,6 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { randomUUID } from "crypto";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import db from "@/lib/db";
+import { getWebchatAppUrl, getWebchatEmbedCode } from "./webchat/embed";
 
 export interface WebchatWidget {
   id: string;
@@ -19,6 +20,7 @@ export interface WebchatWidget {
   position: string;
   allowedOrigins: string[];
   prechatEnabled: boolean;
+  embedCode?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -48,7 +50,11 @@ export const getWebchatWidgets = createServerFn({ method: "GET" })
       ORDER BY w.created_at DESC`,
       [context.tenantId],
     );
-    return (rows as any[]).map(mapWidgetRow);
+    const appUrl = getWebchatAppUrl();
+    return (rows as any[]).map((row) => ({
+      ...mapWidgetRow(row),
+      embedCode: getWebchatEmbedCode({ appUrl, publicId: row.public_id }),
+    }));
   });
 
 export const createWebchatWidget = createServerFn({ method: "POST" })
@@ -99,7 +105,11 @@ export const createWebchatWidget = createServerFn({ method: "POST" })
       LIMIT 1`,
       [widgetId, context.tenantId],
     );
-    return mapWidgetRow((rows as any[])[0]);
+    const appUrl = getWebchatAppUrl();
+    return {
+      ...mapWidgetRow((rows as any[])[0]),
+      embedCode: getWebchatEmbedCode({ appUrl, publicId: (rows as any[])[0].public_id }),
+    };
   });
 
 export const updateWebchatWidget = createServerFn({ method: "POST" })

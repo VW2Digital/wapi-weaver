@@ -25,19 +25,6 @@ const POSITIONS = [
   { value: "bottom-left", label: "Inferior esquerdo" },
 ];
 
-function makeSnippet(publicId: string) {
-  return `<script>
-(function(d, s, id) {
-  var js, fjs = d.getElementsByTagName(s)[0];
-  if (d.getElementById(id)) return;
-  js = d.createElement(s); js.id = id;
-  js.src = 'https://' + window.location.host + '/api/public/webchat/${publicId}/widget.js';
-  js.async = true;
-  fjs.parentNode.insertBefore(js, fjs);
-}(document, 'script', 'bliv-webchat'));
-</script>`;
-}
-
 function WebchatSettingsPage() {
   const getWidgets = useServerFn(getWebchatWidgets);
   const createWidget = useServerFn(createWebchatWidget);
@@ -132,13 +119,39 @@ function WidgetCard({
     onError: () => toast.error("Erro ao atualizar widget"),
   });
 
-  const snippet = makeSnippet(widget.publicId);
+  const [copied, setCopied] = useState(false);
+  const snippet = widget.embedCode || "";
+
+  const handleCopy = async () => {
+    if (!navigator.clipboard) {
+      toast.error("Navegador não suporta cópia automática");
+      return;
+    }
+    if (!snippet) {
+      toast.error("Código de instalação indisponível");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(snippet);
+      toast.success("Código copiado");
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Erro ao copiar");
+    }
+  };
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>{widget.title}</CardTitle>
-        <CardDescription>Public ID: {widget.publicId}</CardDescription>
+        <CardDescription className="space-y-1">
+          <p>Public ID: {widget.publicId}</p>
+          <p>Status: {widget.enabled ? "Ativo" : "Inativo"}</p>
+          <p className="truncate">
+            Domínios permitidos: {widget.allowedOrigins.length > 0 ? widget.allowedOrigins.join(", ") : "Nenhum"}
+          </p>
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -223,7 +236,7 @@ function WidgetCard({
         </div>
 
         <div className="space-y-2">
-          <Label>Código para instalar no site</Label>
+          <Label>Código de instalação</Label>
           <div className="relative">
             <pre className="bg-muted p-3 rounded text-sm overflow-x-auto whitespace-pre-wrap">
               {snippet}
@@ -232,15 +245,16 @@ function WidgetCard({
               size="sm"
               variant="secondary"
               className="absolute top-2 right-2"
-              onClick={() => {
-                navigator.clipboard.writeText(snippet);
-                toast.success("Código copiado");
-              }}
+              onClick={handleCopy}
             >
               <Copy className="h-4 w-4 mr-1" />
-              Copiar
+              {copied ? "Copiado!" : "Copiar código"}
             </Button>
           </div>
+          <p className="text-sm text-muted-foreground">
+            Cole este código antes do fechamento da tag {"</body>"} do seu site.
+            O domínio do site precisa estar cadastrado nos domínios permitidos deste widget.
+          </p>
         </div>
       </CardContent>
     </Card>
