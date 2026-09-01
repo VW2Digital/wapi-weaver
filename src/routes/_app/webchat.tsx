@@ -204,117 +204,124 @@ function WidgetCard({
           <ArrowLeft className="h-4 w-4 mr-2" />
           Voltar para lista
         </Button>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor={`title-${widget.id}`}>Título</Label>
+                <Input
+                  id={`title-${widget.id}`}
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                onBlur={() =>
+                  updateMutation.mutate({ id: widget.id, title: form.title })
+                }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`color-${widget.id}`}>Cor</Label>
+                <Input
+                  id={`color-${widget.id}`}
+                  value={form.accentColor}
+                  onChange={(e) => setForm({ ...form, accentColor: e.target.value })}
+                  onBlur={() =>
+                    updateMutation.mutate({ id: widget.id, accentColor: form.accentColor })
+                  }
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor={`welcome-${widget.id}`}>Mensagem de boas-vindas</Label>
+                <Input
+                  id={`welcome-${widget.id}`}
+                  value={form.welcomeMessage}
+                  onChange={(e) => setForm({ ...form, welcomeMessage: e.target.value })}
+                  onBlur={() =>
+                    updateMutation.mutate({
+                      id: widget.id,
+                      welcomeMessage: form.welcomeMessage,
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor={`placeholder-${widget.id}`}>Placeholder</Label>
+                <Input
+                  id={`placeholder-${widget.id}`}
+                  value={form.placeholder}
+                  onChange={(e) => setForm({ ...form, placeholder: e.target.value })}
+                  onBlur={() =>
+                    updateMutation.mutate({
+                      id: widget.id,
+                      placeholder: form.placeholder,
+                    })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id={`enabled-${widget.id}`}
+                  checked={form.enabled}
+                  onCheckedChange={(checked: boolean) => {
+                    setForm({ ...form, enabled: checked });
+                    updateMutation.mutate({ id: widget.id, enabled: checked });
+                  }}
+                />
+                <Label htmlFor={`enabled-${widget.id}`}>Ativo</Label>
+              </div>
+              <select
+                value={form.position}
+                onChange={(e) => {
+                  setForm({ ...form, position: e.target.value });
+                  updateMutation.mutate({ id: widget.id, position: e.target.value });
+                }}
+                className="border rounded p-1"
+              >
+                {POSITIONS.map((p) => (
+                  <option key={p.value} value={p.value}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Código de instalação</Label>
+              <div className="relative">
+                <pre className="bg-muted p-3 rounded text-sm overflow-x-auto whitespace-pre-wrap">
+                  {snippet}
+                </pre>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="absolute top-2 right-2"
+                  onClick={handleCopy}
+                >
+                  <Copy className="h-4 w-4 mr-1" />
+                  {copied ? "Copiado!" : "Copiar código"}
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Cole este código antes do fechamento da tag {"</body>"} do seu site.
+                O domínio do site precisa estar cadastrado nos domínios permitidos deste widget.
+              </p>
+            </div>
+          </div>
+
           <div className="space-y-2">
-            <Label htmlFor={`title-${widget.id}`}>Título</Label>
-            <Input
-              id={`title-${widget.id}`}
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-              onBlur={() =>
-                updateMutation.mutate({ id: widget.id, title: form.title })
-              }
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor={`color-${widget.id}`}>Cor</Label>
-            <Input
-              id={`color-${widget.id}`}
-              value={form.accentColor}
-              onChange={(e) => setForm({ ...form, accentColor: e.target.value })}
-              onBlur={() =>
-                updateMutation.mutate({ id: widget.id, accentColor: form.accentColor })
-              }
-            />
-          </div>
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor={`welcome-${widget.id}`}>Mensagem de boas-vindas</Label>
-            <Input
-              id={`welcome-${widget.id}`}
-              value={form.welcomeMessage}
-              onChange={(e) => setForm({ ...form, welcomeMessage: e.target.value })}
-              onBlur={() =>
-                updateMutation.mutate({
-                  id: widget.id,
-                  welcomeMessage: form.welcomeMessage,
-                })
-              }
-            />
-          </div>
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor={`placeholder-${widget.id}`}>Placeholder</Label>
-            <Input
-              id={`placeholder-${widget.id}`}
-              value={form.placeholder}
-              onChange={(e) => setForm({ ...form, placeholder: e.target.value })}
-              onBlur={() =>
-                updateMutation.mutate({
-                  id: widget.id,
-                  placeholder: form.placeholder,
-                })
-              }
+            <WidgetPreview
+              title={form.title}
+              welcomeMessage={form.welcomeMessage}
+              placeholder={form.placeholder}
+              accentColor={form.accentColor}
+              position={form.position}
+              enabled={form.enabled}
             />
           </div>
         </div>
-
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Switch
-              id={`enabled-${widget.id}`}
-              checked={form.enabled}
-              onCheckedChange={(checked: boolean) => {
-                setForm({ ...form, enabled: checked });
-                updateMutation.mutate({ id: widget.id, enabled: checked });
-              }}
-            />
-            <Label htmlFor={`enabled-${widget.id}`}>Ativo</Label>
-          </div>
-          <select
-            value={form.position}
-            onChange={(e) => {
-              setForm({ ...form, position: e.target.value });
-              updateMutation.mutate({ id: widget.id, position: e.target.value });
-            }}
-            className="border rounded p-1"
-          >
-            {POSITIONS.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Código de instalação</Label>
-          <div className="relative">
-            <pre className="bg-muted p-3 rounded text-sm overflow-x-auto whitespace-pre-wrap">
-              {snippet}
-            </pre>
-            <Button
-              size="sm"
-              variant="secondary"
-              className="absolute top-2 right-2"
-              onClick={handleCopy}
-            >
-              <Copy className="h-4 w-4 mr-1" />
-              {copied ? "Copiado!" : "Copiar código"}
-            </Button>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Cole este código antes do fechamento da tag {"</body>"} do seu site.
-            O domínio do site precisa estar cadastrado nos domínios permitidos deste widget.
-          </p>
-        </div>
-
-        <WidgetPreview
-          title={form.title}
-          welcomeMessage={form.welcomeMessage}
-          placeholder={form.placeholder}
-          accentColor={form.accentColor}
-          position={form.position}
-          enabled={form.enabled}
-        />
       </CardContent>
     </Card>
   );
