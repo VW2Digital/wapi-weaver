@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { usePageHeader } from "@/components/layout/page-header-provider";
-import { Copy, Plus, ArrowLeft, MessageCircle } from "lucide-react";
+import { Copy, Plus, ArrowLeft, MessageCircle, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import {
   getWebchatWidgets,
@@ -31,6 +31,7 @@ function WebchatSettingsPage() {
   const createWidget = useServerFn(createWebchatWidget);
   const updateWidget = useServerFn(updateWebchatWidget);
   const queryClient = useQueryClient();
+  const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
 
   usePageHeader({
     title: "WebChat",
@@ -50,6 +51,10 @@ function WebchatSettingsPage() {
     queryFn: () => getWidgets({}),
   });
 
+  const selectedWidget = selectedWidgetId
+    ? widgets.find((w: WebchatWidget) => w.id === selectedWidgetId)
+    : null;
+
   const createMutation = useMutation({
     mutationFn: () => createWidget({}),
     onSuccess: () => {
@@ -58,6 +63,19 @@ function WebchatSettingsPage() {
     },
     onError: () => toast.error("Erro ao criar widget"),
   });
+
+  if (selectedWidget) {
+    return (
+      <div className="p-6">
+        <WidgetCard
+          widget={selectedWidget}
+          updateWidget={updateWidget}
+          queryClient={queryClient}
+          onBack={() => setSelectedWidgetId(null)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 p-6">
@@ -79,14 +97,30 @@ function WebchatSettingsPage() {
         </Card>
       )}
 
-      {widgets.map((widget: WebchatWidget) => (
-        <WidgetCard
-          key={widget.id}
-          widget={widget}
-          updateWidget={updateWidget}
-          queryClient={queryClient}
-        />
-      ))}
+      {widgets.length > 0 && (
+        <div className="rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden divide-y divide-border">
+          {widgets.map((widget: WebchatWidget) => (
+            <button
+              key={widget.id}
+              onClick={() => setSelectedWidgetId(widget.id)}
+              className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
+            >
+              <div className="flex items-center gap-4">
+                <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                  <MessageCircle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h5 className="font-semibold text-sm text-foreground">{widget.title}</h5>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {widget.enabled ? "Ativo" : "Inativo"} · Public ID: {widget.publicId}
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -95,6 +129,7 @@ function WidgetCard({
   widget,
   updateWidget,
   queryClient,
+  onBack,
 }: {
   widget: WebchatWidget;
   updateWidget: (args: {
@@ -109,6 +144,7 @@ function WidgetCard({
     };
   }) => Promise<{ ok: boolean }>;
   queryClient: any;
+  onBack: () => void;
 }) {
   const [form, setForm] = useState({
     title: widget.title,
@@ -164,6 +200,10 @@ function WidgetCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <Button variant="outline" size="sm" onClick={onBack}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Voltar para lista
+        </Button>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor={`title-${widget.id}`}>Título</Label>
