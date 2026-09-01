@@ -20,6 +20,7 @@ export interface WebchatWidget {
   position: string;
   allowedOrigins: string[];
   prechatEnabled: boolean;
+  avatarUrl: string | null;
   embedCode?: string;
   createdAt: string;
   updatedAt: string;
@@ -43,6 +44,7 @@ export const getWebchatWidgets = createServerFn({ method: "GET" })
         w.position,
         w.allowed_origins,
         w.prechat_enabled,
+        w.avatar_url,
         w.created_at,
         w.updated_at
       FROM webchat_widgets w
@@ -98,6 +100,7 @@ export const createWebchatWidget = createServerFn({ method: "POST" })
         w.position,
         w.allowed_origins,
         w.prechat_enabled,
+        w.avatar_url,
         w.created_at,
         w.updated_at
       FROM webchat_widgets w
@@ -123,6 +126,7 @@ export const updateWebchatWidget = createServerFn({ method: "POST" })
     enabled?: boolean;
     position?: string;
     allowedOrigins?: string[];
+    avatarUrl?: string | null;
   }) => input)
   .handler(async ({ context, data }) => {
     const fields: string[] = [];
@@ -135,6 +139,7 @@ export const updateWebchatWidget = createServerFn({ method: "POST" })
     if (data.enabled !== undefined) { fields.push("enabled = ?"); values.push(data.enabled ? 1 : 0); }
     if (data.position !== undefined) { fields.push("position = ?"); values.push(data.position); }
     if (data.allowedOrigins !== undefined) { fields.push("allowed_origins = ?"); values.push(JSON.stringify(data.allowedOrigins)); }
+    if (data.avatarUrl !== undefined) { fields.push("avatar_url = ?"); values.push(data.avatarUrl); }
 
     if (fields.length === 0) {
       throw new Error("Nenhum campo para atualizar");
@@ -165,6 +170,7 @@ function mapWidgetRow(row: any): WebchatWidget {
     position: row.position ?? "bottom-right",
     allowedOrigins: row.allowed_origins ? JSON.parse(row.allowed_origins) : [],
     prechatEnabled: Boolean(row.prechat_enabled),
+    avatarUrl: row.avatar_url ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

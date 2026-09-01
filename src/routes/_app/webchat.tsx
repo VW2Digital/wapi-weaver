@@ -154,6 +154,7 @@ function WidgetCard({
       accentColor?: string;
       enabled?: boolean;
       position?: string;
+      avatarUrl?: string | null;
     };
   }) => Promise<{ ok: boolean }>;
   queryClient: any;
@@ -166,6 +167,7 @@ function WidgetCard({
     accentColor: widget.accentColor,
     enabled: widget.enabled,
     position: widget.position,
+    avatarUrl: widget.avatarUrl,
   });
 
   const updateMutation = useMutation({
@@ -179,7 +181,41 @@ function WidgetCard({
   });
 
   const [copied, setCopied] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const snippet = widget.embedCode || "";
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+    if (!["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
+      toast.error("Formato de imagem não suportado");
+      return;
+    }
+    const path = `webchat/avatar-${widget.id}-${Date.now()}.${ext}`;
+    const formData = new FormData();
+    formData.append("path", path);
+    formData.append("file", file);
+    setUploadingAvatar(true);
+    try {
+      const res = await fetch("/api/storage/upload", { method: "POST", body: formData, credentials: "include" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) throw new Error(data.error || "Erro no upload");
+      const avatarUrl = `/uploads/${data.path}`;
+      setForm({ ...form, avatarUrl });
+      updateMutation.mutate({ id: widget.id, avatarUrl });
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao enviar avatar");
+    } finally {
+      setUploadingAvatar(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleRemoveAvatar = () => {
+    setForm({ ...form, avatarUrl: null });
+    updateMutation.mutate({ id: widget.id, avatarUrl: null });
+  };
 
   const handleCopy = async () => {
     if (!navigator.clipboard) {
@@ -271,6 +307,37 @@ function WidgetCard({
                   }
                 />
               </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label>Avatar</Label>
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0">
+                    {form.avatarUrl ? (
+                      <img src={form.avatarUrl} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <MessageCircle className="h-6 w-6 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <input
+                      id={`avatar-${widget.id}`}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarUpload}
+                      disabled={uploadingAvatar}
+                      className="block w-full text-sm text-muted-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer disabled:opacity-50"
+                    />
+                    {form.avatarUrl && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveAvatar}
+                        className="text-xs text-red-500 hover:underline"
+                      >
+                        Remover avatar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="flex items-center gap-4">
@@ -332,6 +399,7 @@ function WidgetCard({
               accentColor={form.accentColor}
               position={form.position}
               enabled={form.enabled}
+              avatarUrl={form.avatarUrl}
             />
           </div>
         </div>
@@ -347,6 +415,7 @@ function WidgetPreview({
   accentColor,
   position,
   enabled,
+  avatarUrl,
 }: {
   title: string;
   welcomeMessage: string;
@@ -354,6 +423,7 @@ function WidgetPreview({
   accentColor: string;
   position: string;
   enabled: boolean;
+  avatarUrl: string | null;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState<"form" | "chat">("form");
@@ -382,8 +452,12 @@ function WidgetPreview({
       style={{ backgroundColor: accentColor }}
     >
       <div className="flex items-center gap-3 min-w-0">
-        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-          <MessageCircle className="h-5 w-5" />
+        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 overflow-hidden">
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <MessageCircle className="h-5 w-5" />
+          )}
         </div>
         <div className="min-w-0">
           <div className="font-semibold text-sm truncate">{title || "Chat"}</div>
@@ -406,7 +480,13 @@ function WidgetPreview({
 
   const formView = (
     <div className="flex-1 overflow-y-auto p-5 flex flex-col items-center text-center bg-white dark:bg-slate-950">
-      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-3xl mb-4">💬</div>
+      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center overflow-hidden mb-4">
+        {avatarUrl ? (
+          <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <span className="text-3xl">💬</span>
+        )}
+      </div>
       <h3 className="text-lg font-bold text-foreground">VAMOS CONVERSAR?</h3>
       <p className="text-sm text-muted-foreground mb-6 max-w-[17rem]">
         Preencha seus dados e fale com nossa equipe no WhatsApp.

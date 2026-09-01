@@ -32,6 +32,7 @@ export const Route = createFileRoute("/api/public/webchat/$publicId/config")({
             accentColor: widget.accentColor,
             position: widget.position,
             prechatEnabled: widget.prechatEnabled,
+            avatarUrl: widget.avatarUrl,
           }),
           { headers },
         );

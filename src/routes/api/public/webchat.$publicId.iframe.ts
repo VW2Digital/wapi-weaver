@@ -29,6 +29,7 @@ function renderIframe(
     welcomeMessage: string | null;
     placeholder: string;
     accentColor: string;
+    avatarUrl: string | null;
   },
   publicId: string,
 ) {
@@ -36,6 +37,8 @@ function renderIframe(
   const accent = escapeHtml(widget.accentColor || "#0ea5e9");
   const placeholder = escapeHtml(widget.placeholder || "Digite uma mensagem...");
   const welcome = escapeJs(widget.welcomeMessage || "Olá! Como podemos ajudar?");
+  const avatar = widget.avatarUrl ? escapeHtml(widget.avatarUrl) : "";
+  const avatarEl = avatar ? `<img src="${avatar}" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;">` : "&#128172;";
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -50,7 +53,7 @@ function renderIframe(
     .hidden { display: none !important; }
     .header { padding: 14px 16px; color: #fff; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; }
     .header-content { display: flex; align-items: center; gap: 12px; min-width: 0; }
-    .header-avatar { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+    .header-avatar { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; overflow: hidden; }
     .header-text { min-width: 0; }
     .header-title { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .header-status { font-size: 12px; opacity: 0.9; display: flex; align-items: center; gap: 6px; }
@@ -59,7 +62,7 @@ function renderIframe(
     .close-btn:hover { opacity: 1; }
 
     .prechat-body { flex: 1; overflow-y: auto; padding: 28px 24px 20px; display: flex; flex-direction: column; align-items: center; text-align: center; }
-    .prechat-avatar { width: 72px; height: 72px; border-radius: 50%; background: #f3f4f6; display: flex; align-items: center; justify-content: center; font-size: 36px; margin-bottom: 18px; }
+    .prechat-avatar { width: 72px; height: 72px; border-radius: 50%; background: #f3f4f6; display: flex; align-items: center; justify-content: center; font-size: 36px; margin-bottom: 18px; overflow: hidden; }
     .prechat-title { font-size: 20px; font-weight: 700; color: #111827; margin-bottom: 10px; }
     .prechat-lead { font-size: 14px; color: #6b7280; line-height: 1.5; max-width: 280px; margin-bottom: 24px; }
     .prechat-form { width: 100%; max-width: 320px; display: flex; flex-direction: column; gap: 12px; }
@@ -91,7 +94,7 @@ function renderIframe(
     <div id="prechat" class="view">
       <div class="header" style="background: ${accent}">
         <div class="header-content">
-          <div class="header-avatar">&#128172;</div>
+          <div class="header-avatar">${avatarEl}</div>
           <div class="header-text">
             <div class="header-title">${title}</div>
             <div class="header-status">Online agora</div>
@@ -100,7 +103,7 @@ function renderIframe(
         <button class="close-btn" onclick="closeWidget()" aria-label="Fechar">&times;</button>
       </div>
       <div class="prechat-body">
-        <div class="prechat-avatar">&#128172;</div>
+        <div class="prechat-avatar">${avatarEl}</div>
         <h2 class="prechat-title">VAMOS CONVERSAR?</h2>
         <p class="prechat-lead">Preencha seus dados e fale com nossa equipe no WhatsApp.</p>
         <form id="prechat-form" class="prechat-form" novalidate>
@@ -126,7 +129,7 @@ function renderIframe(
     <div id="chat" class="view chat-view hidden">
       <div class="header" style="background: ${accent}">
         <div class="header-content">
-          <div class="header-avatar">&#128172;</div>
+          <div class="header-avatar">${avatarEl}</div>
           <div class="header-text">
             <div class="header-title">${title}</div>
             <div class="header-status">Online agora</div>
@@ -403,6 +406,8 @@ export const Route = createFileRoute("/api/public/webchat/$publicId/iframe")({
           return new Response("Widget not found", { status: 404 });
         }
 
+        const avatarUrl = widget.avatarUrl ? new URL(widget.avatarUrl, request.url).toString() : null;
+
         const headers: Record<string, string> = {
           "Content-Type": "text/html",
           "Access-Control-Allow-Origin": origin || "*",
@@ -410,7 +415,7 @@ export const Route = createFileRoute("/api/public/webchat/$publicId/iframe")({
           "Content-Security-Policy": "frame-ancestors 'self' " + (origin || "*") + ";",
         };
 
-        return new Response(renderIframe(widget, publicId), { headers });
+        return new Response(renderIframe({ ...widget, avatarUrl }, publicId), { headers });
       },
     },
   },

@@ -19,6 +19,7 @@ export async function getWidgetByPublicId(publicId: string): Promise<WebchatWidg
       w.position,
       w.allowed_origins,
       w.prechat_enabled,
+      w.avatar_url,
       w.created_at,
       w.updated_at
     FROM webchat_widgets w
@@ -42,6 +43,7 @@ export async function getWidgetByPublicId(publicId: string): Promise<WebchatWidg
     position: row.position ?? "bottom-right",
     allowedOrigins: row.allowed_origins ? JSON.parse(row.allowed_origins) : [],
     prechatEnabled: Boolean(row.prechat_enabled),
+    avatarUrl: row.avatar_url ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
