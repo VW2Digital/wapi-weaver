@@ -13,6 +13,6 @@ export function getWebchatEmbedCode({
   const base = appUrl.replace(/\/$/, "");
   return `<script
   async
-  src="${base}/api/public/webchat/${publicId}/widget.js">
+  src="${base}/api/public/webchat/${publicId}/widget/js">
 </script>`;
 }

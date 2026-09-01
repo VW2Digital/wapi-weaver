@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { usePageHeader } from "@/components/layout/page-header-provider";
-import { Copy, Plus, ArrowLeft } from "lucide-react";
+import { Copy, Plus, ArrowLeft, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import {
   getWebchatWidgets,
@@ -266,7 +266,95 @@ function WidgetCard({
             O domínio do site precisa estar cadastrado nos domínios permitidos deste widget.
           </p>
         </div>
+
+        <WidgetPreview
+          title={form.title}
+          welcomeMessage={form.welcomeMessage}
+          placeholder={form.placeholder}
+          accentColor={form.accentColor}
+          position={form.position}
+          enabled={form.enabled}
+        />
       </CardContent>
     </Card>
+  );
+}
+
+function WidgetPreview({
+  title,
+  welcomeMessage,
+  placeholder,
+  accentColor,
+  position,
+  enabled,
+}: {
+  title: string;
+  welcomeMessage: string;
+  placeholder: string;
+  accentColor: string;
+  position: string;
+  enabled: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const isLeft = position === "bottom-left";
+
+  return (
+    <div className="space-y-2">
+      <Label>Visualização</Label>
+      <div className="relative h-96 bg-muted/30 rounded-lg border overflow-hidden">
+        {!enabled && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/70 text-sm font-medium">
+            Widget inativo
+          </div>
+        )}
+
+        {isOpen && (
+          <div
+            className={`absolute bottom-20 ${isLeft ? "left-4" : "right-4"} w-80 h-[22rem] bg-background rounded-2xl shadow-xl border overflow-hidden flex flex-col z-10`}
+          >
+            <div
+              className="px-4 py-3 text-white font-semibold text-sm flex items-center gap-2"
+              style={{ backgroundColor: accentColor }}
+            >
+              <MessageCircle className="h-4 w-4" />
+              {title || "Chat"}
+            </div>
+            <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50 dark:bg-slate-950">
+              {(welcomeMessage || "Olá! Como podemos ajudar?") && (
+                <div className="self-start bg-white dark:bg-slate-900 border text-foreground max-w-[80%] px-3 py-2 rounded-2xl rounded-bl-sm text-sm">
+                  {welcomeMessage || "Olá! Como podemos ajudar?"}
+                </div>
+              )}
+            </div>
+            <div className="p-3 border-t bg-background flex items-center gap-2">
+              <input
+                type="text"
+                readOnly
+                placeholder={placeholder || "Digite uma mensagem..."}
+                className="flex-1 bg-muted px-3 py-2 rounded-lg text-sm outline-none"
+              />
+              <button
+                type="button"
+                className="px-3 py-2 rounded-lg text-white text-sm font-medium"
+                style={{ backgroundColor: accentColor }}
+                disabled
+              >
+                Enviar
+              </button>
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => enabled && setIsOpen((v) => !v)}
+          className={`absolute bottom-4 ${isLeft ? "left-4" : "right-4"} w-14 h-14 rounded-full text-white shadow-lg flex items-center justify-center transition-transform hover:scale-105 z-10`}
+          style={{ backgroundColor: enabled ? accentColor : "#9ca3af" }}
+          disabled={!enabled}
+        >
+          <MessageCircle className="h-6 w-6" />
+        </button>
+      </div>
+    </div>
   );
 }

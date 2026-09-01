@@ -8,7 +8,7 @@ describe("WebChat Embed", () => {
     const code = getWebchatEmbedCode({ appUrl, publicId });
 
     expect(code).toContain(publicId);
-    expect(code).toContain("https://app.blivcrm.com/api/public/webchat/abc-123/widget.js");
+    expect(code).toContain("https://app.blivcrm.com/api/public/webchat/abc-123/widget/js");
     expect(code).toContain("<script");
     expect(code).toContain("async");
     expect(code).toContain("</script>");
@@ -16,7 +16,7 @@ describe("WebChat Embed", () => {
 
   test("strips trailing slash from app url", () => {
     const code = getWebchatEmbedCode({ appUrl: "https://app.blivcrm.com/", publicId: "x" });
-    expect(code).toContain("https://app.blivcrm.com/api/public/webchat/x/widget.js");
+    expect(code).toContain("https://app.blivcrm.com/api/public/webchat/x/widget/js");
   });
 
   test.each([
