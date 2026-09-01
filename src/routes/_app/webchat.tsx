@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Copy, Plus, MessageCircle } from "lucide-react";
+import { usePageHeader } from "@/components/layout/page-header-provider";
+import { Copy, Plus, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import {
   getWebchatWidgets,
@@ -31,6 +32,19 @@ function WebchatSettingsPage() {
   const updateWidget = useServerFn(updateWebchatWidget);
   const queryClient = useQueryClient();
 
+  usePageHeader({
+    title: "WebChat",
+    subtitle: "Gerencie widgets e copie o código de instalação.",
+    action: (
+      <Button variant="outline" size="sm" asChild>
+        <Link to="/settings" search={{ s: undefined }}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Voltar
+        </Link>
+      </Button>
+    ),
+  });
+
   const { data: widgets = [], isLoading } = useQuery({
     queryKey: ["webchat-widgets"],
     queryFn: () => getWidgets({}),
@@ -47,11 +61,7 @@ function WebchatSettingsPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <MessageCircle className="h-6 w-6" />
-          WebChat
-        </h1>
+      <div className="flex justify-end">
         <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
           <Plus className="h-4 w-4 mr-2" />
           Criar widget
