@@ -4,6 +4,7 @@ import { randomBytes, createHash } from "crypto";
 import { randomUUID } from "crypto";
 import db from "@/lib/db";
 import { getWidgetByPublicId } from "./widget.repository";
+import { ensureContact } from "@/lib/messaging/services/contact-identity.service";
 import type { WebchatWidget } from "@/lib/webchat.functions";
 
 const SESSION_TTL_DAYS = 30;
@@ -52,6 +53,7 @@ export async function createWebchatSession(
   publicId: string,
   inputVisitorId: string | undefined,
   origin: string | null,
+  prechat?: PrechatInput,
 ): Promise<{ sessionToken: string; session: WebchatSession }> {
   const widget = await getWidgetByPublicId(publicId);
   if (!widget || !widget.enabled) {
@@ -70,23 +72,58 @@ export async function createWebchatSession(
   const rawToken = randomBytes(32).toString("base64url");
   const tokenHash = hashToken(rawToken);
 
-  // Look for previous contact and conversation for this visitor
-  const identityRows = (await db.query(
-    `SELECT id, contact_id FROM contact_identities
-     WHERE tenant_id = ? AND provider = 'webchat' AND external_id = ?
-     LIMIT 1`,
-    [widget.tenantId, visitorId],
-  )) as any[];
-  const identity = identityRows?.[0];
+  let contactIdentityId: string | null = null;
+  let contactId: string | null = null;
+
+  const hasPrechat = prechat && (prechat.name || prechat.email || prechat.phone);
+
+  if (hasPrechat) {
+    const identity = {
+      externalId: visitorId,
+      name: prechat!.name ?? null,
+      avatarUrl: null,
+      phoneE164: null,
+      metadata: { email: prechat!.email ?? null, phone: prechat!.phone ?? null, source: "webchat_prechat" },
+    };
+
+    const contactResult = await ensureContact({
+      tenantId: widget.tenantId,
+      userId: widget.tenantId,
+      provider: "webchat",
+      identity,
+      phoneE164: null,
+      email: prechat!.email ?? null,
+      phoneNumber: prechat!.phone ?? null,
+      source: "webchat_prechat",
+      markUnread: true,
+      metadata: { email: prechat!.email ?? null, phone: prechat!.phone ?? null, source: "webchat_prechat" },
+    });
+
+    contactIdentityId = contactResult.identityId;
+    contactId = contactResult.contactId;
+  } else {
+    // Look for previous contact and conversation for this visitor
+    const identityRows = (await db.query(
+      `SELECT id, contact_id FROM contact_identities
+       WHERE tenant_id = ? AND provider = 'webchat' AND external_id = ?
+       LIMIT 1`,
+      [widget.tenantId, visitorId],
+    )) as any[];
+    const identity = identityRows?.[0];
+    if (identity) {
+      contactIdentityId = identity.id;
+      contactId = identity.contact_id;
+    }
+  }
 
   let conversationId: string | null = null;
-  if (identity?.contact_id) {
+  if (contactId) {
     const conversationRows = (await db.query(
       `SELECT id FROM chat_sessions
        WHERE tenant_id = ? AND user_id = ? AND contact_id = ?
        ORDER BY started_at DESC
        LIMIT 1`,
-      [widget.tenantId, widget.tenantId, identity.contact_id],
+      [widget.tenantId, widget.tenantId, contactId],
     )) as any[];
     conversationId = conversationRows?.[0]?.id ?? null;
   }
@@ -112,7 +149,7 @@ export async function createWebchatSession(
       widget.id,
       widget.channelConnectionId,
       visitorId,
-      identity?.id ?? null,
+      contactIdentityId,
       conversationId,
       tokenHash,
       expiresAt,
@@ -126,7 +163,7 @@ export async function createWebchatSession(
     channelConnectionId: widget.channelConnectionId,
     visitorId,
     conversationId,
-    contactIdentityId: identity?.id ?? null,
+    contactIdentityId,
     status: "active",
     expiresAt,
   };

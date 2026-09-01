@@ -55,6 +55,12 @@ function makeWidgetScript(publicId: string, configUrl: string, iframeUrl: string
       iframe.style.display = iframe.style.display === 'none' ? 'block' : 'none';
     });
 
+    window.addEventListener('message', (e) => {
+      if (e.data === 'bliv-webchat-close') {
+        iframe.style.display = 'none';
+      }
+    });
+
     document.body.appendChild(button);
     document.body.appendChild(iframe);
   })();`;

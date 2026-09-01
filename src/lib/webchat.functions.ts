@@ -77,8 +77,8 @@ export const createWebchatWidget = createServerFn({ method: "POST" })
         `INSERT INTO webchat_widgets (
           id, tenant_id, channel_connection_id, public_id,
           title, welcome_message, placeholder, accent_color,
-          enabled, position, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, 'Chat', 'Olá! Como podemos ajudar?', 'Digite uma mensagem...', '#0ea5e9', 1, 'bottom-right', NOW(), NOW())`,
+          enabled, position, prechat_enabled, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, 'Chat', 'Olá! Como podemos ajudar?', 'Digite uma mensagem...', '#0ea5e9', 1, 'bottom-right', 1, NOW(), NOW())`,
         [widgetId, context.tenantId, channelConnectionId, publicId],
       );
     });

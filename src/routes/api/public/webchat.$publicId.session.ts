@@ -30,6 +30,7 @@ export const Route = createFileRoute("/api/public/webchat/$publicId/session")({
             publicId,
             body?.visitorId,
             origin,
+            body?.prechat,
           );
           return Response.json(
             {

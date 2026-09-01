@@ -17,10 +17,13 @@ export interface EnsureContactOptions {
   source?: string;
   markUnread?: boolean;
   metadata?: Record<string, unknown> | null;
+  email?: string | null;
+  phoneNumber?: string | null;
 }
 
 export interface EnsureContactResult {
   contactId: string;
+  identityId: string;
   isNew: boolean;
 }
 
@@ -97,6 +100,8 @@ export async function ensureContact(
     source = `${provider}_inbound`,
     markUnread = true,
     metadata = null,
+    email = null,
+    phoneNumber = null,
   } = options;
 
   const enrichedIdentity =
@@ -140,20 +145,23 @@ export async function ensureContact(
             ? "webchat"
             : "messenger";
     const instagramId = provider === "instagram" ? identity.externalId : null;
-    const whatsappNumber = provider === "whatsapp" ? (identity.phoneE164 || phoneE164) : null;
+    const whatsappNumber =
+      provider === "whatsapp" ? (identity.phoneE164 || phoneE164) : (phoneNumber ?? null);
 
     const externalContactId = provider !== "whatsapp" ? identity.externalId : null;
+    const contactEmail = email ?? null;
 
     await conn.execute(
       `INSERT INTO contacts (
-         id, tenant_id, user_id, phone_e164, name,
+         id, tenant_id, user_id, phone_e164, name, email,
          source, custom_fields, is_unread, channel,
          instagram_id, whatsapp_number, external_id,
          external_contact_id,
          last_interaction_at, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
        ON DUPLICATE KEY UPDATE
          name = COALESCE(VALUES(name), name),
+         email = COALESCE(VALUES(email), email),
          custom_fields = VALUES(custom_fields),
          is_unread = IF(VALUES(is_unread) = 1, 1, is_unread),
          channel = VALUES(channel),
@@ -169,6 +177,7 @@ export async function ensureContact(
         userId,
         phoneE164,
         name,
+        contactEmail,
         source,
         JSON.stringify(customFields),
         markUnread ? 1 : 0,
@@ -244,7 +253,19 @@ export async function ensureContact(
       ],
     );
 
-    return { contactId: resolvedContactId, isNew: isNewContact };
+    const [resolvedIdentityRows] = await conn.execute(
+      `SELECT id FROM contact_identities
+       WHERE user_id = ? AND provider = ? AND external_id = ?
+       LIMIT 1`,
+      [userId, provider, enrichedIdentity.externalId],
+    );
+
+    const resolvedIdentityId = (resolvedIdentityRows as Array<{ id: string }>)?.[0]?.id;
+    if (!resolvedIdentityId) {
+      throw new Error(`Failed to resolve identity for ${enrichedIdentity.externalId}`);
+    }
+
+    return { contactId: resolvedContactId, identityId: resolvedIdentityId, isNew: isNewContact };
   });
 }
 

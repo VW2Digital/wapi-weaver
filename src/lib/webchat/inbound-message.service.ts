@@ -46,29 +46,55 @@ export async function handleWebchatInboundMessage(
   const channelConnectionId = session.channelConnectionId;
   const publicId = session.widgetId; // caller resolves publicId
 
-  const identity = {
-    externalId: visitorId,
-    name: null as string | null,
-    avatarUrl: null,
-    phoneE164: null,
-    metadata: null,
-  };
+  let contactId: string;
+  let senderName: string | null = null;
+  let senderMetadata: Record<string, unknown> | null = null;
 
-  const contactResult = await ensureContact({
-    tenantId,
-    userId,
-    provider: "webchat",
-    identity,
-    phoneE164: null,
-    source: "webchat_inbound",
-    markUnread: true,
-    metadata: null,
-  });
+  if (session.contactIdentityId) {
+    const rows = (await db.query(
+      `SELECT ci.id, ci.contact_id, ci.metadata, c.name, c.email, c.whatsapp_number, c.custom_fields
+       FROM contact_identities ci
+       JOIN contacts c ON c.id = ci.contact_id
+       WHERE ci.id = ? AND ci.tenant_id = ? AND c.tenant_id = ?
+       LIMIT 1`,
+      [session.contactIdentityId, tenantId, tenantId],
+    )) as any[];
+    const row = rows?.[0];
+    if (!row) {
+      throw Object.assign(new Error("Contact identity not found"), { statusCode: 404 });
+    }
+    contactId = row.contact_id;
+    senderName = row.name ?? null;
+    senderMetadata = row.metadata
+      ? (typeof row.metadata === "string" ? JSON.parse(row.metadata) : row.metadata)
+      : null;
+  } else {
+    const identity = {
+      externalId: visitorId,
+      name: null as string | null,
+      avatarUrl: null,
+      phoneE164: null,
+      metadata: null,
+    };
+
+    const contactResult = await ensureContact({
+      tenantId,
+      userId,
+      provider: "webchat",
+      identity,
+      phoneE164: null,
+      source: "webchat_inbound",
+      markUnread: true,
+      metadata: null,
+    });
+
+    contactId = contactResult.contactId;
+  }
 
   const conversation = await ensureConversation({
     tenantId,
     userId,
-    contactId: contactResult.contactId,
+    contactId,
     channelConnectionId,
     status: "aguardando",
   });
@@ -82,19 +108,28 @@ export async function handleWebchatInboundMessage(
 
   const contactPhone = `wc_${visitorId}`;
 
+  const identity = {
+    externalId: visitorId,
+    name: senderName,
+    avatarUrl: null,
+    phoneE164: null,
+    metadata: senderMetadata,
+  };
+
   const canonicalMessage = {
     providerMessageId: clientMessageId,
     direction: "incoming" as const,
     type: "text" as const,
     body: cleanText,
     sender: identity,
+    senderName,
     recipient: { externalId: publicId, name: null, phoneE164: null },
   };
 
   const saved = await saveMessage({
     tenantId,
     userId,
-    contactId: contactResult.contactId,
+    contactId,
     conversationId: conversation.sessionId,
     contactPhone,
     provider: "webchat",
