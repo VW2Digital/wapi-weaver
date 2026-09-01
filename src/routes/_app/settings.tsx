@@ -128,6 +128,7 @@ import {
   KeyRound,
   Webhook,
   Send,
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -1011,24 +1012,24 @@ function SettingsPage() {
       replace: true,
     });
   const headerAction = useMemo(
-    () =>
-      activeSection ? (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() =>
-            navigate({
-              search: (prev) => ({ ...prev, s: undefined }),
-              replace: true,
-            })
-          }
-          className="gap-2 cursor-pointer"
+    () => (
+      <Button
+        variant="outline"
+        size="sm"
+        asChild
+        className="gap-2 cursor-pointer"
+      >
+        <Link
+          to={activeSection ? "/settings" : "/chat"}
+          search={activeSection ? { s: undefined } : undefined}
+          replace
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4" />
           <span>Voltar</span>
-        </Button>
-      ) : undefined,
-    [activeSection, navigate],
+        </Link>
+      </Button>
+    ),
+    [activeSection],
   );
   usePageHeader({
     title: "Configurações",
