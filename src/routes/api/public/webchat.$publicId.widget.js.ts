@@ -17,6 +17,17 @@ function makeWidgetScript(publicId: string, configUrl: string, iframeUrl: string
       // fail closed; still render default shell
     }
 
+    const style = document.createElement('style');
+    style.textContent = '#bliv-webchat-btn-' + publicId + ' { transition: transform 0.25s ease, box-shadow 0.25s ease; }' +
+      '#bliv-webchat-btn-' + publicId + ':hover { transform: scale(1.08); }' +
+      '#bliv-webchat-btn-' + publicId + ':active { transform: scale(0.96); }' +
+      '#bliv-webchat-btn-' + publicId + ' .bliv-webchat-icon { position: absolute; top: 50%; left: 50%; transition: opacity 0.25s ease, transform 0.25s ease; transform-origin: center; pointer-events: none; }' +
+      '#bliv-webchat-btn-' + publicId + ' .bliv-webchat-icon-open { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0deg); }' +
+      '#bliv-webchat-btn-' + publicId + ' .bliv-webchat-icon-close { opacity: 0; transform: translate(-50%, -50%) scale(0.6) rotate(-90deg); }' +
+      '#bliv-webchat-btn-' + publicId + '[data-open="true"] .bliv-webchat-icon-open { opacity: 0; transform: translate(-50%, -50%) scale(0.6) rotate(90deg); }' +
+      '#bliv-webchat-btn-' + publicId + '[data-open="true"] .bliv-webchat-icon-close { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0deg); }';
+    document.head.appendChild(style);
+
     const button = document.createElement('button');
     button.id = 'bliv-webchat-btn-' + publicId;
     button.style.position = 'fixed';
@@ -33,7 +44,21 @@ function makeWidgetScript(publicId: string, configUrl: string, iframeUrl: string
     button.style.fontSize = '28px';
     button.style.cursor = 'pointer';
     button.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-    button.textContent = '💬';
+    button.style.display = 'flex';
+    button.style.alignItems = 'center';
+    button.style.justifyContent = 'center';
+    button.style.overflow = 'hidden';
+    button.setAttribute('aria-label', 'Abrir chat');
+    button.setAttribute('data-open', 'false');
+
+    const chatIcon = document.createElement('span');
+    chatIcon.className = 'bliv-webchat-icon bliv-webchat-icon-open';
+    chatIcon.textContent = '💬';
+    const closeIcon = document.createElement('span');
+    closeIcon.className = 'bliv-webchat-icon bliv-webchat-icon-close';
+    closeIcon.textContent = '\u2715';
+    button.appendChild(chatIcon);
+    button.appendChild(closeIcon);
 
     const iframe = document.createElement('iframe');
     iframe.id = 'bliv-webchat-iframe-' + publicId;
@@ -51,13 +76,21 @@ function makeWidgetScript(publicId: string, configUrl: string, iframeUrl: string
     iframe.style.display = 'none';
     iframe.style.background = '#fff';
 
+    function updateButton(open) {
+      button.setAttribute('data-open', String(open));
+      button.setAttribute('aria-label', open ? 'Fechar chat' : 'Abrir chat');
+    }
+
     button.addEventListener('click', () => {
-      iframe.style.display = iframe.style.display === 'none' ? 'block' : 'none';
+      const open = iframe.style.display === 'none';
+      iframe.style.display = open ? 'block' : 'none';
+      updateButton(open);
     });
 
     window.addEventListener('message', (e) => {
       if (e.data === 'bliv-webchat-close') {
         iframe.style.display = 'none';
+        updateButton(false);
       }
     });
 
