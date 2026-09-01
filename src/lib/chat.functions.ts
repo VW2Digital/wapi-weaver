@@ -131,6 +131,7 @@ const normalizeChatContactId = (value: string) => {
   if (
     value.startsWith("ig_") ||
     value.startsWith("fb_") ||
+    value.startsWith("wc_") ||
     value.endsWith("@g.us") ||
     value.endsWith("@temp")
   ) {
@@ -298,7 +299,7 @@ export const listChatContacts = createServerFn({ method: "GET" })
           c.id, 
           c.user_id,
           c.name, 
-          c.phone_e164, 
+          COALESCE(c.phone_e164, CONCAT('wc_', ci_web.external_id)) as phone_e164, 
           c.custom_fields,
           c.email,
           c.source,
@@ -324,8 +325,10 @@ export const listChatContacts = createServerFn({ method: "GET" })
           s.name AS kanban_stage_name,
           s.color AS kanban_stage_color
         FROM contacts c
+        LEFT JOIN contact_identities ci_web
+          ON ci_web.contact_id = c.id AND ci_web.provider = 'webchat'
         LEFT JOIN bot_conversation_state bcs 
-          ON bcs.user_id = c.user_id AND bcs.contact_number = c.phone_e164 AND bcs.channel = c.channel
+          ON bcs.user_id = c.user_id AND bcs.contact_number = COALESCE(c.phone_e164, CONCAT('wc_', ci_web.external_id)) AND bcs.channel = c.channel
         LEFT JOIN (
           SELECT tenant_id, user_id, contact_phone, body, type, direction, created_at
           FROM (
@@ -333,20 +336,20 @@ export const listChatContacts = createServerFn({ method: "GET" })
                    ROW_NUMBER() OVER(PARTITION BY COALESCE(tenant_id, user_id), contact_phone ORDER BY created_at DESC) as rn
             FROM direct_messages
           ) tmp WHERE rn = 1
-        ) last_dm ON (last_dm.tenant_id = c.tenant_id OR last_dm.user_id = c.user_id) AND last_dm.contact_phone = c.phone_e164
+        ) last_dm ON (last_dm.tenant_id = c.tenant_id OR last_dm.user_id = c.user_id) AND last_dm.contact_phone = COALESCE(c.phone_e164, CONCAT('wc_', ci_web.external_id))
         LEFT JOIN (
           SELECT COALESCE(tenant_id, user_id) as owner_id, contact_phone, COUNT(*) as cnt
           FROM direct_messages
           WHERE direction = 'incoming' AND (status IS NULL OR status != 'read')
           GROUP BY COALESCE(tenant_id, user_id), contact_phone
-        ) unread ON (unread.owner_id = c.tenant_id OR unread.owner_id = c.user_id) AND unread.contact_phone = c.phone_e164
+        ) unread ON (unread.owner_id = c.tenant_id OR unread.owner_id = c.user_id) AND unread.contact_phone = COALESCE(c.phone_e164, CONCAT('wc_', ci_web.external_id))
         LEFT JOIN (
           SELECT user_id, to_phone, MAX(sent_at) as sent_at
           FROM campaign_messages
           GROUP BY user_id, to_phone
-        ) last_cm ON last_cm.user_id = c.user_id AND last_cm.to_phone = c.phone_e164
+        ) last_cm ON last_cm.user_id = c.user_id AND last_cm.to_phone = COALESCE(c.phone_e164, CONCAT('wc_', ci_web.external_id))
         LEFT JOIN conversation_assignments ca 
-          ON ca.contact_phone = c.phone_e164 AND ca.user_id = c.user_id AND ca.is_active = true
+          ON ca.contact_phone = COALESCE(c.phone_e164, CONCAT('wc_', ci_web.external_id)) AND ca.user_id = c.user_id AND ca.is_active = true
         LEFT JOIN teams t ON t.id = ca.team_id
         LEFT JOIN users u ON u.id = ca.agent_id
         LEFT JOIN profiles p ON p.id = u.id
@@ -489,14 +492,17 @@ export const getChatContactDetails = createServerFn({ method: "POST" })
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
 
     const contacts = (await db.query(
-      `SELECT *
-       FROM contacts
-       WHERE (user_id = ? OR tenant_id = ?)
+      `SELECT c.*
+       FROM contacts c
+       LEFT JOIN contact_identities ci_web
+         ON ci_web.contact_id = c.id AND ci_web.provider = 'webchat'
+       WHERE (c.user_id = ? OR c.tenant_id = ?)
          AND (
-           (? IS NOT NULL AND id = ?)
+           (? IS NOT NULL AND c.id = ?)
            OR (? IS NOT NULL AND (
-             phone_e164 = ?
-             OR REGEXP_REPLACE(phone_e164, '[^0-9]', '') = ?
+             c.phone_e164 = ?
+             OR REGEXP_REPLACE(c.phone_e164, '[^0-9]', '') = ?
+             OR CONCAT('wc_', ci_web.external_id) = ?
            ))
          )
        LIMIT 1`,
@@ -505,6 +511,7 @@ export const getChatContactDetails = createServerFn({ method: "POST" })
         effectiveUserId,
         data.contactId ?? null,
         data.contactId ?? null,
+        phone,
         phone,
         phone,
         phone,
@@ -863,7 +870,8 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const isInstagram = data.to.startsWith("ig_");
     const isMessenger = data.to.startsWith("fb_");
-    const digits = isInstagram || isMessenger ? data.to : data.to.replace(/\D/g, "");
+    const isWebchat = data.to.startsWith("wc_");
+    const digits = isInstagram || isMessenger || isWebchat ? data.to : data.to.replace(/\D/g, "");
     if (digits.length < 5) return { ok: false, error: "Identificador do destinatário inválido." };
 
     const { resolveEffectiveUserId } = await import("./chat-helpers");
@@ -903,7 +911,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       }
     }
 
-    let messageChannel: "whatsapp" | "instagram" | "messenger" = isInstagram ? "instagram" : isMessenger ? "messenger" : "whatsapp";
+    let messageChannel: "whatsapp" | "instagram" | "messenger" | "webchat" = isWebchat ? "webchat" : isInstagram ? "instagram" : isMessenger ? "messenger" : "whatsapp";
     let resolvedChannel: ChannelConnection | null = null;
     let resolvedConversationId: string | null = data.conversation_id || null;
     let resolvedChannelConnectionId: string | null = data.channel_connection_id || null;
@@ -1195,7 +1203,7 @@ export const getConfiguredChannels = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const tenantId = context.userId;
 
-    const [whatsappRows, instagramRows, messengerRows] = await Promise.all([
+    const [whatsappRows, instagramRows, messengerRows, webchatRows] = await Promise.all([
       db.query(
         `SELECT 1 FROM profiles WHERE id = ? AND whatsapp_phone_number_id IS NOT NULL AND whatsapp_phone_number_id <> '' LIMIT 1`,
         [tenantId],
@@ -1208,6 +1216,13 @@ export const getConfiguredChannels = createServerFn({ method: "GET" })
         `SELECT 1 FROM facebook_pages WHERE user_id = ? AND page_access_token IS NOT NULL AND page_access_token <> '' AND page_id IS NOT NULL AND page_id <> '' LIMIT 1`,
         [tenantId],
       ) as Promise<Array<{ 1: number }>>,
+      db.query(
+        `SELECT 1 FROM webchat_widgets w
+         JOIN channel_connections cc ON cc.id = w.channel_connection_id
+         WHERE w.tenant_id = ? AND w.enabled = 1 AND cc.status = 'active'
+         LIMIT 1`,
+        [tenantId],
+      ) as Promise<Array<{ 1: number }>>,
     ]);
 
     return {
@@ -1216,6 +1231,7 @@ export const getConfiguredChannels = createServerFn({ method: "GET" })
         ...(whatsappRows.length > 0 ? ["whatsapp"] : []),
         ...(instagramRows.length > 0 ? ["instagram"] : []),
         ...(messengerRows.length > 0 ? ["messenger"] : []),
-      ] as Array<"all" | "whatsapp" | "instagram" | "messenger">,
+        ...(webchatRows.length > 0 ? ["webchat"] : []),
+      ] as Array<"all" | "whatsapp" | "instagram" | "messenger" | "webchat">,
     };
   });

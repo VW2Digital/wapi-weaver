@@ -1204,6 +1204,9 @@ function formatPhone(phone: string): string {
   if (phone.startsWith("fb_")) {
     return "@fb_" + phone.slice(3);
   }
+  if (phone.startsWith("wc_")) {
+    return "Visitante WebChat";
+  }
   const clean = phone.replace(/\D/g, "");
   if (clean.length === 12 || clean.length === 13) {
     const ddi = clean.slice(0, 2);
@@ -1267,6 +1270,13 @@ function ChannelBadge({
         >
           <path d="M17 11c.966 0 1.75-.784 1.75-1.75S17.966 7.5 17 7.5s-1.75.784-1.75 1.75.784 1.75 1.75 1.75zm-10 0c.966 0 1.75-.784 1.75-1.75S7.966 7.5 7 7.5 5.25 8.284 5.25 9.25 6.034 11 7 11zm5 .5c1.38 0 2.5-1.12 2.5-2.5s-1.12-2.5-2.5-2.5-2.5 1.12-2.5 2.5 1.12 2.5 2.5 2.5zm5 2.5c-1.1 0-2.03.63-2.5 1.54-.47-.91-1.4-1.54-2.5-1.54s-2.03.63-2.5 1.54c-.47-.91-1.4-1.54-2.5-1.54-1.66 0-3 1.34-3 3v1h16v-1c0-1.66-1.34-3-3-3zm-10 0c-.8 0-1.5.3-2.05.8-.18-.48-.45-.9-.8-1.25.75-.85 1.83-1.35 3.05-1.35.53 0 1.03.1 1.5.3-.65.65-1.1 1.5-1.1 2.5zm10 0c0-1-.45-1.85-1.1-2.5.47-.2.97-.3 1.5-.3 1.22 0 2.3.5 3.05 1.35-.35.35-.62.77-.8 1.25-.55-.5-1.25-.8-2.05-.8z" />
         </svg>
+      </div>
+    );
+  }
+  if (channel === "webchat") {
+    return (
+      <div className="bg-sky-500 p-0.5 rounded-full text-white flex items-center justify-center" title="WebChat">
+        <MessageSquare className={className} />
       </div>
     );
   }
@@ -2454,7 +2464,7 @@ function ChatPage() {
     queryFn: () => fetchConfiguredChannels(),
   });
   const configuredChannels =
-    configuredChannelsQuery.data?.channels ?? (["all", "whatsapp", "instagram", "messenger"] as const);
+    configuredChannelsQuery.data?.channels ?? (["all", "whatsapp", "instagram", "messenger", "webchat"] as const);
 
   // Novos estados para organização da barra lateral conforme o mockup
   const fetchMarkAsRead = useServerFn(markMessagesAsRead);
@@ -2533,11 +2543,12 @@ function ChatPage() {
     | "whatsapp"
     | "instagram"
     | "messenger"
+    | "webchat"
     | "whatsapp_group"
   >("all");
 
   useEffect(() => {
-    if (!configuredChannels.includes(filterView as "whatsapp" | "instagram" | "messenger" | "all")) {
+    if (!configuredChannels.includes(filterView as "whatsapp" | "instagram" | "messenger" | "webchat" | "all")) {
       setFilterView("all");
     }
   }, [configuredChannels, filterView]);
@@ -3396,7 +3407,7 @@ function ChatPage() {
 
   useEffect(() => {
     if (mainTab === "grupos") {
-      if (["whatsapp", "instagram", "messenger"].includes(filterView)) {
+      if (["whatsapp", "instagram", "messenger", "webchat"].includes(filterView)) {
         setFilterView("all");
       }
       return;
@@ -3425,6 +3436,7 @@ function ChatPage() {
     if (filterView === "whatsapp" && contact.channel !== "whatsapp") return false;
     if (filterView === "instagram" && contact.channel !== "instagram") return false;
     if (filterView === "messenger" && contact.channel !== "messenger") return false;
+    if (filterView === "webchat" && contact.channel !== "webchat") return false;
     if (filterView === "whatsapp_group" && contact.channel !== "whatsapp_group") return false;
 
     const term = searchQuery.toLowerCase().trim();

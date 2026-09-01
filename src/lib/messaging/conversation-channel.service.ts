@@ -113,9 +113,13 @@ export async function findConversationByContactPhone(
     `SELECT cs.id, cs.channel_connection_id
      FROM chat_sessions cs
      JOIN contacts c ON c.id = cs.contact_id
-     WHERE cs.tenant_id = ? AND c.phone_e164 = ?
+     LEFT JOIN contact_identities ci_web ON ci_web.contact_id = c.id AND ci_web.provider = 'webchat'
+     WHERE cs.tenant_id = ? AND (
+       c.phone_e164 = ?
+       OR CONCAT('wc_', ci_web.external_id) = ?
+     )
      ORDER BY cs.started_at DESC`,
-    [tenantId, contactPhone],
+    [tenantId, contactPhone, contactPhone],
   )) as any[];
 
   if (sessions.length === 0) return null;
