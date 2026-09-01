@@ -27,7 +27,8 @@
         "src/lib/messaging/adapters/webchat.adapter.ts",
         "src/lib/webchat/",
         "src/routes/api/public/webchat",
-        "src/routes/_app/webchat.tsx"
+        "src/routes/_app/webchat.tsx",
+        "src/routes/_app/settings.tsx"
       ]
     }
   },

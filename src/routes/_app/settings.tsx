@@ -1315,6 +1315,25 @@ function SettingsPage() {
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
                 </button>
+
+                {/* WebChat */}
+                <Link
+                  to="/webchat"
+                  className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                      <MessageCircle className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h5 className="font-semibold text-sm text-foreground">WebChat</h5>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Instale o widget no site e copie o código de instalação.
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                </Link>
               </div>
             </div>
 
