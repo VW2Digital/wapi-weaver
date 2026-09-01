@@ -183,6 +183,18 @@ function renderIframe(
       return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     }
 
+    function maskEmail(value) {
+      return value.toLowerCase().replace(/\\s/g, '').replace(/[^a-z0-9._%+@-]/g, '');
+    }
+
+    function maskPhone(value) {
+      const digits = value.replace(/\\D/g, '').slice(0, 11);
+      if (digits.length <= 2) return digits;
+      if (digits.length <= 6) return '(' + digits.slice(0, 2) + ') ' + digits.slice(2);
+      if (digits.length <= 10) return '(' + digits.slice(0, 2) + ') ' + digits.slice(2, 6) + '-' + digits.slice(6);
+      return '(' + digits.slice(0, 2) + ') ' + digits.slice(2, 7) + '-' + digits.slice(7);
+    }
+
     function render(msg) {
       if (rendered.has(msg.id)) return;
       const div = document.createElement('div');
@@ -293,7 +305,8 @@ function renderIframe(
       e.preventDefault();
       const name = document.getElementById('prechat-name').value.trim();
       const email = document.getElementById('prechat-email').value.trim();
-      const phone = document.getElementById('prechat-phone').value.trim();
+      const rawPhone = document.getElementById('prechat-phone').value.replace(/\\D/g, '');
+      const phone = rawPhone;
       const errorEl = document.getElementById('prechat-error');
 
       if (!name || !email || !phone) {
@@ -351,6 +364,14 @@ function renderIframe(
         console.error(e);
       }
     }
+
+    document.getElementById('prechat-email').addEventListener('input', (e) => {
+      e.target.value = maskEmail(e.target.value);
+    });
+
+    document.getElementById('prechat-phone').addEventListener('input', (e) => {
+      e.target.value = maskPhone(e.target.value);
+    });
 
     async function start() {
       const restored = await tryRestoreSession();

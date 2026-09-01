@@ -27,6 +27,18 @@ const POSITIONS = [
   { value: "bottom-left", label: "Inferior esquerdo" },
 ];
 
+function maskEmail(value: string): string {
+  return value.toLowerCase().replace(/\s/g, "").replace(/[^a-z0-9._%+-@]/g, "");
+}
+
+function maskPhone(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
 function WebchatSettingsPage() {
   const getWidgets = useServerFn(getWebchatWidgets);
   const createWidget = useServerFn(createWebchatWidget);
@@ -350,7 +362,8 @@ function WidgetPreview({
 
   const handleStart = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!prechat.name || !prechat.email || !prechat.phone) return;
+    const phoneDigits = prechat.phone.replace(/\D/g, "");
+    if (!prechat.name || !prechat.email || phoneDigits.length < 10) return;
     setStep("chat");
   };
 
@@ -415,7 +428,7 @@ function WidgetPreview({
           <input
             type="email"
             value={prechat.email}
-            onChange={(e) => setPrechat({ ...prechat, email: e.target.value })}
+            onChange={(e) => setPrechat({ ...prechat, email: maskEmail(e.target.value) })}
             placeholder="Seu e-mail"
             required
             className="w-full pl-9 pr-3 py-2.5 bg-muted border rounded-lg text-sm outline-none focus:border-ring"
@@ -426,7 +439,7 @@ function WidgetPreview({
           <input
             type="tel"
             value={prechat.phone}
-            onChange={(e) => setPrechat({ ...prechat, phone: e.target.value })}
+            onChange={(e) => setPrechat({ ...prechat, phone: maskPhone(e.target.value) })}
             placeholder="WhatsApp (com DDD)"
             required
             className="w-full pl-9 pr-3 py-2.5 bg-muted border rounded-lg text-sm outline-none focus:border-ring"
