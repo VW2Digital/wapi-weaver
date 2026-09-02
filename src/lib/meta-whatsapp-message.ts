@@ -1,4 +1,5 @@
 import { normalizeBotFlowMessageType } from "@/lib/bot-registry";
+import ipaddr from "ipaddr.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -14,13 +15,56 @@ const MEDIA_EXTENSIONS: Record<(typeof MEDIA_TYPES)[number], string[]> = {
 };
 const invalid = (message: string): WhatsAppMessageBuildResult => ({ ok: false, code: "BOTFLOW_INVALID_WHATSAPP_ACTION", message });
 const object = (value: unknown): JsonObject | null => value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : null;
-function config(value: unknown): JsonObject { if (typeof value === "string") { try { return object(JSON.parse(value)) || {}; } catch { return {}; } } return object(value) || {}; }
+function config(value: unknown): JsonObject { if (typeof value === "string") { try { return object(safeJsonParse(value)) || {}; } catch { return {}; } } return object(value) || {}; }
 const text = (value: unknown): string => String(value ?? "").trim();
 function mediaReference(value: unknown): { id: string } | { link: string } | null { const ref = text(value); if (!ref) return null; if (/^https:\/\//i.test(ref)) return { link: ref }; if (/^\d{6,30}$/.test(ref)) return { id: ref }; return null; }
 function extension(ref: string): string { try { return new URL(ref).pathname.split(".").pop()?.toLowerCase() || ""; } catch { return ref.split(/[?#]/, 1)[0].split(".").pop()?.toLowerCase() || ""; } }
 function base(to: string, contextMessageId?: string | null): JsonObject { return { messaging_product: "whatsapp", recipient_type: "individual", to, ...(contextMessageId ? { context: { message_id: contextMessageId } } : {}) }; }
 function success(payload: JsonObject, botflowType: string, metaType: string, interactiveType?: string): WhatsAppMessageBuildResult { return { ok: true, payload, meta: { botflowType, metaType, ...(interactiveType ? { interactiveType } : {}) } }; }
 function requireText(value: string, label: string, max: number): string | WhatsAppMessageBuildResult { if (!value) return invalid(`${label} é obrigatório.`); if (value.length > max) return invalid(`${label} excede ${max} caracteres.`); return value; }
+
+function isPublicHttpsCtaUrl(raw: string): boolean {
+  let parsed: URL;
+  try { parsed = new URL(raw); } catch { return false; }
+  if (parsed.protocol !== "https:") return false;
+  const host = parsed.hostname.toLowerCase();
+  if (
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".local") ||
+    host === "127.0.0.1" ||
+    host === "0.0.0.0" ||
+    host === "::" ||
+    host === "::1" ||
+    host === "169.254.169.254" ||
+    host === "metadata.google.internal"
+  ) {
+    return false;
+  }
+  const ipLiteral = host.replace(/^\[|\]$/g, "");
+  try {
+    const p = ipaddr.parse(ipLiteral);
+    const bad = new Set([
+      "private", "loopback", "linkLocal", "uniqueLocal", "reserved",
+      "broadcast", "carrierGradeNat", "unspecified", "multicast",
+      "benchmark", "testNet", "documentation",
+    ]);
+    if (bad.has(p.range())) return false;
+  } catch {
+    // não é um IP literal — permite hostnames públicos
+  }
+  return true;
+}
+
+function safeJsonParse(value: string): JsonObject {
+  try {
+    return JSON.parse(value, (key, v) =>
+      key === "__proto__" || key === "constructor" || key === "prototype" ? undefined : v
+    ) as JsonObject;
+  } catch {
+    return {};
+  }
+}
 
 /** Compila ações do BotFlow em payloads oficiais para /{phone-number-id}/messages. */
 export function buildWhatsAppBotMessage(to: string, step: WhatsAppBotStep, contextMessageId?: string | null): WhatsAppMessageBuildResult {
@@ -100,7 +144,7 @@ export function buildWhatsAppBotMessage(to: string, step: WhatsAppBotStep, conte
     const footer = text(step.footer_text); if (footer.length > 60) return invalid("Rodapé excede 60 caracteres.");
     return success({ ...payloadBase, type: "interactive", interactive: { type: "catalog_message", body: { text: validBody }, ...(footer ? { footer: { text: footer } } : {}), action: { name: "catalog_message", parameters: { ...(thumbnail ? { thumbnail_product_retailer_id: thumbnail } : {}) } } } }, type, "interactive", "catalog_message");
   }
-  if (type === "cta_url") { const params = object(action.parameters) || action; const url = text(params.url); const display = text(params.display_text || params.button); const validBody = requireText(body, "Texto do CTA", 1024); if (typeof validBody !== "string") return validBody; try { if (new URL(url).protocol !== "https:") return invalid("CTA exige URL HTTPS."); } catch { return invalid("CTA exige URL válida."); } if (!display || display.length > 20) return invalid("CTA exige texto de botão de até 20 caracteres."); return success({ ...payloadBase, type: "interactive", interactive: { type: "cta_url", body: { text: validBody }, action: { name: "cta_url", parameters: { display_text: display, url } } } }, type, "interactive", "cta_url"); }
+  if (type === "cta_url") { const params = object(action.parameters) || action; const url = text(params.url); const display = text(params.display_text || params.button); const validBody = requireText(body, "Texto do CTA", 1024); if (typeof validBody !== "string") return validBody; if (!isPublicHttpsCtaUrl(url)) return invalid("CTA exige uma URL HTTPS pública válida."); if (!display || display.length > 20) return invalid("CTA exige texto de botão de até 20 caracteres."); return success({ ...payloadBase, type: "interactive", interactive: { type: "cta_url", body: { text: validBody }, action: { name: "cta_url", parameters: { display_text: display, url } } } }, type, "interactive", "cta_url"); }
   if (type === "pix") { const key = text(action.copyPaste || action.pixKey); const amount = text(action.amount); const description = text(action.description); if (!key) return invalid("PIX exige código Copia e Cola ou chave PIX."); const value = requireText([body, amount ? `Valor: ${amount}` : "", description, `PIX: ${key}`].filter(Boolean).join("\n"), "Mensagem PIX", 4096); if (typeof value !== "string") return value; return success({ ...payloadBase, type: "text", text: { preview_url: false, body: value } }, type, "text"); }
   if (["link_ai_agent", "transfer_chat", "create_chat"].includes(type)) return invalid(`${type} é uma ação interna e deve ser executada pelo motor do fluxo.`);
   return invalid(`Tipo de ação WhatsApp não suportado: ${rawType}.`);

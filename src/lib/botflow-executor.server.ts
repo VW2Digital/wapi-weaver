@@ -198,26 +198,28 @@ async function prepareStepMediaForMeta(
 
   if (cleanLocalPath) {
     try {
-      const decodedPath = decodeURIComponent(cleanLocalPath).trim().replace(/\\/g, "/").replace(/^\/+/, "");
-      const possibleLocations = [
-        path.resolve(process.cwd(), "public", "uploads", decodedPath),
-        path.resolve(process.cwd(), "public", decodedPath),
-        path.resolve(process.cwd(), decodedPath),
-      ];
+      const uploadsRoot = path.resolve(process.cwd(), "public", "uploads");
+      const decodedPath = decodeURIComponent(cleanLocalPath)
+        .trim()
+        .replace(/\\/g, "/")
+        .replace(/^(\/?public\/)?(\/?uploads\/)?/, "")
+        .replace(/^\/+/, "");
 
-      let foundPath: string | null = null;
-      for (const loc of possibleLocations) {
-        if (fs.existsSync(loc) && fs.statSync(loc).isFile()) {
-          foundPath = loc;
-          break;
-        }
+      if (/\0/.test(decodedPath) || /(?:^|\/)\.\.(?:\/|$)/.test(decodedPath)) {
+        throw new Error("Caminho de mídia contém sequência de travessia inválida.");
       }
 
-      if (foundPath) {
-        let binaryBuffer = fs.readFileSync(foundPath);
-        let ext = path.extname(foundPath).toLowerCase().replace(/^\./, "") || "pdf";
+      const resolvedPath = path.resolve(uploadsRoot, decodedPath);
+      const relativeToUploads = path.relative(uploadsRoot, resolvedPath).replace(/\\/g, "/");
+      if (relativeToUploads.startsWith("..") || path.isAbsolute(relativeToUploads)) {
+        throw new Error("Caminho de mídia resolvido fora da pasta de uploads autorizada.");
+      }
+
+      if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isFile()) {
+        let binaryBuffer = fs.readFileSync(resolvedPath);
+        let ext = path.extname(resolvedPath).toLowerCase().replace(/^\./, "") || "pdf";
         let mimeType = EXT_MIME[ext] || "application/octet-stream";
-        let uploadFilename = path.basename(foundPath) || `document.${ext}`;
+        let uploadFilename = path.basename(resolvedPath) || `document.${ext}`;
         if (isAudioStep) {
           binaryBuffer = Buffer.from(await transcodeAudioToMp3(binaryBuffer));
           ext = "mp3";
@@ -238,7 +240,7 @@ async function prepareStepMediaForMeta(
           logInfo("Arquivo local do bot enviado com sucesso para a Meta", {
             stepId: stepToExecute.id,
             mediaId,
-            foundPath,
+            foundPath: resolvedPath,
             uploadFilename,
           });
           return { ok: true, step: { ...stepToExecute, media_url: mediaId, original_filename: uploadFilename } };
@@ -247,7 +249,7 @@ async function prepareStepMediaForMeta(
         logError("Arquivo local do bot não encontrado no disco", {
           rawMediaUrl,
           cleanLocalPath,
-          possibleLocations,
+          resolvedPath,
         });
       }
     } catch (err: any) {
@@ -747,8 +749,8 @@ export async function processBotFlow(
     try {
       const { default: db } = await import("./db");
       const cRows = (await db.query(
-        "SELECT * FROM contacts WHERE (user_id = ? OR tenant_id = ?) AND (phone_e164 LIKE ? OR phone_e164 LIKE ?) LIMIT 1",
-        [userId, userId, `%${phoneDigits}%`, `%${phoneDigits.slice(-8)}%`],
+        "SELECT * FROM contacts WHERE (user_id = ? OR tenant_id = ?) AND (phone_e164 = ? OR whatsapp_number = ? OR phone = ?) LIMIT 1",
+        [userId, userId, phoneDigits, phoneDigits, phoneDigits],
       )) as any[];
       contactRecord = cRows?.[0] || null;
     } catch {
@@ -821,7 +823,9 @@ export async function processBotFlow(
       try {
         stepConfig =
           typeof stepToExecute.buttons_config === "string"
-            ? JSON.parse(stepToExecute.buttons_config || "{}")
+            ? JSON.parse(stepToExecute.buttons_config || "{}", (key, value) =>
+                key === "__proto__" || key === "constructor" || key === "prototype" ? undefined : value
+              )
             : stepToExecute.buttons_config || {};
       } catch {
         stepConfig = {};
@@ -1262,8 +1266,8 @@ export async function executeInactivityStep(
     let contactRecord: any = null;
     try {
       const cRows = (await db.query(
-        "SELECT * FROM contacts WHERE (user_id = ? OR tenant_id = ?) AND (phone_e164 LIKE ? OR phone_e164 LIKE ?) LIMIT 1",
-        [userId, userId, `%${phoneDigits}%`, `%${phoneDigits.slice(-8)}%`],
+        "SELECT * FROM contacts WHERE (user_id = ? OR tenant_id = ?) AND (phone_e164 = ? OR whatsapp_number = ? OR phone = ?) LIMIT 1",
+        [userId, userId, phoneDigits, phoneDigits, phoneDigits],
       )) as any[];
       contactRecord = cRows?.[0] || null;
     } catch {
@@ -1322,7 +1326,9 @@ export async function executeInactivityStep(
       try {
         stepConfig =
           typeof stepToExecute.buttons_config === "string"
-            ? JSON.parse(stepToExecute.buttons_config || "{}")
+            ? JSON.parse(stepToExecute.buttons_config || "{}", (key, value) =>
+                key === "__proto__" || key === "constructor" || key === "prototype" ? undefined : value
+              )
             : stepToExecute.buttons_config || {};
       } catch {
         stepConfig = {};

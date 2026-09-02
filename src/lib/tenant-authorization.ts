@@ -80,14 +80,8 @@ export async function assertBelongsToTenant(
   tenantId: string,
 ): Promise<void> {
   const scope = RESOURCE_SCOPE[resource];
-  const querySql =
-    resource === "bot_step" || resource === "bot_flow"
-      ? `SELECT id FROM ${scope.table} WHERE id = ? AND (${scope.tenantColumn} = ? OR user_id = ? OR ${scope.tenantColumn} IS NULL) LIMIT 1`
-      : `SELECT id FROM ${scope.table} WHERE id = ? AND (${scope.tenantColumn} = ? OR ${scope.tenantColumn} IS NULL) LIMIT 1`;
-  const params = resource === "bot_step" || resource === "bot_flow"
-    ? [resourceId, tenantId, tenantId]
-    : [resourceId, tenantId];
-  const rows = (await db.query(querySql, params)) as unknown[];
+  const querySql = `SELECT id FROM ${scope.table} WHERE id = ? AND ${scope.tenantColumn} = ? LIMIT 1`;
+  const rows = (await db.query(querySql, [resourceId, tenantId])) as unknown[];
   if (rows.length === 0) {
     deny("Recurso não encontrado ou acesso negado.", 403);
   }

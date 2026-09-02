@@ -4,9 +4,10 @@ import { getRequest } from "@tanstack/react-start/server";
 import jwt from "jsonwebtoken";
 import { ServerMySQLClient } from "@/lib/db-client";
 
-const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  "super-secret-key-change-this-in-production-or-use-a-strong-uuid-or-hash";
+if (!process.env.JWT_SECRET) {
+  throw new Error("JWT_SECRET não está configurado nas variáveis de ambiente.");
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 
 export const requireAuth = createMiddleware({ type: "function" }).server(async ({ next }) => {
   const request = getRequest();

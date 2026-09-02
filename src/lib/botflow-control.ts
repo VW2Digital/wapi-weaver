@@ -217,6 +217,29 @@ function getNestedValue(obj: any, path: string): any {
   return curr;
 }
 
+async function readResponseTextCapped(response: Response, maxBytes: number): Promise<string> {
+  const reader = (response.body as any)?.getReader?.();
+  if (!reader) {
+    const buf = await response.arrayBuffer();
+    if (buf.byteLength > maxBytes) {
+      throw new Error("Corpo da resposta HTTP excedeu o limite seguro de 1MB.");
+    }
+    return Buffer.from(buf).toString("utf-8");
+  }
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > maxBytes) {
+      throw new Error("Corpo da resposta HTTP excedeu o limite seguro de 1MB.");
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf-8");
+}
+
 function isEmptyValue(value: unknown): boolean {
   return value === null || value === undefined || value === "" || (Array.isArray(value) && value.length === 0);
 }
@@ -564,6 +587,8 @@ export async function validateSafeUrlForSSRF(rawUrl: string): Promise<string> {
     hostname.endsWith(".localhost") ||
     hostname.endsWith(".local") ||
     hostname === "127.0.0.1" ||
+    hostname === "0.0.0.0" ||
+    hostname === "::" ||
     hostname === "::1" ||
     hostname === "169.254.169.254" || // Metadata AWS / GCP
     hostname === "metadata.google.internal"
@@ -571,21 +596,27 @@ export async function validateSafeUrlForSSRF(rawUrl: string): Promise<string> {
     throw new Error(`Acesso proibido a endereços locais ou de metadados: ${hostname}`);
   }
 
-  // Resolve DNS e valida faixas de IP privadas
+  // Resolve DNS e valida faixas de IP privadas ou reservadas
   try {
     const lookupResults = await dns.promises.lookup(hostname, { all: true });
     for (const record of lookupResults) {
       const parsedIp = ipaddr.parse(record.address);
       const range = parsedIp.range();
-      if (
-        range === "private" ||
-        range === "loopback" ||
-        range === "linkLocal" ||
-        range === "uniqueLocal" ||
-        range === "reserved" ||
-        range === "broadcast" ||
-        range === "carrierGradeNat"
-      ) {
+      const blockedRanges = new Set([
+        "private",
+        "loopback",
+        "linkLocal",
+        "uniqueLocal",
+        "reserved",
+        "broadcast",
+        "carrierGradeNat",
+        "unspecified",
+        "multicast",
+        "benchmark",
+        "testNet",
+        "documentation",
+      ]);
+      if (blockedRanges.has(range)) {
         throw new Error(
           `O endereço resolvido (${record.address}) pertence à faixa privada/restrita.`,
         );
@@ -628,7 +659,10 @@ export async function executeHttpRequest(
     if (Array.isArray(config.headers)) {
       for (const h of config.headers) {
         if (h.key && h.key.trim()) {
-          headers[h.key.trim()] = resolveTemplate(h.value || "", ctx);
+          const key = h.key.trim().replace(/[\r\n\0]/g, "");
+          const rawValue = resolveTemplate(h.value || "", ctx);
+          const value = rawValue.replace(/[\r\n\0]/g, "");
+          if (key) headers[key] = value;
         }
       }
     }
@@ -641,8 +675,7 @@ export async function executeHttpRequest(
         requestBody = JSON.stringify(JSON.parse(resolvedBodyStr));
         if (!headers["Content-Type"]) headers["Content-Type"] = "application/json";
       } catch {
-        requestBody = resolvedBodyStr;
-        if (!headers["Content-Type"]) headers["Content-Type"] = "application/json";
+        throw new Error("Corpo JSON inválido após resolução de templates.");
       }
     } else if (bodyType === "form-urlencoded" && config.body) {
       requestBody = resolveTemplate(config.body, ctx);
@@ -657,24 +690,39 @@ export async function executeHttpRequest(
     const timer = setTimeout(() => controller.abort(), timeout);
 
     const method = (config.method || "GET").toUpperCase();
-    const response = await fetch(safeUrl, {
-      method,
-      headers,
-      body: ["GET", "HEAD"].includes(method) ? undefined : requestBody,
-      signal: controller.signal,
-      redirect: "follow",
-    });
+
+    // Segue redirecionamentos manualmente, re-validando cada destino
+    let currentUrl = safeUrl;
+    let redirectCount = 0;
+    const MAX_REDIRECTS = 5;
+    let response: Response;
+    while (true) {
+      response = await fetch(currentUrl, {
+        method,
+        headers,
+        body: ["GET", "HEAD"].includes(method) ? undefined : requestBody,
+        signal: controller.signal,
+        redirect: "manual",
+      });
+      if (response.status < 300 || response.status >= 400) break;
+      if (++redirectCount > MAX_REDIRECTS) {
+        throw new Error("Limite de redirecionamentos excedido.");
+      }
+      const location = response.headers.get("Location");
+      if (!location) {
+        throw new Error("Redirecionamento sem header Location.");
+      }
+      currentUrl = await validateSafeUrlForSSRF(new URL(location, currentUrl).toString());
+    }
 
     clearTimeout(timer);
 
     const contentType = response.headers.get("content-type") || "";
     let responseData: any = null;
 
-    // Limite de 1MB no corpo de resposta
-    const textBuffer = await response.text();
-    if (textBuffer.length > 1024 * 1024) {
-      throw new Error("Corpo da resposta HTTP excedeu o limite seguro de 1MB.");
-    }
+    // Limite de 1MB no corpo de resposta, lendo via stream para evitar buffer gigante
+    const MAX_BODY = 1024 * 1024;
+    const textBuffer = await readResponseTextCapped(response, MAX_BODY);
 
     if (contentType.includes("application/json")) {
       try {
@@ -758,8 +806,8 @@ export async function executeSaveVariable(
 
       if (standardFields.includes(key)) {
         await db.query(
-          `UPDATE contacts SET ${key} = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND (tenant_id = ? OR user_id = ?)`,
-          [value, ctx.contact.id, ctx.tenantId, ctx.tenantId],
+          `UPDATE contacts SET ${key} = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?`,
+          [value, ctx.contact.id, ctx.tenantId],
         );
         (ctx.contact as Record<string, unknown>)[key] = value;
       } else {
@@ -773,8 +821,8 @@ export async function executeSaveVariable(
           }
 
           const contactRows = (await db.query(
-            "SELECT custom_fields FROM contacts WHERE id = ? AND (user_id = ? OR tenant_id = ?) LIMIT 1",
-            [ctx.contact.id, ctx.tenantId, ctx.tenantId],
+            "SELECT custom_fields FROM contacts WHERE id = ? AND tenant_id = ? LIMIT 1",
+            [ctx.contact.id, ctx.tenantId],
           )) as Array<{ custom_fields: string | Record<string, unknown> | null }>;
 
           const contact = contactRows?.[0];
@@ -798,8 +846,8 @@ export async function executeSaveVariable(
             `UPDATE contacts
              SET custom_fields = JSON_MERGE_PATCH(COALESCE(custom_fields, '{}'), CAST(? AS JSON)),
                  updated_at = CURRENT_TIMESTAMP
-             WHERE id = ? AND (tenant_id = ? OR user_id = ?)`,
-            [payload, ctx.contact.id, ctx.tenantId, ctx.tenantId],
+             WHERE id = ? AND tenant_id = ?`,
+            [payload, ctx.contact.id, ctx.tenantId],
           );
           const customFields = ctx.contact.customFields || {};
           customFields[key] = value;
