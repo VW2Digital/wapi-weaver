@@ -856,7 +856,7 @@ export const saveBotStep = createServerFn({ method: "POST" })
     };
 
     const stepId = data.id || crypto.randomUUID();
-    const existing = (await db.query("SELECT id FROM bot_steps WHERE id = ? AND user_id = ?", [
+    const existing = (await db.query("SELECT id FROM bot_steps WHERE id = ? AND tenant_id = ?", [
       stepId,
       effectiveUserId,
     ])) as any[];
@@ -865,7 +865,7 @@ export const saveBotStep = createServerFn({ method: "POST" })
 
     if (existing?.length > 0) {
       const setClause = cols.map((c) => `${c} = ?`).join(", ");
-      await db.query(`UPDATE bot_steps SET ${setClause} WHERE id = ? AND user_id = ?`, [
+      await db.query(`UPDATE bot_steps SET ${setClause} WHERE id = ? AND tenant_id = ?`, [
         ...vals,
         stepId,
         effectiveUserId,
@@ -878,7 +878,7 @@ export const saveBotStep = createServerFn({ method: "POST" })
       ]);
     }
 
-    const rows = (await db.query("SELECT * FROM bot_steps WHERE id = ? AND user_id = ?", [
+    const rows = (await db.query("SELECT * FROM bot_steps WHERE id = ? AND tenant_id = ?", [
       stepId,
       effectiveUserId,
     ])) as any[];
@@ -893,7 +893,7 @@ export const deleteBotStep = createServerFn({ method: "POST" })
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
     await assertBelongsToTenant(data.id, "bot_step", effectiveUserId);
-    await db.query("DELETE FROM bot_steps WHERE id = ? AND user_id = ?", [
+    await db.query("DELETE FROM bot_steps WHERE id = ? AND tenant_id = ?", [
       data.id,
       effectiveUserId,
     ]);

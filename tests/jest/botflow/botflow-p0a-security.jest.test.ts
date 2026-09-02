@@ -50,6 +50,13 @@ describe("P0-A SSRF / HTTP Security", () => {
       await expect(validateSafeUrlForSSRF("http://myserver.example.com/")).rejects.toThrow();
     });
 
+    test("rejects unspecified and multicast resolved addresses", async () => {
+      mockLookup("0.0.0.0");
+      await expect(validateSafeUrlForSSRF("http://public.example/")).rejects.toThrow(/reservida|restrita/i);
+      mockLookup("224.0.0.1");
+      await expect(validateSafeUrlForSSRF("http://public.example/")).rejects.toThrow(/reservida|restrita/i);
+    });
+
     test("accepts public endpoints with public IPs", async () => {
       mockLookup("1.1.1.1");
       const safe = await validateSafeUrlForSSRF("https://api.public.example.com/webhook");

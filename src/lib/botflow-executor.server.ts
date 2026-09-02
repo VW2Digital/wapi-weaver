@@ -749,8 +749,8 @@ export async function processBotFlow(
     try {
       const { default: db } = await import("./db");
       const cRows = (await db.query(
-        "SELECT * FROM contacts WHERE (user_id = ? OR tenant_id = ?) AND (phone_e164 = ? OR whatsapp_number = ? OR phone = ?) LIMIT 1",
-        [userId, userId, phoneDigits, phoneDigits, phoneDigits],
+        "SELECT * FROM contacts WHERE (user_id = ? OR tenant_id = ?) AND (phone_e164 = ? OR whatsapp_number = ?) LIMIT 1",
+        [userId, userId, phoneDigits, phoneDigits],
       )) as any[];
       contactRecord = cRows?.[0] || null;
     } catch {
@@ -927,7 +927,9 @@ export async function processBotFlow(
     if (stepToExecute.message_type === "transfer_chat") {
       try {
         const handoffConfig = typeof stepToExecute.buttons_config === "string"
-          ? JSON.parse(stepToExecute.buttons_config || "{}")
+          ? JSON.parse(stepToExecute.buttons_config || "{}", (key, value) =>
+              key === "__proto__" || key === "constructor" || key === "prototype" ? undefined : value
+            )
           : stepToExecute.buttons_config || {};
         const configuredMinutes = Number(handoffConfig?.action?.pause_minutes);
         if (Number.isFinite(configuredMinutes) && configuredMinutes >= 1 && configuredMinutes <= 10080) handoffPauseMinutes = configuredMinutes;
@@ -1016,7 +1018,9 @@ export async function processBotFlow(
       let fallbackText = "";
       try {
         const cfg = typeof stepToExecute.buttons_config === "string"
-          ? JSON.parse(stepToExecute.buttons_config || "{}")
+          ? JSON.parse(stepToExecute.buttons_config || "{}", (key, value) =>
+              key === "__proto__" || key === "constructor" || key === "prototype" ? undefined : value
+            )
           : stepToExecute.buttons_config || {};
         fallbackText = String(cfg?.action?.fallback_text || "").trim();
       } catch {
@@ -1266,8 +1270,8 @@ export async function executeInactivityStep(
     let contactRecord: any = null;
     try {
       const cRows = (await db.query(
-        "SELECT * FROM contacts WHERE (user_id = ? OR tenant_id = ?) AND (phone_e164 = ? OR whatsapp_number = ? OR phone = ?) LIMIT 1",
-        [userId, userId, phoneDigits, phoneDigits, phoneDigits],
+        "SELECT * FROM contacts WHERE (user_id = ? OR tenant_id = ?) AND (phone_e164 = ? OR whatsapp_number = ?) LIMIT 1",
+        [userId, userId, phoneDigits, phoneDigits],
       )) as any[];
       contactRecord = cRows?.[0] || null;
     } catch {
@@ -1648,7 +1652,9 @@ export async function triggerWebhookBotFlow(
       let conditions: unknown = [];
       try {
         conditions = typeof trigger.trigger_value === "string"
-          ? JSON.parse(trigger.trigger_value)
+          ? JSON.parse(trigger.trigger_value, (key, value) =>
+              key === "__proto__" || key === "constructor" || key === "prototype" ? undefined : value
+            )
           : trigger.trigger_value || [];
       } catch {
         continue;

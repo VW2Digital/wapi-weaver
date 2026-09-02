@@ -4,12 +4,12 @@ import { getRequest } from "@tanstack/react-start/server";
 import jwt from "jsonwebtoken";
 import { ServerMySQLClient } from "@/lib/db-client";
 
-if (!process.env.JWT_SECRET) {
-  throw new Error("JWT_SECRET não está configurado nas variáveis de ambiente.");
-}
 const JWT_SECRET = process.env.JWT_SECRET;
 
 export const requireAuth = createMiddleware({ type: "function" }).server(async ({ next }) => {
+  if (!JWT_SECRET) {
+    throw new Error("JWT_SECRET não está configurado nas variáveis de ambiente.");
+  }
   const request = getRequest();
 
   let token: string | null = null;
