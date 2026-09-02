@@ -1,6 +1,7 @@
 import dns from "dns";
 import ipaddr from "ipaddr.js";
 import crypto from "crypto";
+import type { DbInterface } from "./db.js";
 import { setContactFieldValues } from "./services/contact-custom-field.service.js";
 
 export interface BotFlowExecutionContext {
@@ -458,7 +459,7 @@ export async function executeHttpRequest(
 export async function executeSaveVariable(
   config: SaveVariableConfig,
   ctx: BotFlowExecutionContext,
-  db: any,
+  db: DbInterface,
 ): Promise<{ nextStepId?: string }> {
   if (!config?.key) return { nextStepId: config?.nextStepId };
 
@@ -478,29 +479,51 @@ export async function executeSaveVariable(
       (ctx.contact as any)[key] = value;
     } else if (contactId) {
       // Tenta salvar como campo personalizado canônico (validado e tenant-scoped).
-      // Se não houver definição, faz merge seguro no JSON legado.
       try {
-        await setContactFieldValues(ctx.tenantId, contactId, [{ key, value }]);
+        const merged = await setContactFieldValues(ctx.tenantId, contactId, [{ key, value }]);
+        ctx.contact.customFields = { ...ctx.contact.customFields, ...merged };
+      } catch (err: unknown) {
+        const message = (err as Error).message || "";
+        // Apenas "Definição de campo não encontrada" dispara fallback legado.
+        if (!message.includes("não encontrada")) {
+          throw err;
+        }
+
+        // LEGACY_COMPATIBILITY_ONLY: chaves desconhecidas já existentes no JSON
+        // do contato continuam sendo permitidas temporariamente para não quebrar
+        // fluxos legados. Novas chaves desconhecidas são rejeitadas.
+        const contactRows = (await db.query(
+          "SELECT custom_fields FROM contacts WHERE id = ? AND (user_id = ? OR tenant_id = ?) LIMIT 1",
+          [contactId, ctx.tenantId, ctx.tenantId],
+        )) as Array<{ custom_fields: string | Record<string, unknown> | null }>;
+
+        const contact = contactRows?.[0];
+        const json =
+          contact && typeof contact.custom_fields === "string"
+            ? JSON.parse(contact.custom_fields)
+            : contact?.custom_fields || {};
+
+        if (json[key] === undefined) {
+          throw new Error(
+            `Chave de variável inválida: '${key}'. Crie uma definição de campo customizado ou use uma variável de fluxo.`,
+          );
+        }
+
+        console.warn(
+          `[LEGACY_COMPATIBILITY_ONLY] Bot escreveu chave desconhecida '${key}' no contato ${contactId}.`,
+        );
+
+        const payload = JSON.stringify({ [key]: value });
+        await db.query(
+          `UPDATE contacts
+           SET custom_fields = JSON_MERGE_PATCH(COALESCE(custom_fields, '{}'), CAST(? AS JSON)),
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = ? AND (tenant_id = ? OR user_id = ?)`,
+          [payload, contactId, ctx.tenantId, ctx.tenantId],
+        );
         const customFields = ctx.contact.customFields || {};
         customFields[key] = value;
         ctx.contact.customFields = customFields;
-      } catch (err: any) {
-        if (err.message?.includes("não encontrada") || err.message?.includes("não encontrado")) {
-          // Chave desconhecida: merge seguro no JSON legado para compatibilidade.
-          const payload = JSON.stringify({ [key]: value });
-          await db.query(
-            `UPDATE contacts
-             SET custom_fields = JSON_MERGE_PATCH(COALESCE(custom_fields, '{}'), CAST(? AS JSON)),
-                 updated_at = CURRENT_TIMESTAMP
-             WHERE id = ? AND (tenant_id = ? OR user_id = ?)`,
-            [payload, contactId, ctx.tenantId, ctx.tenantId],
-          );
-          const customFields = ctx.contact.customFields || {};
-          customFields[key] = value;
-          ctx.contact.customFields = customFields;
-        } else {
-          throw err;
-        }
       }
     }
   }

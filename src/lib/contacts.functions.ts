@@ -43,11 +43,14 @@ export const updateContactProfilePhoto = createServerFn({ method: "POST" })
       delete currentCustomFields.image;
     }
 
-    await db.query("UPDATE contacts SET custom_fields = ? WHERE id = ?", [
-      JSON.stringify(currentCustomFields),
-      data.id,
-    ]);
-    const updated = (await db.query("SELECT * FROM contacts WHERE id = ?", [data.id])) as any[];
+    await db.query(
+      "UPDATE contacts SET custom_fields = ? WHERE id = ? AND (user_id = ? OR tenant_id = ?)",
+      [JSON.stringify(currentCustomFields), data.id, effectiveUserId, effectiveUserId],
+    );
+    const updated = (await db.query(
+      "SELECT * FROM contacts WHERE id = ? AND (user_id = ? OR tenant_id = ?)",
+      [data.id, effectiveUserId, effectiveUserId],
+    )) as any[];
     return updated?.[0];
   });
 

@@ -35,6 +35,85 @@ export interface FieldValidationResult {
 
 const FORBIDDEN_KEYS = new Set(["__proto__", "prototype", "constructor"]);
 
+// Campos padrão do objeto contacts (colunas). Nunca devem ser tratados como
+// custom fields no JSON nem ser escritos por provedores como metadados livres.
+const STANDARD_CONTACT_FIELDS = new Set([
+  "name",
+  "company",
+  "notes",
+  "phone_e164",
+  "whatsapp_number",
+]);
+
+// Chaves de metadados pertencentes a provedores/canais. Provider inbound pode
+// escrevê-las, mas nunca quando houver uma definição de campo custom do tenant
+// com a mesma chave.
+// `email` e `phone` também são colunas do contato, mas são aceitos no JSON
+// quando vêm de contextos de provedor (ex: prechat WebChat) e não colidem
+// com uma definição custom do tenant.
+const PROVIDER_METADATA_KEYS = new Set([
+  "avatar_url",
+  "wa_id",
+  "source",
+  "email",
+  "phone",
+  "phone_number_id",
+  "display_phone_number",
+  "instagram_username",
+  "instagram_profile_name",
+  "messenger_id",
+  "facebook_id",
+  "webchat_external_id",
+  "wc_visitor_id",
+]);
+
+export function isForbiddenKey(key: string): boolean {
+  return FORBIDDEN_KEYS.has(key);
+}
+
+export function isStandardField(key: string): boolean {
+  return STANDARD_CONTACT_FIELDS.has(key);
+}
+
+export function isProviderMetadataKey(key: string): boolean {
+  return PROVIDER_METADATA_KEYS.has(key);
+}
+
+export async function getTenantCustomFieldKeys(tenantId: string): Promise<Set<string>> {
+  const defs = (await db.query(
+    "SELECT `key` FROM contact_custom_fields WHERE user_id = ? OR tenant_id = ?",
+    [tenantId, tenantId],
+  )) as Array<{ key: string }>;
+  return new Set(defs.map((d) => d.key));
+}
+
+/**
+ * Filtra um payload de metadados de provedor, garantindo que:
+ * - chaves proibidas sejam descartadas;
+ * - campos padrão do contato (colunas) sejam ignorados;
+ * - campos customizados do tenant nunca sejam sobrescritos por um provedor;
+ * - apenas chaves de metadados de provedor sejam mantidas;
+ * - valores nulos de metadados de provedor sejam mantidos (para remoção de
+ *   avatar, etc.), desde que a chave não seja um campo customizado do tenant.
+ */
+export function sanitizeProviderMetadata(
+  tenantKeys: Set<string>,
+  raw: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (isForbiddenKey(k)) continue;
+    if (isStandardField(k)) continue;
+    if (tenantKeys.has(k)) continue;
+    if (!isProviderMetadataKey(k)) continue;
+    // Mantém null para permitir remoção de metadados do provedor, mas nunca
+    // de campos do tenant (filtrado acima).
+    out[k] = v ?? null;
+  }
+  return out;
+}
+
 function parseJsonOrEmpty(value: unknown): Record<string, unknown> {
   if (!value) return {};
   if (typeof value === "object") return value as Record<string, unknown>;
@@ -295,21 +374,50 @@ export async function setContactFieldValues(
   });
 }
 
+function coerceJsonValue(type: string, value: unknown): unknown {
+  if (value === undefined || value === null) return null;
+  switch (type) {
+    case "boolean":
+      return value === true || value === "true" || value === 1 || value === "1";
+    case "number":
+    case "currency":
+      return typeof value === "number"
+        ? value
+        : Number(String(value).replace(/\./g, "").replace(",", "."));
+    case "multi_select":
+      return Array.isArray(value) ? value : [];
+    default:
+      return value;
+  }
+}
+
 /**
  * Lê todos os valores canônicos de campos personalizados de um contato.
+ *
+ * Valores canônicos em `contact_custom_field_values` têm precedência absoluta.
+ * Se um campo possui definição canônica mas ainda não foi migrado da coluna
+ * `contacts.custom_fields`, o JSON legado é usado como fallback de leitura
+ * apenas para chaves com definição correspondente no mesmo tenant.
  */
 export async function getContactFieldValues(
   tenantId: string,
   contactId: string,
 ): Promise<Record<string, unknown>> {
-  const rows = (await db.query(
-    `SELECT cf.key, cf.type, cfv.value, cfv.value_json
-     FROM contact_custom_field_values cfv
-     JOIN contact_custom_fields cf ON cf.id = cfv.custom_field_id
-     JOIN contacts c ON c.id = cfv.contact_id AND c.user_id = cfv.user_id
-     WHERE cfv.user_id = ? AND cfv.contact_id = ? AND cf.user_id = ?`,
-    [tenantId, contactId, tenantId],
-  )) as Array<{ key: string; type: string; value: string | null; value_json: unknown }>;
+  const [rows, contactRow, defs] = await Promise.all([
+    db.query(
+      `SELECT cf.key, cf.type, cfv.value, cfv.value_json
+       FROM contact_custom_field_values cfv
+       JOIN contact_custom_fields cf ON cf.id = cfv.custom_field_id
+       JOIN contacts c ON c.id = cfv.contact_id AND c.user_id = cfv.user_id
+       WHERE cfv.user_id = ? AND cfv.contact_id = ? AND cf.user_id = ?`,
+      [tenantId, contactId, tenantId],
+    ) as Promise<Array<{ key: string; type: string; value: string | null; value_json: unknown }>>,
+    db.query("SELECT custom_fields FROM contacts WHERE id = ? AND user_id = ?", [
+      contactId,
+      tenantId,
+    ]) as Promise<Array<{ custom_fields: string | Record<string, unknown> | null }>>,
+    getFieldDefinitions(tenantId),
+  ]);
 
   const result: Record<string, unknown> = {};
   for (const r of rows) {
@@ -323,6 +431,24 @@ export async function getContactFieldValues(
       result[r.key] = r.value;
     }
   }
+
+  // Fallback para dados legados ainda não sincronizados: se a chave existe no
+  // JSON e possui definição canônica, retorna o valor do JSON (canônico vence
+  // quando presente).
+  if (contactRow?.[0]?.custom_fields) {
+    const json = parseJsonOrEmpty(contactRow[0].custom_fields);
+    const defsByKey = new Map(defs.map((d) => [d.key, d]));
+    for (const [key, value] of Object.entries(json)) {
+      if (result[key] !== undefined || isForbiddenKey(key)) continue;
+      const def = defsByKey.get(key);
+      if (!def) continue;
+      const coerced = coerceJsonValue(def.type, value);
+      if (coerced !== null) {
+        result[key] = coerced;
+      }
+    }
+  }
+
   return result;
 }
 

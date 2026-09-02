@@ -3,6 +3,10 @@
 import { randomUUID } from "crypto";
 import type { ResultSetHeader } from "mysql2/promise";
 import db, { transaction } from "@/lib/db";
+import {
+  getTenantCustomFieldKeys,
+  sanitizeProviderMetadata,
+} from "@/lib/services/contact-custom-field.service";
 import type { CanonicalIdentity, MessagingProvider } from "../types";
 import { getInstagramChannelConfig } from "./channel.service";
 import { InstagramProfileEnrichmentService } from "./instagram-profile-enrichment.service";
@@ -121,25 +125,27 @@ export async function ensureContact(options: EnsureContactOptions): Promise<Ensu
     ?.instagram_profile_name;
   const instagramUsername = (enrichedIdentity.metadata as Record<string, unknown> | null)
     ?.instagram_username;
+
+  const tenantCustomFieldKeys = await getTenantCustomFieldKeys(tenantId);
+
   const rawCustomFields: Record<string, unknown> = {
     ...(metadata ?? {}),
-    avatar_url: enrichedIdentity.avatarUrl ?? undefined,
-    ...(provider === "instagram"
-      ? {
-          instagram_profile_name:
-            typeof instagramProfileName === "string" ? instagramProfileName : undefined,
-          instagram_username: typeof instagramUsername === "string" ? instagramUsername : undefined,
-        }
-      : {}),
   };
-
-  // Remove chaves inválidas/undefined para evitar poluição do JSON legado.
-  const customFields: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(rawCustomFields)) {
-    if (v === undefined || v === null) continue;
-    if (["__proto__", "prototype", "constructor"].includes(k)) continue;
-    customFields[k] = v;
+  if (enrichedIdentity.avatarUrl) {
+    rawCustomFields.avatar_url = enrichedIdentity.avatarUrl;
   }
+  if (provider === "instagram") {
+    if (typeof instagramProfileName === "string") {
+      rawCustomFields.instagram_profile_name = instagramProfileName;
+    }
+    if (typeof instagramUsername === "string") {
+      rawCustomFields.instagram_username = instagramUsername;
+    }
+  }
+
+  // Apenas metadados de provedor podem ser mesclados no JSON legado.
+  // Campos customizados do tenant nunca são alterados por inbound de provedor.
+  const customFields = sanitizeProviderMetadata(tenantCustomFieldKeys, rawCustomFields);
 
   return transaction(async (conn) => {
     // 1. Try to resolve the contact by its external identity first.

@@ -264,7 +264,7 @@ describe("CRM custom field data integrity", () => {
     expect(values[keyB]).toBe(50000);
   });
 
-  test("bot unknown variable merges safely into legacy JSON without erasing", async () => {
+  test("bot legacy unknown variable is preserved; new unknown variable is rejected", async () => {
     const contact = await createContactForUser(tenantId, {
       phone: "+55 11 92222-1111",
       name: "Gustavo",
@@ -275,7 +275,7 @@ describe("CRM custom field data integrity", () => {
     ]);
 
     const ctx = buildContext(contact);
-    await executeSaveVariable({ key: "bot_var", value: "ok", scope: "contact" }, ctx, db);
+    await executeSaveVariable({ key: "existing_key", value: "updated", scope: "contact" }, ctx, db);
 
     const rows = (await db.query("SELECT custom_fields FROM contacts WHERE id = ?", [
       contact.id,
@@ -286,8 +286,11 @@ describe("CRM custom field data integrity", () => {
       typeof rows[0].custom_fields === "string"
         ? JSON.parse(rows[0].custom_fields)
         : rows[0].custom_fields;
-    expect(cf.existing_key).toBe("keep");
-    expect(cf.bot_var).toBe("ok");
+    expect(cf.existing_key).toBe("updated");
+
+    await expect(
+      executeSaveVariable({ key: "brand_new_key", value: "ok", scope: "contact" }, ctx, db),
+    ).rejects.toThrow("Chave de variável inválida");
   });
 
   test("cross-tenant field write is blocked", async () => {

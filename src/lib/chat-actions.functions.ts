@@ -128,12 +128,10 @@ export const updateChatStatus = createServerFn({ method: "POST" })
       const effectiveUserId = await resolveEffectiveUserId(context.userId);
       const normalizedStatus = normalizeChatStatusValue(data.status);
 
-      await db.query("UPDATE contacts SET chat_status = ? WHERE id = ? AND (user_id = ? OR tenant_id = ?)", [
-        normalizedStatus,
-        data.contactId,
-        effectiveUserId,
-        effectiveUserId,
-      ]);
+      await db.query(
+        "UPDATE contacts SET chat_status = ? WHERE id = ? AND (user_id = ? OR tenant_id = ?)",
+        [normalizedStatus, data.contactId, effectiveUserId, effectiveUserId],
+      );
 
       const { startChatSession, answerChatSession, closeChatSession } =
         await import("./chat-sessions.functions");
@@ -345,6 +343,10 @@ export const quickSaveContact = createServerFn({ method: "POST" })
         if (isWebchat) {
           const webchatPhone = normalizeWebchatPhone(phoneDigits);
 
+          const customFieldsPatch: Record<string, unknown> = {};
+          if (data.email) customFieldsPatch.email = data.email;
+          if (webchatPhone) customFieldsPatch.phone = webchatPhone;
+
           await conn.execute(
             `UPDATE contacts
              SET user_id = ?,
@@ -352,7 +354,7 @@ export const quickSaveContact = createServerFn({ method: "POST" })
                  name = ?,
                  email = ?,
                  whatsapp_number = ?,
-                 custom_fields = JSON_MERGE_PATCH(COALESCE(custom_fields, '{}'), JSON_OBJECT('email', ?, 'phone', ?))
+                 custom_fields = JSON_MERGE_PATCH(COALESCE(custom_fields, '{}'), CAST(? AS JSON))
              WHERE id = ? AND (user_id = ? OR tenant_id = ?)`,
             [
               effectiveUserId,
@@ -360,15 +362,19 @@ export const quickSaveContact = createServerFn({ method: "POST" })
               data.name,
               data.email || null,
               webchatPhone,
-              data.email || null,
-              webchatPhone,
+              JSON.stringify(customFieldsPatch),
               data.contactId,
               effectiveUserId,
               effectiveUserId,
             ],
           );
 
-          return { ok: true, previousPhone: contact.phone_e164, phone: contact.phone_e164, whatsapp_number: webchatPhone };
+          return {
+            ok: true,
+            previousPhone: contact.phone_e164,
+            phone: contact.phone_e164,
+            whatsapp_number: webchatPhone,
+          };
         }
 
         const [existingRows] = (await conn.execute(
