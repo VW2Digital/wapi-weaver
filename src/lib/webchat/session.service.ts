@@ -49,6 +49,20 @@ function hashToken(raw: string): string {
   return createHash("sha256").update(raw).digest("hex");
 }
 
+/**
+ * Normaliza o telefone bruto do prechat para um número E.164-like sem o "+",
+ * compatível com formatPhone() do Inbox.
+ */
+function normalizeWebchatPhone(raw: string | undefined | null): string | null {
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.length === 10 || digits.length === 11) {
+    return `55${digits}`;
+  }
+  return digits;
+}
+
 export async function createWebchatSession(
   publicId: string,
   inputVisitorId: string | undefined,
@@ -78,12 +92,16 @@ export async function createWebchatSession(
   const hasPrechat = prechat && (prechat.name || prechat.email || prechat.phone);
 
   if (hasPrechat) {
+    const normalizedPhone = normalizeWebchatPhone(prechat!.phone);
+    const safeEmail = prechat!.email && prechat!.email.trim() ? prechat!.email.trim() : null;
+    const safeName = prechat!.name && prechat!.name.trim() ? prechat!.name.trim() : null;
+
     const identity = {
       externalId: visitorId,
-      name: prechat!.name ?? null,
+      name: safeName,
       avatarUrl: null,
-      phoneE164: null,
-      metadata: { email: prechat!.email ?? null, phone: prechat!.phone ?? null, source: "webchat_prechat" },
+      phoneE164: normalizedPhone,
+      metadata: { email: safeEmail, phone: normalizedPhone, source: "webchat_prechat" },
     };
 
     const contactResult = await ensureContact({
@@ -92,11 +110,11 @@ export async function createWebchatSession(
       provider: "webchat",
       identity,
       phoneE164: null,
-      email: prechat!.email ?? null,
-      phoneNumber: prechat!.phone ?? null,
+      email: safeEmail,
+      phoneNumber: normalizedPhone,
       source: "webchat_prechat",
       markUnread: true,
-      metadata: { email: prechat!.email ?? null, phone: prechat!.phone ?? null, source: "webchat_prechat" },
+      metadata: { email: safeEmail, phone: normalizedPhone, source: "webchat_prechat" },
     });
 
     contactIdentityId = contactResult.identityId;

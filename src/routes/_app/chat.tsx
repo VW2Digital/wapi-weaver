@@ -399,6 +399,7 @@ interface ChatContactRecord {
   name?: string | null;
   email?: string | null;
   phone_e164?: string | null;
+  whatsapp_number?: string | null;
   source?: string | null;
   channel?: string | null;
   chat_status?: string | null;
@@ -480,6 +481,7 @@ interface AutoAssignResult {
 interface QuickSaveResult {
   previousPhone?: string | null;
   phone?: string | null;
+  whatsapp_number?: string | null;
 }
 
 interface ConversationTagRecord {
@@ -805,6 +807,7 @@ function normalizeChatContactRecord(value: unknown): ChatContactRecord | null {
     name: normalizeOptionalString(record.name),
     email: normalizeOptionalString(record.email),
     phone_e164: normalizeOptionalString(record.phone_e164),
+    whatsapp_number: normalizeOptionalString(record.whatsapp_number),
     source: normalizeOptionalString(record.source),
     channel: normalizeOptionalString(record.channel),
     chat_status: normalizeOptionalString(record.chat_status),
@@ -1220,6 +1223,14 @@ function formatPhone(phone: string): string {
   }
   if (phone.startsWith("+")) return phone;
   return `+${phone}`;
+}
+
+/** Retorna o telefone que deve ser exibido para um contato.
+ *  Para WebChat usa whatsapp_number (telefone do prechat) quando disponível,
+ *  mantendo phone_e164 (wc_<uuid>) como chave interna de roteamento.
+ */
+function getDisplayPhone(contact: { channel?: string | null; whatsapp_number?: string | null; phone_e164?: string | null }): string {
+  return (contact.channel === "webchat" ? contact.whatsapp_number : contact.phone_e164) || contact.phone_e164 || "";
 }
 
 function ChannelBadge({
@@ -1766,7 +1777,11 @@ function ChatPage() {
     if (quickSaveContactData) {
       setQuickSaveName(quickSaveContactData.name || "");
       setQuickSaveEmail(quickSaveContactData.email || "");
-      setQuickSavePhone(quickSaveContactData.phone_e164 || "");
+      setQuickSavePhone(
+        (quickSaveContactData.channel === "webchat"
+          ? quickSaveContactData.whatsapp_number
+          : quickSaveContactData.phone_e164) || "",
+      );
     }
   }, [quickSaveContactData]);
 
@@ -1938,16 +1953,19 @@ function ChatPage() {
         qc.invalidateQueries({ queryKey: ["chat-contact-details", result.phone] });
       }
       if (selectedContact?.id === variables.contactId && result?.phone) {
-        setSelectedContact((prev) =>
-          prev
-            ? {
-                ...prev,
-                name: variables.name,
-                email: variables.email || null,
-                phone_e164: result.phone,
-              }
-            : prev,
-        );
+        setSelectedContact((prev) => {
+          if (!prev) return prev;
+          const next: ChatContactRecord = {
+            ...prev,
+            name: variables.name,
+            email: variables.email || null,
+            phone_e164: result.phone,
+          };
+          if (result.whatsapp_number) {
+            next.whatsapp_number = result.whatsapp_number;
+          }
+          return next;
+        });
       }
       toast.success("Contato atualizado com sucesso!");
       setQuickSaveContactData(null);
@@ -3440,10 +3458,13 @@ function ChatPage() {
     if (filterView === "whatsapp_group" && contact.channel !== "whatsapp_group") return false;
 
     const term = searchQuery.toLowerCase().trim();
+    const displayPhone = getDisplayPhone(contact);
     const matchesSearch =
       !term ||
       (contact.name ?? "").toLowerCase().includes(term) ||
-      (contact.phone_e164 ?? "").includes(term);
+      (contact.phone_e164 ?? "").includes(term) ||
+      (displayPhone ?? "").includes(term) ||
+      (contact.whatsapp_number ?? "").includes(term);
     if (!matchesSearch) return false;
 
     if (selectedFilterTagIds.length === 0) return true;
@@ -5370,10 +5391,10 @@ function ChatPage() {
                       <div className="flex items-center gap-2 min-w-0">
                         <h3
                           onClick={() => setContactInfoOpen((o) => !o)}
-                          title={selectedContact.name || formatPhone(selectedContact.phone_e164 ?? "") || "Sem Nome"}
+                          title={selectedContact.name || formatPhone(getDisplayPhone(selectedContact)) || "Sem Nome"}
                           className="font-bold text-sm sm:text-[15px] truncate text-foreground leading-none cursor-pointer hover:underline"
                         >
-                          {selectedContact.name || formatPhone(selectedContact.phone_e164 ?? "") || "Sem Nome"}
+                          {selectedContact.name || formatPhone(getDisplayPhone(selectedContact)) || "Sem Nome"}
                         </h3>
 
                         {/* Status em texto colorido com dropdown */}
@@ -5473,7 +5494,7 @@ function ChatPage() {
                           }
                           return (
                             <span className="text-muted-foreground truncate">
-                              {formatPhone(selectedContact.phone_e164 ?? "")}
+                              {formatPhone(getDisplayPhone(selectedContact))}
                             </span>
                           );
                         })()}
@@ -7305,16 +7326,15 @@ function ChatPage() {
                           <Phone className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
                           <div className="min-w-0">
                             <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">
-                              {selectedContact.phone_e164?.startsWith("ig_")
-                                ? "Instagram"
-                                : selectedContact.phone_e164?.startsWith("fb_")
-                                  ? "Messenger"
-                                  : "Telefone"}
+                              {(() => {
+                                const display = getDisplayPhone(selectedContact);
+                                if (display.startsWith("ig_")) return "Instagram";
+                                if (display.startsWith("fb_")) return "Messenger";
+                                return "Telefone";
+                              })()}
                             </p>
                             <p className="text-sm font-mono break-all">
-                              {selectedContact.phone_e164?.startsWith("ig_") || selectedContact.phone_e164?.startsWith("fb_")
-                                ? selectedContact.phone_e164
-                                : `+${selectedContact.phone_e164}`}
+                              {formatPhone(getDisplayPhone(selectedContact)) || "—"}
                             </p>
                           </div>
                         </div>

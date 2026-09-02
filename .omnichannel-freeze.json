@@ -10,8 +10,8 @@
       "since": "STEP12_AUTHORIZED"
     },
     "webchat": {
-      "enabled": false,
-      "since": "WEBCHAT_STEP3_COMPLETE",
+      "enabled": true,
+      "since": "WEBCHAT_PRECHAT_PHONE_FEATURE",
       "patterns": [
         "database/migrations/054_webchat.sql",
         "database/migrations/055_webchat_avatar.sql",

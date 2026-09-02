@@ -300,6 +300,7 @@ export const listChatContacts = createServerFn({ method: "GET" })
           c.user_id,
           c.name, 
           COALESCE(c.phone_e164, CONCAT('wc_', ci_web.external_id)) as phone_e164, 
+          c.whatsapp_number,
           c.custom_fields,
           c.email,
           c.source,

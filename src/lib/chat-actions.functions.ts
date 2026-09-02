@@ -7,6 +7,9 @@ import db from "./db";
 interface ContactPhoneRow {
   id: string;
   phone_e164?: string | null;
+  channel?: string | null;
+  whatsapp_number?: string | null;
+  custom_fields?: string | Record<string, unknown> | null;
 }
 
 interface OpportunityStageRow {
@@ -44,6 +47,7 @@ function normalizeActionPhone(value: string) {
   if (
     trimmed.startsWith("ig_") ||
     trimmed.startsWith("fb_") ||
+    trimmed.startsWith("wc_") ||
     trimmed.endsWith("@g.us") ||
     trimmed.endsWith("@temp")
   ) {
@@ -51,6 +55,15 @@ function normalizeActionPhone(value: string) {
   }
 
   return trimmed.replace(/\D/g, "");
+}
+
+function normalizeWebchatPhone(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return value;
+  if (digits.length === 10 || digits.length === 11) {
+    return `55${digits}`;
+  }
+  return digits;
 }
 
 function normalizeChatStatusValue(status: string) {
@@ -318,13 +331,44 @@ export const quickSaveContact = createServerFn({ method: "POST" })
 
       return await db.transaction(async (conn) => {
         const [contactRows] = (await conn.execute(
-          "SELECT id, phone_e164 FROM contacts WHERE id = ? AND (user_id = ? OR tenant_id = ?) LIMIT 1 FOR UPDATE",
+          "SELECT id, phone_e164, channel, whatsapp_number, custom_fields FROM contacts WHERE id = ? AND (user_id = ? OR tenant_id = ?) LIMIT 1 FOR UPDATE",
           [data.contactId, effectiveUserId, effectiveUserId],
         )) as [ContactPhoneRow[], unknown];
         const contact = contactRows?.[0];
 
         if (!contact) {
           throw new Error("Contato não encontrado.");
+        }
+
+        const isWebchat = contact.channel === "webchat" || contact.phone_e164?.startsWith("wc_");
+
+        if (isWebchat) {
+          const webchatPhone = normalizeWebchatPhone(phoneDigits);
+
+          await conn.execute(
+            `UPDATE contacts
+             SET user_id = ?,
+                 tenant_id = ?,
+                 name = ?,
+                 email = ?,
+                 whatsapp_number = ?,
+                 custom_fields = JSON_MERGE_PATCH(COALESCE(custom_fields, '{}'), JSON_OBJECT('email', ?, 'phone', ?))
+             WHERE id = ? AND (user_id = ? OR tenant_id = ?)`,
+            [
+              effectiveUserId,
+              effectiveUserId,
+              data.name,
+              data.email || null,
+              webchatPhone,
+              data.email || null,
+              webchatPhone,
+              data.contactId,
+              effectiveUserId,
+              effectiveUserId,
+            ],
+          );
+
+          return { ok: true, previousPhone: contact.phone_e164, phone: contact.phone_e164, whatsapp_number: webchatPhone };
         }
 
         const [existingRows] = (await conn.execute(
