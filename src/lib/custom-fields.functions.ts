@@ -250,6 +250,15 @@ export const listStandardFields = createServerFn({ method: "GET" })
     return STANDARD_FIELDS;
   });
 
+export const listLeadFieldsFn = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const { listLeadFields } = await import("./services/lead-field.service.js");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    return listLeadFields(effectiveUserId);
+  });
+
 export const saveWebhookFieldMappings = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) =>

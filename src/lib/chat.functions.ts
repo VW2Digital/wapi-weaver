@@ -389,7 +389,14 @@ export const listChatContacts = createServerFn({ method: "GET" })
 
 export const markMessagesAsRead = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((d) => z.object({ phone: z.string().trim().min(5) }).parse(d))
+  .validator((d) =>
+    z
+      .object({
+        phone: z.string().trim().min(5),
+        contactId: z.string().uuid().optional(),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     const phone = normalizeChatContactId(data.phone);
     const { resolveEffectiveUserId } = await import("./chat-helpers");
@@ -415,11 +422,19 @@ export const markMessagesAsRead = createServerFn({ method: "POST" })
       [effectiveUserId, effectiveUserId, phone],
     );
 
-    await db.query(
-      `UPDATE contacts SET is_unread = false
-       WHERE (user_id = ? OR tenant_id = ?) AND phone_e164 = ?`,
-      [effectiveUserId, effectiveUserId, phone],
-    );
+    if (data.contactId) {
+      await db.query(
+        `UPDATE contacts SET is_unread = false
+         WHERE (user_id = ? OR tenant_id = ?) AND id = ?`,
+        [effectiveUserId, effectiveUserId, data.contactId],
+      );
+    } else {
+      await db.query(
+        `UPDATE contacts SET is_unread = false
+         WHERE (user_id = ? OR tenant_id = ?) AND phone_e164 = ?`,
+        [effectiveUserId, effectiveUserId, phone],
+      );
+    }
 
     const incomingMessage = latestIncoming[0];
     await publishChatRealtimeEvent({

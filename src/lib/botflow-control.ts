@@ -3,6 +3,14 @@ import ipaddr from "ipaddr.js";
 import crypto from "crypto";
 import type { DbInterface } from "./db.js";
 import { setContactFieldValues } from "./services/contact-custom-field.service.js";
+import {
+  getLeadFieldDefinition,
+  getLeadFieldValue,
+  isOperatorValidForType,
+  setLeadFieldValue,
+  type LeadFieldReference,
+  type LeadFieldDefinition,
+} from "./services/lead-field.service.js";
 
 export interface BotFlowExecutionContext {
   tenantId: string;
@@ -10,11 +18,15 @@ export interface BotFlowExecutionContext {
   contact: {
     id?: string;
     phone: string;
+    phone_e164?: string | null;
+    whatsapp_number?: string | null;
     name?: string;
     email?: string;
     company?: string;
+    position?: string;
     notes?: string;
-    customFields?: Record<string, any>;
+    responsible_user_id?: string | null;
+    customFields?: Record<string, unknown>;
   };
   message: {
     text?: string;
@@ -27,10 +39,13 @@ export interface BotFlowExecutionContext {
   stepId?: string;
   variables: Record<string, any>;
   httpResponse?: any;
+  /** Definições de Lead Fields carregadas para avaliação tipada de condições. */
+  leadFieldDefinitions?: Record<string, LeadFieldDefinition>;
 }
 
 export interface ConditionRule {
-  left: string;
+  /** Legado: expressão livre. */
+  left?: string;
   operator:
     | "equals"
     | "not_equals"
@@ -41,14 +56,24 @@ export interface ConditionRule {
     | "exists"
     | "not_exists"
     | "is_empty"
+    | "is_not_empty"
     | "not_empty"
     | "greater_than"
     | "greater_or_equal"
     | "less_than"
     | "less_or_equal"
     | "in"
-    | "not_in";
+    | "not_in"
+    | "is_true"
+    | "is_false"
+    | "before"
+    | "after";
+  /** Legado: expressão livre. */
   right?: string;
+  /** Referência tipada a um Lead Field. Quando presente, sobrescreve left/right legados. */
+  field?: LeadFieldReference;
+  /** Valor literal para comparação tipada. Pode conter templates {{...}}. */
+  value?: unknown;
 }
 
 export interface ConditionConfig {
@@ -72,7 +97,10 @@ export interface RandomizerConfig {
 
 export interface SaveVariableConfig {
   scope: "flow" | "contact";
-  key: string;
+  /** Legado: chave textual. */
+  key?: string;
+  /** Novo: referência tipada a Lead Field (standard ou custom). */
+  field?: LeadFieldReference;
   value: string;
   nextStepId?: string;
 }
@@ -105,15 +133,43 @@ export function resolveTemplate(template: string, ctx: BotFlowExecutionContext):
     const expr = expression.trim();
 
     if (expr === "contact.name") return ctx.contact.name || "";
-    if (expr === "contact.phone" || expr === "contact.phone_e164") return ctx.contact.phone || "";
+    if (expr === "contact.phone") return ctx.contact.phone_e164 || ctx.contact.phone || "";
+    if (expr === "contact.phone_e164") return ctx.contact.phone_e164 || ctx.contact.phone || "";
+    if (expr === "contact.whatsapp_number") return ctx.contact.whatsapp_number || "";
     if (expr === "contact.email") return ctx.contact.email || "";
     if (expr === "contact.company") return ctx.contact.company || "";
+    if (expr === "contact.position") return ctx.contact.position || "";
     if (expr === "contact.notes") return ctx.contact.notes || "";
+    if (expr === "contact.responsible_user_id") return ctx.contact.responsible_user_id || "";
     if (expr.startsWith("contact.custom_fields.")) {
       const fieldKey = expr.replace("contact.custom_fields.", "");
       return ctx.contact.customFields?.[fieldKey] != null
         ? String(ctx.contact.customFields[fieldKey])
         : "";
+    }
+    // Novo: contact.<key> resolve primeiro campos padrão, depois custom fields.
+    if (expr.startsWith("contact.")) {
+      const fieldKey = expr.replace("contact.", "").trim();
+      if (fieldKey) {
+        const standard = (ctx.contact as Record<string, unknown>)[fieldKey];
+        if (standard != null) return String(standard);
+        const custom = ctx.contact.customFields?.[fieldKey];
+        if (custom != null) return String(custom);
+      }
+    }
+    // Alias lead.<key> também suportado.
+    if (expr.startsWith("lead.")) {
+      const fieldKey = expr.replace("lead.", "").trim();
+      if (fieldKey) {
+        const standard = (ctx.contact as Record<string, unknown>)[fieldKey];
+        if (standard != null) return String(standard);
+        const custom = ctx.contact.customFields?.[fieldKey];
+        if (custom != null) return String(custom);
+      }
+    }
+    // Fallback por chave solta: primeiro variables, depois contact custom fields.
+    if (ctx.variables && ctx.variables[expr] === undefined && ctx.contact.customFields?.[expr] != null) {
+      return String(ctx.contact.customFields[expr]);
     }
 
     if (expr === "message.text" || expr === "message.body") return ctx.message.text || "";
@@ -161,79 +217,292 @@ function getNestedValue(obj: any, path: string): any {
   return curr;
 }
 
+function isEmptyValue(value: unknown): boolean {
+  return value === null || value === undefined || value === "" || (Array.isArray(value) && value.length === 0);
+}
+
+function compareText(left: string, right: string, op: string): boolean {
+  const l = left.toLowerCase();
+  const r = right.toLowerCase();
+  switch (op) {
+    case "equals":
+      return l === r;
+    case "not_equals":
+      return l !== r;
+    case "contains":
+      return l.includes(r);
+    case "not_contains":
+      return !l.includes(r);
+    case "starts_with":
+      return l.startsWith(r);
+    case "ends_with":
+      return l.endsWith(r);
+    case "is_empty":
+    case "not_exists":
+      return left.trim().length === 0;
+    case "is_not_empty":
+    case "exists":
+    case "not_empty":
+      return left.trim().length > 0;
+    default:
+      return false;
+  }
+}
+
+function parseNumber(value: unknown): number | null {
+  if (typeof value === "number") return isNaN(value) ? null : value;
+  if (typeof value === "string") {
+    const cleaned = value.replace(/\./g, "").replace(",", ".");
+    const n = parseFloat(cleaned);
+    return isNaN(n) ? null : n;
+  }
+  return null;
+}
+
+function compareNumbers(left: number, right: number, op: string): boolean {
+  switch (op) {
+    case "equals":
+      return left === right;
+    case "not_equals":
+      return left !== right;
+    case "greater_than":
+      return left > right;
+    case "greater_or_equal":
+      return left >= right;
+    case "less_than":
+      return left < right;
+    case "less_or_equal":
+      return left <= right;
+    default:
+      return false;
+  }
+}
+
+function compareDates(left: Date, right: Date, op: string): boolean {
+  const l = left.getTime();
+  const r = right.getTime();
+  switch (op) {
+    case "equals":
+    case "not_equals":
+      return op === "equals" ? l === r : l !== r;
+    case "before":
+      return l < r;
+    case "after":
+      return l > r;
+    default:
+      return false;
+  }
+}
+
+function coerceRightValue(value: unknown, type: string): unknown {
+  if (value === null || value === undefined) return null;
+  const s = typeof value === "string" ? value.trim() : String(value);
+  if (s === "" || s.toLowerCase() === "null") return null;
+  switch (type) {
+    case "number":
+    case "currency":
+      return parseNumber(s);
+    case "boolean": {
+      const lower = s.toLowerCase();
+      if (lower === "true" || lower === "1" || lower === "sim") return true;
+      if (lower === "false" || lower === "0" || lower === "nao" || lower === "não") return false;
+      return null;
+    }
+    case "date":
+    case "datetime": {
+      const d = new Date(s);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    case "multi_select": {
+      try {
+        const parsed = JSON.parse(s);
+        return Array.isArray(parsed) ? parsed : [s];
+      } catch {
+        return [s];
+      }
+    }
+    default:
+      return s;
+  }
+}
+
+async function evaluateTypedCondition(
+  rule: ConditionRule,
+  ctx: BotFlowExecutionContext,
+): Promise<boolean> {
+  if (!rule.field || !ctx.contact.id) return false;
+
+  const def =
+    ctx.leadFieldDefinitions?.[`${rule.field.kind}:${rule.field.field}`] ??
+    (await getLeadFieldDefinition(ctx.tenantId, rule.field));
+  if (!def) {
+    throw new Error(`LEAD_FIELD_UNAVAILABLE: Campo não encontrado (${rule.field.kind}:${rule.field.field})`);
+  }
+
+  if (!isOperatorValidForType(def.type, rule.operator)) {
+    throw new Error(
+      `LEAD_FIELD_INVALID_OPERATOR: Operador '${rule.operator}' inválido para o tipo '${def.type}'`,
+    );
+  }
+
+  const rawLeft = await getLeadFieldValue(ctx.tenantId, ctx.contact.id, rule.field);
+
+  if (rule.operator === "is_empty" || rule.operator === "is_not_empty") {
+    return rule.operator === "is_empty" ? isEmptyValue(rawLeft) : !isEmptyValue(rawLeft);
+  }
+
+  let rawRight: unknown = rule.value;
+  if (typeof rawRight === "string") {
+    rawRight = resolveTemplate(rawRight, ctx);
+  }
+  if ((rawRight === undefined || rawRight === null || rawRight === "") && rule.right) {
+    rawRight = resolveTemplate(rule.right, ctx);
+  }
+
+  const right = coerceRightValue(rawRight, def.type);
+
+  switch (def.type) {
+    case "text":
+    case "textarea":
+    case "email":
+    case "phone":
+    case "url":
+    case "select": {
+      const left = String(rawLeft ?? "");
+      const rightStr = String(right ?? "");
+      return compareText(left, rightStr, rule.operator);
+    }
+    case "number":
+    case "currency": {
+      const leftNum = parseNumber(rawLeft);
+      const rightNum = typeof right === "number" ? right : parseNumber(right);
+      if (leftNum === null || rightNum === null) {
+        return ["is_empty", "not_exists"].includes(rule.operator) || rule.operator === "not_equals";
+      }
+      return compareNumbers(leftNum, rightNum, rule.operator);
+    }
+    case "boolean": {
+      const leftBool = rawLeft === true || rawLeft === "true" || rawLeft === 1 || rawLeft === "1";
+      const rightBool = right === true;
+      if (rule.operator === "is_true") return leftBool;
+      if (rule.operator === "is_false") return !leftBool;
+      return false;
+    }
+    case "multi_select": {
+      const leftArr = Array.isArray(rawLeft) ? rawLeft : rawLeft ? [String(rawLeft)] : [];
+      const rightArr = Array.isArray(right) ? right : right ? [String(right)] : [];
+      const has = rightArr.some((r) =>
+        leftArr.some((l) => String(l).toLowerCase() === String(r).toLowerCase()),
+      );
+      return rule.operator === "contains" ? has : !has;
+    }
+    case "date":
+    case "datetime": {
+      const leftDate = rawLeft instanceof Date ? rawLeft : new Date(String(rawLeft));
+      const rightDate = right instanceof Date ? right : new Date(String(right));
+      if (isNaN(leftDate.getTime()) || isNaN(rightDate.getTime())) return false;
+      return compareDates(leftDate, rightDate, rule.operator);
+    }
+    default:
+      return compareText(String(rawLeft ?? ""), String(right ?? ""), rule.operator);
+  }
+}
+
 /**
- * Avalia regras de condição do bloco condition
+ * Avalia regras de condição do bloco condition.
+ * Suporta regras legadas (left/right strings) e regras tipadas (field/value).
  */
-export function evaluateCondition(config: ConditionConfig, ctx: BotFlowExecutionContext): boolean {
+export async function evaluateCondition(
+  config: ConditionConfig,
+  ctx: BotFlowExecutionContext,
+): Promise<boolean> {
   const rules = config?.rules || [];
   if (rules.length === 0) return true;
 
   const logic = (config.logic || "AND").toUpperCase();
 
-  const results = rules.map((rule) => {
-    const leftVal = resolveTemplate(rule.left || "", ctx);
-    const rightVal = resolveTemplate(rule.right || "", ctx);
-    const op = rule.operator;
+  const results: boolean[] = [];
+  for (const rule of rules) {
+    if (rule.field) {
+      results.push(await evaluateTypedCondition(rule, ctx));
+    } else {
+      const leftVal = resolveTemplate(rule.left || "", ctx);
+      const rightVal = resolveTemplate(rule.right || "", ctx);
+      const op = rule.operator;
 
-    switch (op) {
-      case "equals":
-        return leftVal.toLowerCase() === rightVal.toLowerCase();
-      case "not_equals":
-        return leftVal.toLowerCase() !== rightVal.toLowerCase();
-      case "contains":
-        return leftVal.toLowerCase().includes(rightVal.toLowerCase());
-      case "not_contains":
-        return !leftVal.toLowerCase().includes(rightVal.toLowerCase());
-      case "starts_with":
-        return leftVal.toLowerCase().startsWith(rightVal.toLowerCase());
-      case "ends_with":
-        return leftVal.toLowerCase().endsWith(rightVal.toLowerCase());
-      case "exists":
-        return leftVal.trim().length > 0;
-      case "not_exists":
-        return leftVal.trim().length === 0;
-      case "is_empty":
-        return leftVal.trim().length === 0;
-      case "not_empty":
-        return leftVal.trim().length > 0;
-      case "greater_than": {
-        const nL = parseFloat(leftVal);
-        const nR = parseFloat(rightVal);
-        return !isNaN(nL) && !isNaN(nR) && nL > nR;
+      switch (op) {
+        case "equals":
+          results.push(leftVal.toLowerCase() === rightVal.toLowerCase());
+          break;
+        case "not_equals":
+          results.push(leftVal.toLowerCase() !== rightVal.toLowerCase());
+          break;
+        case "contains":
+          results.push(leftVal.toLowerCase().includes(rightVal.toLowerCase()));
+          break;
+        case "not_contains":
+          results.push(!leftVal.toLowerCase().includes(rightVal.toLowerCase()));
+          break;
+        case "starts_with":
+          results.push(leftVal.toLowerCase().startsWith(rightVal.toLowerCase()));
+          break;
+        case "ends_with":
+          results.push(leftVal.toLowerCase().endsWith(rightVal.toLowerCase()));
+          break;
+        case "exists":
+        case "not_empty":
+        case "is_not_empty":
+          results.push(leftVal.trim().length > 0);
+          break;
+        case "not_exists":
+        case "is_empty":
+          results.push(leftVal.trim().length === 0);
+          break;
+        case "greater_than": {
+          const nL = parseFloat(leftVal);
+          const nR = parseFloat(rightVal);
+          results.push(!isNaN(nL) && !isNaN(nR) && nL > nR);
+          break;
+        }
+        case "greater_or_equal": {
+          const nL = parseFloat(leftVal);
+          const nR = parseFloat(rightVal);
+          results.push(!isNaN(nL) && !isNaN(nR) && nL >= nR);
+          break;
+        }
+        case "less_than": {
+          const nL = parseFloat(leftVal);
+          const nR = parseFloat(rightVal);
+          results.push(!isNaN(nL) && !isNaN(nR) && nL < nR);
+          break;
+        }
+        case "less_or_equal": {
+          const nL = parseFloat(leftVal);
+          const nR = parseFloat(rightVal);
+          results.push(!isNaN(nL) && !isNaN(nR) && nL <= nR);
+          break;
+        }
+        case "in": {
+          const items = rightVal
+            .split(/[,;\n]/)
+            .map((s) => s.trim().toLowerCase())
+            .filter(Boolean);
+          results.push(items.includes(leftVal.toLowerCase()));
+          break;
+        }
+        case "not_in": {
+          const items = rightVal
+            .split(/[,;\n]/)
+            .map((s) => s.trim().toLowerCase())
+            .filter(Boolean);
+          results.push(!items.includes(leftVal.toLowerCase()));
+          break;
+        }
+        default:
+          results.push(false);
       }
-      case "greater_or_equal": {
-        const nL = parseFloat(leftVal);
-        const nR = parseFloat(rightVal);
-        return !isNaN(nL) && !isNaN(nR) && nL >= nR;
-      }
-      case "less_than": {
-        const nL = parseFloat(leftVal);
-        const nR = parseFloat(rightVal);
-        return !isNaN(nL) && !isNaN(nR) && nL < nR;
-      }
-      case "less_or_equal": {
-        const nL = parseFloat(leftVal);
-        const nR = parseFloat(rightVal);
-        return !isNaN(nL) && !isNaN(nR) && nL <= nR;
-      }
-      case "in": {
-        const items = rightVal
-          .split(/[,;\n]/)
-          .map((s) => s.trim().toLowerCase())
-          .filter(Boolean);
-        return items.includes(leftVal.toLowerCase());
-      }
-      case "not_in": {
-        const items = rightVal
-          .split(/[,;\n]/)
-          .map((s) => s.trim().toLowerCase())
-          .filter(Boolean);
-        return !items.includes(leftVal.toLowerCase());
-      }
-      default:
-        return false;
     }
-  });
+  }
 
   if (logic === "OR") {
     return results.some(Boolean);
@@ -454,82 +723,95 @@ export async function executeHttpRequest(
 }
 
 /**
- * Salva variável em escopo de fluxo (context.variables) ou contato (contacts)
+ * Salva variável em escopo de fluxo (context.variables) ou contato (contacts).
+ *
+ * Suporta:
+ * - Novo contrato tipado `config.field` (LeadFieldReference)
+ * - Legado `config.key` (string) preservado para flows antigos
  */
 export async function executeSaveVariable(
   config: SaveVariableConfig,
   ctx: BotFlowExecutionContext,
   db: DbInterface,
 ): Promise<{ nextStepId?: string }> {
-  if (!config?.key) return { nextStepId: config?.nextStepId };
-
-  const key = config.key.trim();
   const value = resolveTemplate(config.value || "", ctx);
+  const variableKey = config.key ? config.key.trim() : config.field ? config.field.field : "";
 
-  if (config.scope === "contact") {
-    // Escopo de Contato: atualiza campos padrão ou campos personalizados canônicos
-    const contactId = ctx.contact.id;
-    const standardFields = ["name", "email", "company", "notes"];
+  if (!config?.key && !config?.field) return { nextStepId: config?.nextStepId };
 
-    if (contactId && standardFields.includes(key)) {
-      await db.query(
-        `UPDATE contacts SET ${key} = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND (tenant_id = ? OR user_id = ?)`,
-        [value, contactId, ctx.tenantId, ctx.tenantId],
-      );
-      (ctx.contact as any)[key] = value;
-    } else if (contactId) {
-      // Tenta salvar como campo personalizado canônico (validado e tenant-scoped).
-      try {
-        const merged = await setContactFieldValues(ctx.tenantId, contactId, [{ key, value }]);
-        ctx.contact.customFields = { ...ctx.contact.customFields, ...merged };
-      } catch (err: unknown) {
-        const message = (err as Error).message || "";
-        // Apenas "Definição de campo não encontrada" dispara fallback legado.
-        if (!message.includes("não encontrada")) {
-          throw err;
+  if (config.scope === "contact" && ctx.contact.id) {
+    if (config.field) {
+      // Novo contrato tipado: Lead Field Service (standard ou custom).
+      const merged = await setLeadFieldValue(ctx.tenantId, ctx.contact.id, config.field, value);
+      for (const [k, v] of Object.entries(merged)) {
+        if (v !== undefined && v !== null) {
+          (ctx.contact as Record<string, unknown>)[k] = v;
+          if (ctx.contact.customFields && !(k in ctx.contact)) {
+            ctx.contact.customFields[k] = v;
+          }
         }
+      }
+    } else if (config.key) {
+      const key = config.key.trim();
+      // Legado: mantém comportamento da Fase 3B.
+      const standardFields = ["name", "email", "company", "notes"];
 
-        // LEGACY_COMPATIBILITY_ONLY: chaves desconhecidas já existentes no JSON
-        // do contato continuam sendo permitidas temporariamente para não quebrar
-        // fluxos legados. Novas chaves desconhecidas são rejeitadas.
-        const contactRows = (await db.query(
-          "SELECT custom_fields FROM contacts WHERE id = ? AND (user_id = ? OR tenant_id = ?) LIMIT 1",
-          [contactId, ctx.tenantId, ctx.tenantId],
-        )) as Array<{ custom_fields: string | Record<string, unknown> | null }>;
-
-        const contact = contactRows?.[0];
-        const json =
-          contact && typeof contact.custom_fields === "string"
-            ? JSON.parse(contact.custom_fields)
-            : contact?.custom_fields || {};
-
-        if (json[key] === undefined) {
-          throw new Error(
-            `Chave de variável inválida: '${key}'. Crie uma definição de campo customizado ou use uma variável de fluxo.`,
-          );
-        }
-
-        console.warn(
-          `[LEGACY_COMPATIBILITY_ONLY] Bot escreveu chave desconhecida '${key}' no contato ${contactId}.`,
-        );
-
-        const payload = JSON.stringify({ [key]: value });
+      if (standardFields.includes(key)) {
         await db.query(
-          `UPDATE contacts
-           SET custom_fields = JSON_MERGE_PATCH(COALESCE(custom_fields, '{}'), CAST(? AS JSON)),
-               updated_at = CURRENT_TIMESTAMP
-           WHERE id = ? AND (tenant_id = ? OR user_id = ?)`,
-          [payload, contactId, ctx.tenantId, ctx.tenantId],
+          `UPDATE contacts SET ${key} = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND (tenant_id = ? OR user_id = ?)`,
+          [value, ctx.contact.id, ctx.tenantId, ctx.tenantId],
         );
-        const customFields = ctx.contact.customFields || {};
-        customFields[key] = value;
-        ctx.contact.customFields = customFields;
+        (ctx.contact as Record<string, unknown>)[key] = value;
+      } else {
+        try {
+          const merged = await setContactFieldValues(ctx.tenantId, ctx.contact.id, [{ key, value }]);
+          ctx.contact.customFields = { ...ctx.contact.customFields, ...merged };
+        } catch (err: unknown) {
+          const message = (err as Error).message || "";
+          if (!message.includes("não encontrada")) {
+            throw err;
+          }
+
+          const contactRows = (await db.query(
+            "SELECT custom_fields FROM contacts WHERE id = ? AND (user_id = ? OR tenant_id = ?) LIMIT 1",
+            [ctx.contact.id, ctx.tenantId, ctx.tenantId],
+          )) as Array<{ custom_fields: string | Record<string, unknown> | null }>;
+
+          const contact = contactRows?.[0];
+          const json =
+            contact && typeof contact.custom_fields === "string"
+              ? JSON.parse(contact.custom_fields)
+              : contact?.custom_fields || {};
+
+          if (json[key] === undefined) {
+            throw new Error(
+              `Chave de variável inválida: '${key}'. Crie uma definição de campo customizado ou use uma variável de fluxo.`,
+            );
+          }
+
+          console.warn(
+            `[LEGACY_COMPATIBILITY_ONLY] Bot escreveu chave desconhecida '${key}' no contato ${ctx.contact.id}.`,
+          );
+
+          const payload = JSON.stringify({ [key]: value });
+          await db.query(
+            `UPDATE contacts
+             SET custom_fields = JSON_MERGE_PATCH(COALESCE(custom_fields, '{}'), CAST(? AS JSON)),
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = ? AND (tenant_id = ? OR user_id = ?)`,
+            [payload, ctx.contact.id, ctx.tenantId, ctx.tenantId],
+          );
+          const customFields = ctx.contact.customFields || {};
+          customFields[key] = value;
+          ctx.contact.customFields = customFields;
+        }
       }
     }
   }
 
-  // Também persiste nas variáveis de execução / fluxo
-  ctx.variables[key] = value;
+  if (variableKey) {
+    ctx.variables[variableKey] = value;
+  }
 
   return { nextStepId: config.nextStepId };
 }

@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listWhatsAppFlows } from "@/lib/botflow.functions";
 import { listTeams, listAllAgents } from "@/lib/assignment.functions";
+import { listLeadFieldsFn } from "@/lib/custom-fields.functions";
 import { toast } from "sonner";
 
 export function StepInspector({
@@ -38,6 +39,14 @@ export function StepInspector({
 
   const fetchTeamsFn = useServerFn(listTeams);
   const fetchAgentsFn = useServerFn(listAllAgents);
+  const fetchLeadFieldsFn = useServerFn(listLeadFieldsFn);
+
+  const leadFieldsQuery = useQuery({
+    queryKey: ["leadFields"],
+    queryFn: () => fetchLeadFieldsFn(),
+  });
+
+  const leadFields = leadFieldsQuery.data ?? [];
 
   const teamsQuery = useQuery({
     queryKey: ["teams"],
@@ -1122,16 +1131,53 @@ export function StepInspector({
                     </Button>
                   </div>
                   <div className="space-y-1">
-                    <Input
-                      placeholder="Variável (ex: {{contact.name}} ou {{cpf}})"
-                      className="text-xs h-7"
-                      value={rule.left || ""}
-                      onChange={(e) => {
+                    <Select
+                      value={rule.field ? `${rule.field.kind}:${rule.field.field}` : "manual"}
+                      onValueChange={(val) => {
                         const newR = [...rules];
-                        newR[rIdx] = { ...rule, left: e.target.value };
+                        if (val === "manual") {
+                          newR[rIdx] = { ...rule, field: undefined, value: undefined };
+                        } else {
+                          const [kind, id] = val.split(":") as [string, string];
+                          const selected = leadFields.find((f: any) => f.kind === kind && f.id === id);
+                          if (selected) {
+                            newR[rIdx] = {
+                              ...rule,
+                              field: { kind, field: id },
+                              left: `{{contact.${selected.key}}}`,
+                              value: rule.value || "",
+                            };
+                          }
+                        }
                         updateConditionRules(newR);
                       }}
-                    />
+                    >
+                      <SelectTrigger className="text-xs h-7">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="manual">Expressão manual</SelectItem>
+                        {leadFields.map((f: any) => (
+                          <SelectItem key={`${f.kind}:${f.id}`} value={`${f.kind}:${f.id}`}>
+                            {f.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {!rule.field && (
+                      <Input
+                        placeholder="Variável (ex: {{contact.name}} ou {{cpf}})"
+                        className="text-xs h-7"
+                        value={rule.left || ""}
+                        onChange={(e) => {
+                          const newR = [...rules];
+                          newR[rIdx] = { ...rule, left: e.target.value };
+                          updateConditionRules(newR);
+                        }}
+                      />
+                    )}
+
                     <Select
                       value={rule.operator || "equals"}
                       onValueChange={(op) => {
@@ -1152,26 +1198,33 @@ export function StepInspector({
                         <SelectItem value="ends_with">Termina com</SelectItem>
                         <SelectItem value="exists">Existe / Não vazio</SelectItem>
                         <SelectItem value="not_exists">Não existe / Vazio</SelectItem>
+                        <SelectItem value="is_empty">Está vazio</SelectItem>
+                        <SelectItem value="is_not_empty">Não está vazio</SelectItem>
                         <SelectItem value="greater_than">Maior que (&gt;)</SelectItem>
                         <SelectItem value="greater_or_equal">Maior ou igual (&gt;=)</SelectItem>
                         <SelectItem value="less_than">Menor que (&lt;)</SelectItem>
                         <SelectItem value="less_or_equal">Menor ou igual (&lt;=)</SelectItem>
                         <SelectItem value="in">Está na lista (sep. por vírgula)</SelectItem>
                         <SelectItem value="not_in">Não está na lista</SelectItem>
+                        <SelectItem value="is_true">É verdadeiro</SelectItem>
+                        <SelectItem value="is_false">É falso</SelectItem>
+                        <SelectItem value="before">Antes de (data)</SelectItem>
+                        <SelectItem value="after">Depois de (data)</SelectItem>
                       </SelectContent>
                     </Select>
-                    {!["exists", "not_exists", "is_empty", "not_empty"].includes(rule.operator) && (
-                      <Input
-                        placeholder="Valor de comparação (ex: 'sim', 10)"
-                        className="text-xs h-7"
-                        value={rule.right || ""}
-                        onChange={(e) => {
-                          const newR = [...rules];
-                          newR[rIdx] = { ...rule, right: e.target.value };
-                          updateConditionRules(newR);
-                        }}
-                      />
-                    )}
+                    {!rule.operator ||
+                      (["exists", "not_exists", "is_empty", "is_not_empty"].includes(rule.operator) ? null : (
+                        <Input
+                          placeholder="Valor de comparação (ex: 'sim', 10)"
+                          className="text-xs h-7"
+                          value={rule.value != null ? String(rule.value) : rule.right || ""}
+                          onChange={(e) => {
+                            const newR = [...rules];
+                            newR[rIdx] = { ...rule, right: e.target.value, value: e.target.value };
+                            updateConditionRules(newR);
+                          }}
+                        />
+                      ))}
                   </div>
                 </div>
               ))}
@@ -1379,6 +1432,21 @@ export function StepInspector({
         const scope = ctrl.scope || "flow";
         const key = ctrl.key || "";
         const value = ctrl.value || "";
+        const field = ctrl.field;
+        const isManualField = scope === "contact" ? !field : true;
+        const fieldValue = field ? `${field.kind}:${field.field}` : "manual";
+
+        const updateSaveVariable = (patch: any) => {
+          updateConfig({
+            ...config,
+            control: { ...ctrl, scope, key, value, ...patch },
+          });
+        };
+
+        const leadFieldOptions = leadFields.map((f: any) => ({
+          value: `${f.kind}:${f.id}`,
+          label: f.label,
+        }));
 
         return (
           <div className="space-y-4 border rounded-md p-3 bg-muted/20 mt-2">
@@ -1389,10 +1457,7 @@ export function StepInspector({
                 <Select
                   value={scope}
                   onValueChange={(val) => {
-                    updateConfig({
-                      ...config,
-                      control: { ...ctrl, scope: val, key, value },
-                    });
+                    updateSaveVariable({ scope: val });
                   }}
                 >
                   <SelectTrigger className="text-xs h-8">
@@ -1405,20 +1470,54 @@ export function StepInspector({
                 </Select>
               </div>
 
-              <div className="space-y-1">
-                <Label className="text-xs">Nome da Variável / Chave</Label>
-                <Input
-                  placeholder={scope === "contact" ? "Ex: name, email, company, cpf" : "Ex: nome_digitado, saldo"}
-                  className="text-xs h-8 font-mono"
-                  value={key}
-                  onChange={(e) => {
-                    updateConfig({
-                      ...config,
-                      control: { ...ctrl, scope, key: e.target.value, value },
-                    });
-                  }}
-                />
-              </div>
+              {scope === "contact" && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Campo do Lead</Label>
+                  <Select
+                    value={fieldValue}
+                    onValueChange={(val) => {
+                      if (val === "manual") {
+                        updateSaveVariable({ field: undefined });
+                      } else {
+                        const [kind, id] = val.split(":") as [string, string];
+                        const selected = leadFields.find((f: any) => f.kind === kind && f.id === id);
+                        if (selected) {
+                          updateSaveVariable({
+                            field: { kind, field: id },
+                            key: selected.key,
+                          });
+                        }
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="text-xs h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="manual">Entrada manual (legado)</SelectItem>
+                      {leadFieldOptions.map((opt: any) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {isManualField && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Nome da Variável / Chave</Label>
+                  <Input
+                    placeholder={scope === "contact" ? "Ex: name, email, company, cpf" : "Ex: nome_digitado, saldo"}
+                    className="text-xs h-8 font-mono"
+                    value={key}
+                    onChange={(e) => {
+                      updateSaveVariable({ key: e.target.value });
+                    }}
+                  />
+                </div>
+              )}
 
               <div className="space-y-1">
                 <Label className="text-xs">Valor a Atribuir</Label>
@@ -1427,10 +1526,7 @@ export function StepInspector({
                   className="text-xs h-8 font-mono"
                   value={value}
                   onChange={(e) => {
-                    updateConfig({
-                      ...config,
-                      control: { ...ctrl, scope, key, value: e.target.value },
-                    });
+                    updateSaveVariable({ value: e.target.value });
                   }}
                 />
               </div>

@@ -3207,7 +3207,7 @@ function ChatPage() {
   useEffect(() => {
     if (!selectedPhone || !hasUnreadInOpenChat) return;
 
-    fetchMarkAsRead({ data: { phone: selectedPhone } })
+    fetchMarkAsRead({ data: { phone: selectedPhone, contactId: selectedContact?.id } })
       .then(() => {
         qc.invalidateQueries({ queryKey: ["chat-contacts"] });
         qc.invalidateQueries({ queryKey: ["chat-messages", selectedPhone] });

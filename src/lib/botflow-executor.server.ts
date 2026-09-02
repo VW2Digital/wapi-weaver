@@ -5,6 +5,8 @@ import { transcodeAudioToMp3 } from "@/lib/audio-transcode.server";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
 import { buildWhatsAppBotMessage } from "@/lib/meta-whatsapp-message";
 import { getBotActivationContext, evaluateBotActivation } from "@/lib/messaging/services/bot-lifecycle.service";
+import { getContactFieldValues } from "./services/contact-custom-field.service.js";
+import { listLeadFields, type LeadFieldDefinition } from "./services/lead-field.service.js";
 
 function logInfo(message: string, data?: any) {
   console.log(`[botflow] ${message}`, data ? JSON.stringify(data) : "");
@@ -753,16 +755,19 @@ export async function processBotFlow(
       contactRecord = null;
     }
 
-    let parsedCustomFields: Record<string, any> = {};
+    // Carrega campos customizados canônicos e builda mapa de definições de Lead Fields.
+    let parsedCustomFields: Record<string, unknown> = {};
+    let leadFieldDefinitions: Record<string, LeadFieldDefinition> = {};
     try {
-      if (contactRecord?.custom_fields) {
-        parsedCustomFields =
-          typeof contactRecord.custom_fields === "string"
-            ? JSON.parse(contactRecord.custom_fields)
-            : contactRecord.custom_fields || {};
+      if (contactRecord?.id) {
+        parsedCustomFields = await getContactFieldValues(userId, contactRecord.id);
       }
-    } catch {
-      parsedCustomFields = {};
+      const leadFields = await listLeadFields(userId);
+      leadFieldDefinitions = Object.fromEntries(
+        leadFields.map((f) => [`${f.kind}:${f.id}`, f] as const),
+      );
+    } catch (err) {
+      logError("Erro ao carregar Lead Fields", { error: (err as Error).message });
     }
 
     const executionContext: any = {
@@ -770,11 +775,15 @@ export async function processBotFlow(
       userId,
       contact: {
         id: contactRecord?.id,
-        phone: phoneDigits,
+        phone: contactRecord?.phone_e164 || contactRecord?.whatsapp_number || phoneDigits,
+        phone_e164: contactRecord?.phone_e164 || null,
+        whatsapp_number: contactRecord?.whatsapp_number || null,
         name: contactRecord?.name || "",
         email: contactRecord?.email || "",
         company: contactRecord?.company || "",
+        position: contactRecord?.position || "",
         notes: contactRecord?.notes || "",
+        responsible_user_id: contactRecord?.responsible_user_id || null,
         customFields: parsedCustomFields,
       },
       message: {
@@ -787,6 +796,7 @@ export async function processBotFlow(
       stepId: stepToExecute?.id,
       variables: {},
       httpResponse: null,
+      leadFieldDefinitions,
     };
 
     const CONTROL_TYPES = new Set(["delay", "condition", "randomizer", "save_variable", "http_request"]);
@@ -852,7 +862,12 @@ export async function processBotFlow(
           return;
         }
       } else if (stepToExecute.message_type === "condition") {
-        const isTrue = evaluateCondition(ctrl, executionContext);
+        let isTrue = false;
+        try {
+          isTrue = await evaluateCondition(ctrl, executionContext);
+        } catch (condErr) {
+          logError("Erro ao avaliar condição", { error: (condErr as Error).message, stepId: stepToExecute.id });
+        }
         const targetStepId = isTrue ? ctrl.trueStepId : ctrl.falseStepId;
         logInfo(`[BOTFLOW] Nó Condition avaliado como ${isTrue ? "VERDADEIRO" : "FALSO"} -> destino: ${targetStepId}`);
         stepToExecute = targetStepId ? allSteps.find((s: any) => s.id === targetStepId) || null : null;
@@ -865,7 +880,8 @@ export async function processBotFlow(
         const { default: db } = await import("./db");
         const result = await executeSaveVariable(ctrl, executionContext, db);
         const targetStepId = result.nextStepId || stepToExecute.next_step_id;
-        logInfo(`[BOTFLOW] Nó Save Variable persistiu ${ctrl.key} -> destino: ${targetStepId}`);
+        const saveLabel = ctrl.key || (ctrl.field ? `${ctrl.field.kind}:${ctrl.field.field}` : "field");
+        logInfo(`[BOTFLOW] Nó Save Variable persistiu ${saveLabel} -> destino: ${targetStepId}`);
         stepToExecute = targetStepId ? allSteps.find((s: any) => s.id === targetStepId) || null : null;
       } else if (stepToExecute.message_type === "http_request") {
         const httpRes = await executeHttpRequest(ctrl, executionContext);
@@ -1254,16 +1270,18 @@ export async function executeInactivityStep(
       contactRecord = null;
     }
 
-    let parsedCustomFields: Record<string, any> = {};
+    let parsedCustomFields: Record<string, unknown> = {};
+    let leadFieldDefinitions: Record<string, LeadFieldDefinition> = {};
     try {
-      if (contactRecord?.custom_fields) {
-        parsedCustomFields =
-          typeof contactRecord.custom_fields === "string"
-            ? JSON.parse(contactRecord.custom_fields)
-            : contactRecord.custom_fields || {};
+      if (contactRecord?.id) {
+        parsedCustomFields = await getContactFieldValues(userId, contactRecord.id);
       }
-    } catch {
-      parsedCustomFields = {};
+      const leadFields = await listLeadFields(userId);
+      leadFieldDefinitions = Object.fromEntries(
+        leadFields.map((f) => [`${f.kind}:${f.id}`, f] as const),
+      );
+    } catch (err) {
+      logError("Erro ao carregar Lead Fields (inactivity)", { error: (err as Error).message });
     }
 
     const executionContext: any = {
@@ -1271,11 +1289,15 @@ export async function executeInactivityStep(
       userId,
       contact: {
         id: contactRecord?.id,
-        phone: phoneDigits,
+        phone: contactRecord?.phone_e164 || contactRecord?.whatsapp_number || phoneDigits,
+        phone_e164: contactRecord?.phone_e164 || null,
+        whatsapp_number: contactRecord?.whatsapp_number || null,
         name: contactRecord?.name || "",
         email: contactRecord?.email || "",
         company: contactRecord?.company || "",
+        position: contactRecord?.position || "",
         notes: contactRecord?.notes || "",
+        responsible_user_id: contactRecord?.responsible_user_id || null,
         customFields: parsedCustomFields,
       },
       message: {
@@ -1287,6 +1309,7 @@ export async function executeInactivityStep(
       stepId: stepToExecute?.id,
       variables: {},
       httpResponse: null,
+      leadFieldDefinitions,
     };
 
     const CONTROL_TYPES = new Set(["delay", "condition", "randomizer", "save_variable", "http_request"]);
@@ -1334,7 +1357,12 @@ export async function executeInactivityStep(
           return;
         }
       } else if (stepToExecute.message_type === "condition") {
-        const isTrue = evaluateCondition(ctrl, executionContext);
+        let isTrue = false;
+        try {
+          isTrue = await evaluateCondition(ctrl, executionContext);
+        } catch (condErr) {
+          logError("Erro ao avaliar condição (inactivity)", { error: (condErr as Error).message, stepId: stepToExecute.id });
+        }
         const targetStepId = isTrue ? ctrl.trueStepId : ctrl.falseStepId;
         stepToExecute = targetStepId ? allSteps.find((s: any) => s.id === targetStepId) || null : null;
       } else if (stepToExecute.message_type === "randomizer") {
