@@ -1,7 +1,7 @@
 {
   "enabled": true,
-  "baselineCommit": "da1771272a264973c7cf4fff97b80611fac953b8",
-  "baselineShort": "da17712",
+  "baselineCommit": "2883328687693a658b4ed7d08be402ae38828549",
+  "baselineShort": "2883328",
   "protectedProviders": ["whatsapp", "instagram"],
   "requireExplicitUnfreeze": true,
   "unfreeze": {
@@ -10,8 +10,8 @@
       "since": "STEP12_AUTHORIZED"
     },
     "webchat": {
-      "enabled": true,
-      "since": "CONTROLLED_WEBCHAT_UNFREEZE",
+      "enabled": false,
+      "since": "WEBCHAT_STEP3_COMPLETE",
       "patterns": [
         "database/migrations/054_webchat.sql",
         "database/migrations/055_webchat_avatar.sql",
@@ -38,6 +38,9 @@
     }
   },
   "protectedPaths": [
+    "src/lib/webchat/",
+    "src/routes/api/public/webchat",
+    "src/routes/_app/webchat.tsx",
     "src/lib/chat.functions.ts",
     "src/lib/chat-outbox.server.ts",
     "src/lib/messaging/outbound/adapters/",
