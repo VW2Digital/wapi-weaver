@@ -1,19 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import crypto from "crypto";
 import { requireAuth, requireSubscription } from "@/integrations/mysql/auth-middleware";
 import { normalizeToE164 } from "@/lib/phone";
-import crypto from "crypto";
-
-const contactInput = z.object({
-  phone: z.string().trim().min(8).max(32),
-  name: z.string().trim().max(120).nullable().optional(),
-  email: z.string().email().max(180).nullable().optional().or(z.literal("")),
-  custom_fields: z.record(z.string(), z.any()).optional(),
-  company: z.string().trim().max(255).nullable().optional(),
-  position: z.string().trim().max(255).nullable().optional(),
-  status: z.string().trim().max(50).nullable().optional(),
-  responsible_user_id: z.string().uuid().nullable().optional().or(z.literal("")),
-});
+import { contactInput, updateContactInput } from "./contacts.schema.js";
 
 export const updateContactProfilePhoto = createServerFn({ method: "POST" })
   .middleware([requireSubscription])
@@ -84,31 +74,7 @@ export const deleteContact = createServerFn({ method: "POST" })
     return await deleteContactForUser(context.userId, data.id);
   });
 
-const updateContactInput = z.object({
-  id: z.string().uuid(),
-  phone: z.string().trim().min(8).max(32),
-  name: z.string().trim().max(120).nullable().optional(),
-  email: z.string().email().max(180).nullable().optional().or(z.literal("")),
-  company: z.string().trim().max(255).nullable().optional(),
-  position: z.string().trim().max(255).nullable().optional(),
-  status: z.string().trim().max(50).nullable().optional(),
-  responsible_user_id: z.string().uuid().nullable().optional().or(z.literal("")),
-  source: z.string().trim().max(255).nullable().optional(),
-  source_type: z.string().trim().max(50).nullable().optional(),
-  source_name: z.string().trim().max(255).nullable().optional(),
-  source_id: z.string().uuid().nullable().optional().or(z.literal("")),
-  external_id: z.string().trim().max(255).nullable().optional(),
-  metadata: z.record(z.string(), z.any()).nullable().optional(),
-  opted_out: z.boolean().optional(),
-  channel: z.enum(["whatsapp", "instagram", "messenger"]).optional(),
-  external_contact_id: z.string().trim().max(255).nullable().optional(),
-  custom_fields: z.record(z.string(), z.any()).nullable().optional(),
-  is_pinned: z.boolean().optional(),
-  is_archived: z.boolean().optional(),
-  chat_status: z.string().max(50).optional(),
-  is_unread: z.boolean().optional(),
-  kanban_stage_id: z.string().uuid().nullable().optional().or(z.literal("")),
-});
+
 
 export const updateContact = createServerFn({ method: "POST" })
   .middleware([requireAuth])
@@ -169,77 +135,8 @@ export const getContactDetail = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { getTenantFilter } = await import("./chat-helpers");
-    const { default: db } = await import("./db");
-    const { sqlWhere, params: filterParams } = await getTenantFilter(context.userId, "c");
-    const { sqlWhere: msgWhere, params: msgParams } = await getTenantFilter(context.userId);
-    const { sqlWhere: oppWhere, params: oppParams } = await getTenantFilter(context.userId, "o");
-
-    const contacts = (await db.query(
-      `SELECT c.*, ss.name AS kanban_stage_name, ss.color AS kanban_stage_color
-       FROM contacts c
-       LEFT JOIN sales_stages ss ON ss.id = c.kanban_stage_id AND ss.deleted_at IS NULL
-       WHERE c.id = ? AND (${sqlWhere}) LIMIT 1`,
-      [data.id, ...filterParams],
-    )) as any[];
-    const contact = contacts?.[0];
-    if (!contact) throw new Error("Contato não encontrado");
-
-    const phone = contact.phone_e164;
-
-    const messages = (await db.query(
-      `SELECT id, direction, type, body, status, metadata, created_at
-       FROM direct_messages
-       WHERE contact_phone = ? AND (${msgWhere})
-       ORDER BY created_at DESC LIMIT 50`,
-      [phone, ...msgParams],
-    )) as any[];
-
-    const opportunities = (await db.query(
-      `SELECT o.id, o.title, o.value, o.status, o.stage_id, o.kanban_order,
-              ss.name AS stage_name, ss.color AS stage_color
-       FROM opportunities o
-       LEFT JOIN sales_stages ss ON ss.id = o.stage_id AND ss.deleted_at IS NULL
-       WHERE o.primary_contact_id = ? AND o.deleted_at IS NULL AND (${oppWhere})
-       ORDER BY o.created_at DESC`,
-      [data.id, ...oppParams],
-    )) as any[];
-
-    const oppIds = opportunities.map((o: any) => o.id);
-    let notes: any[] = [];
-    if (oppIds.length > 0) {
-      const placeholders = oppIds.map(() => "?").join(",");
-      notes = (await db.query(
-        `SELECT n.*, COALESCE(p.display_name, p.full_name) AS creator_name
-         FROM opportunity_notes n
-         LEFT JOIN profiles p ON p.id = n.user_id_creator
-         WHERE n.opportunity_id IN (${placeholders}) AND n.deleted_at IS NULL
-         ORDER BY n.created_at DESC LIMIT 100`,
-        oppIds,
-      )) as any[];
-    }
-
-    const activities = (await db.query(
-      `SELECT id, type, title, description, source_type, source_id, payload, created_at
-       FROM contact_activities
-       WHERE contact_id = ?
-       ORDER BY created_at DESC LIMIT 50`,
-      [data.id],
-    )) as any[];
-
-    const msgCount = messages.length;
-    const totalValue = opportunities.reduce((sum: number, o: any) => sum + Number(o.value || 0), 0);
-    const openOpps = opportunities.filter((o: any) => o.status === "open").length;
-    const wonOpps = opportunities.filter((o: any) => o.status === "won").length;
-
-    return {
-      contact,
-      messages,
-      opportunities,
-      notes,
-      activities,
-      metrics: { msgCount, totalValue, openOpps, wonOpps },
-    };
+    const { getContactDetailForUser } = await import("./services/contacts.service.js");
+    return await getContactDetailForUser(context.userId, data.id);
   });
 
 export const listContactActivities = createServerFn({ method: "GET" })

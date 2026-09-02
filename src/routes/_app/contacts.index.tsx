@@ -14,6 +14,7 @@ import {
   getContactKanbanStages,
   updateContactProfilePhoto,
 } from "@/lib/contacts.functions";
+import { CONTACT_CHANNELS } from "@/lib/contacts.schema";
 import { listLists, listTags } from "@/lib/lists.functions";
 import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Button } from "@/components/ui/button";
@@ -89,6 +90,25 @@ function getInitials(name: string) {
     .join("")
     .toUpperCase()
     .slice(0, 2);
+}
+
+function getContactDisplayPhone(c: any): string | null {
+  const phone = c?.phone_e164;
+  if (!phone) {
+    const crmPhone = c?.whatsapp_number;
+    return crmPhone ? `+${crmPhone}` : null;
+  }
+  if (phone.startsWith("ig_") || phone.startsWith("fb_")) {
+    return phone;
+  }
+  return `+${phone}`;
+}
+
+function getContactThreadPhone(c: any): string | null {
+  if (c?.channel === "webchat" && c?.external_contact_id) {
+    return `wc_${c.external_contact_id}`;
+  }
+  return c?.phone_e164 ?? null;
 }
 
 function ContactAvatarCell({ contact: c }: { contact: any }) {
@@ -311,7 +331,7 @@ function ContactsPage() {
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ phone: "", name: "", email: "", company: "", position: "", status: "", responsible_user_id: "" });
+  const [form, setForm] = useState({ phone: "", name: "", email: "", company: "", position: "", status: "", responsible_user_id: "", channel: "whatsapp" });
   const [picked, setPicked] = useState<Set<string>>(new Set());
 
   // Import wizard states
@@ -325,7 +345,7 @@ function ContactsPage() {
     onSuccess: () => {
       toast.success("Contato adicionado");
       setOpen(false);
-      setForm({ phone: "", name: "", email: "", company: "", position: "", status: "", responsible_user_id: "" });
+      setForm({ phone: "", name: "", email: "", company: "", position: "", status: "", responsible_user_id: "", channel: "whatsapp" });
       setNewContactAvatar(null);
       qc.invalidateQueries({ queryKey: ["contacts"] });
     },
@@ -398,8 +418,11 @@ function ContactsPage() {
         return false;
       }
       if (!s) return true;
+      const phone = c.phone_e164 ?? "";
+      const crmPhone = c.whatsapp_number ?? "";
       return (
-        c.phone_e164.includes(search) ||
+        (phone && phone.toLowerCase().includes(s)) ||
+        (crmPhone && crmPhone.toLowerCase().includes(s)) ||
         c.name?.toLowerCase().includes(s) ||
         c.email?.toLowerCase().includes(s)
       );
@@ -639,6 +662,27 @@ function ContactsPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-1.5">
+                <Label>Canal</Label>
+                <Select
+                  value={form.channel}
+                  onValueChange={(v) => setForm({ ...form, channel: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CONTACT_CHANNELS.map((ch) => (
+                      <SelectItem key={ch} value={ch}>
+                        {ch === "whatsapp" && "WhatsApp"}
+                        {ch === "instagram" && "Instagram"}
+                        {ch === "messenger" && "Messenger"}
+                        {ch === "webchat" && "WebChat"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               {(customFields.data as any[] ?? []).filter((f: any) => f.show_on_form && f.is_active).length > 0 && (
                 <div className="pt-3 border-t">
                   <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">Campos personalizados</p>
@@ -659,19 +703,20 @@ function ContactsPage() {
               <Button
                 onClick={() => {
                   const rawPhone = (form.phone ?? "").trim();
-                  // Strip formatting chars before sending — server expects digits only or E.164
+                  const isWebchat = form.channel === "webchat";
                   const cleanPhone = rawPhone.replace(/[\s\-().]/g, "");
-                  if (!cleanPhone) {
+                  if (!isWebchat && !cleanPhone) {
                     toast.error("O telefone é obrigatório.");
                     return;
                   }
-                  if (cleanPhone.replace(/\D/g, "").length < 8) {
+                  if (cleanPhone && cleanPhone.replace(/\D/g, "").length < 8 && !cleanPhone.startsWith("ig_") && !cleanPhone.startsWith("fb_") && !cleanPhone.startsWith("wc_")) {
                     toast.error("Telefone inválido — mínimo 8 dígitos.");
                     return;
                   }
                   const payload = {
                     ...form,
                     phone: cleanPhone,
+                    channel: form.channel,
                     custom_fields: newContactAvatar ? { avatar_url: newContactAvatar } : undefined,
                   };
                   createMut.mutate(payload as any, {
@@ -854,7 +899,7 @@ function ContactsPage() {
                         <Checkbox
                           checked={picked.has(c.id)}
                           onCheckedChange={(v) => toggleOne(c.id, !!v)}
-                          aria-label={`Selecionar ${c.phone_e164}`}
+                          aria-label={`Selecionar ${c.name || getContactDisplayPhone(c) || c.id}`}
                         />
                       </td>
                       {columnDefs.filter((col) => visibleColumns.includes(col.id)).map((col) => {
@@ -866,10 +911,10 @@ function ContactsPage() {
                           );
                         }
                         if (col.id === "phone") {
-                          const isNonPhoneId = c.phone_e164?.startsWith("ig_") || c.phone_e164?.startsWith("fb_");
+                          const displayPhone = getContactDisplayPhone(c);
                           return (
                             <td key={col.id} className="p-3 font-mono">
-                              {isNonPhoneId ? c.phone_e164 : `+${c.phone_e164}`}
+                              {displayPhone ?? "—"}
                               {(c.opted_out === 1 || c.opted_out === true) && (
                                 <span className="ml-2 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] text-destructive">opt-out</span>
                               )}
@@ -998,7 +1043,7 @@ function ContactsPage() {
                                 e.stopPropagation();
                                 navigate({
                                   to: "/chat",
-                                  search: { phone: c.phone_e164 } as any,
+                                  search: { contactId: c.id, phone: getContactThreadPhone(c) } as any,
                                 });
                               }}
                             >
@@ -1012,10 +1057,7 @@ function ContactsPage() {
                                 e.stopPropagation();
                                 handleDeleteOne(
                                   c.id,
-                                  c.name ??
-                                    (c.phone_e164?.startsWith("ig_") || c.phone_e164?.startsWith("fb_")
-                                      ? c.phone_e164
-                                      : `+${c.phone_e164}`),
+                                  c.name || getContactDisplayPhone(c) || "Sem nome",
                                 );
                               }}
                             >
@@ -1274,13 +1316,20 @@ function ContactsPage() {
               <Label>Canal</Label>
               <Select
                 value={editForm.channel}
-                onValueChange={(v) => setEditForm({ ...editForm, channel: v as any })}
+                onValueChange={(v) => setEditForm({ ...editForm, channel: v })}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                  {CONTACT_CHANNELS.map((ch) => (
+                    <SelectItem key={ch} value={ch}>
+                      {ch === "whatsapp" && "WhatsApp"}
+                      {ch === "instagram" && "Instagram"}
+                      {ch === "messenger" && "Messenger"}
+                      {ch === "webchat" && "WebChat"}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

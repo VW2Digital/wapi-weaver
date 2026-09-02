@@ -16,6 +16,7 @@ module.exports = {
     ],
   },
   moduleNameMapper: {
+    "^(\\.{1,2}/.*)\\.js$": "$1",
     "^@/(.*)$": "<rootDir>/src/$1",
     "^@tanstack/react-start/server$": "<rootDir>/tests/__mocks__/react-start-server.js",
   },

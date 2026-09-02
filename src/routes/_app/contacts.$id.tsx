@@ -66,6 +66,25 @@ function getInitials(name: string) {
     .slice(0, 2);
 }
 
+function getContactDisplayPhone(contact: any): string | null {
+  const phone = contact?.phone_e164;
+  if (!phone) {
+    const crmPhone = contact?.whatsapp_number;
+    return crmPhone ? `+${crmPhone}` : null;
+  }
+  if (phone.startsWith("ig_") || phone.startsWith("fb_")) {
+    return phone;
+  }
+  return `+${phone}`;
+}
+
+function getContactThreadPhone(contact: any): string | null {
+  if (contact?.channel === "webchat" && contact?.webchat_external_id) {
+    return `wc_${contact.webchat_external_id}`;
+  }
+  return contact?.phone_e164 ?? null;
+}
+
 function ContactDetailPage() {
   const { id } = Route.useParams();
   const qc = useQueryClient();
@@ -98,7 +117,7 @@ function ContactDetailPage() {
       openChat({ data: { contactId, status: "aberto" } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
-      const phone = String(contact.phone_e164 ?? "").replace(/\D/g, "");
+      const phone = getContactThreadPhone(contact) ?? "";
       window.location.assign(
         `/chat?contactId=${encodeURIComponent(contact.id)}&phone=${encodeURIComponent(phone)}`,
       );
@@ -131,11 +150,10 @@ function ContactDetailPage() {
 
   const contact = data?.contact;
 
-  const isNonPhoneId = contact?.phone_e164?.startsWith("ig_") || contact?.phone_e164?.startsWith("fb_");
-  const displayPhone = isNonPhoneId ? contact?.phone_e164 : `+${contact?.phone_e164}`;
+  const displayPhone = getContactDisplayPhone(contact);
 
   usePageHeader({
-    title: contact ? (contact.name || displayPhone) : "Carregando...",
+    title: contact ? (contact.name || displayPhone || "Sem identificador") : "Carregando...",
     subtitle: "Detalhes do contato",
     action: contact ? (
       <Button variant="outline" size="sm" asChild>
@@ -247,7 +265,7 @@ function ContactDetailPage() {
               <h2 className="text-lg font-semibold truncate max-w-[220px] text-foreground">
                 {contact.name || "Sem nome"}
               </h2>
-              <p className="text-xs text-muted-foreground font-mono">{isNonPhoneId ? contact.phone_e164 : `+${contact.phone_e164}`}</p>
+              <p className="text-xs text-muted-foreground font-mono">{displayPhone ?? "—"}</p>
             </div>
           </div>
 
@@ -268,14 +286,14 @@ function ContactDetailPage() {
               )}
               <span>Mensagem</span>
             </Button>
-            {contact.phone_e164 && !isNonPhoneId && (
+            {displayPhone?.startsWith("+") && (
               <Button 
                 variant="outline" 
                 size="sm" 
                 className="flex-1 bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/20 text-emerald-500 gap-1.5 h-9" 
                 asChild
               >
-                <a href={`tel:+${contact.phone_e164}`}>
+                <a href={`tel:${displayPhone}`}>
                   <Phone className="h-4 w-4" />
                   <span>Ligar</span>
                 </a>
