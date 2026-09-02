@@ -28,7 +28,7 @@ export const Route = createFileRoute("/api/public/webchat/$publicId/messages")({
           return Response.json({ error: "Invalid or expired session" }, { status: 401 });
         }
 
-        const allowed = await checkMessageRateLimit(session.id, request);
+        const allowed = await checkMessageRateLimit(session.id, request, publicId);
         if (!allowed) {
           return Response.json({ error: "Rate limit exceeded" }, { status: 429 });
         }

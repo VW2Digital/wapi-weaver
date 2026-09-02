@@ -60,9 +60,13 @@ function makeWidgetScript(publicId: string, configUrl: string, iframeUrl: string
     button.appendChild(chatIcon);
     button.appendChild(closeIcon);
 
+    const appOrigin = new URL(iframeUrl, location.href).origin;
+
     const iframe = document.createElement('iframe');
     iframe.id = 'bliv-webchat-iframe-' + publicId;
-    iframe.src = iframeUrl;
+    /* The widget tells the iframe our origin so it can target postMessage
+       precisely instead of broadcasting to "*". */
+    iframe.src = iframeUrl + '?parentOrigin=' + encodeURIComponent(location.origin);
     iframe.style.position = 'fixed';
     iframe.style.bottom = '88px';
     iframe.style.right = config.position === 'bottom-left' ? 'auto' : '16px';
@@ -81,16 +85,47 @@ function makeWidgetScript(publicId: string, configUrl: string, iframeUrl: string
       button.setAttribute('aria-label', open ? 'Fechar chat' : 'Abrir chat');
     }
 
-    button.addEventListener('click', () => {
-      const open = iframe.style.display === 'none';
+    /* The iframe needs to know whether it is actually on screen so it only
+       marks messages as read when the visitor can really see them. */
+    function notifyVisibility(open) {
+      try {
+        if (iframe.contentWindow) {
+          iframe.contentWindow.postMessage(
+            { type: 'bliv-webchat-visibility', open: open },
+            appOrigin
+          );
+        }
+      } catch (e) {
+        /* cross-origin timing; the iframe re-checks on its own */
+      }
+    }
+
+    function setOpen(open) {
       iframe.style.display = open ? 'block' : 'none';
       updateButton(open);
+      notifyVisibility(open);
+    }
+
+    iframe.addEventListener('load', () => {
+      notifyVisibility(iframe.style.display !== 'none');
+    });
+
+    button.addEventListener('click', () => {
+      setOpen(iframe.style.display === 'none');
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (iframe.style.display !== 'none') {
+        notifyVisibility(document.visibilityState === 'visible');
+      }
     });
 
     window.addEventListener('message', (e) => {
+      /* Only accept control messages coming from our own iframe. */
+      if (e.origin !== appOrigin) return;
+      if (e.source !== iframe.contentWindow) return;
       if (e.data === 'bliv-webchat-close') {
-        iframe.style.display = 'none';
-        updateButton(false);
+        setOpen(false);
       }
     });
 

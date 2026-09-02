@@ -9,7 +9,7 @@ import { enqueueChatOutboxMessage } from "@/lib/chat-outbox.server";
 const ORIGIN = "http://localhost:3000";
 
 describe("WebChat Step 2C — Runtime Inbox Certification", () => {
-  const tenantId = `tenant-step2c-${randomUUID()}`;
+  const tenantId = randomUUID();
   const channelId = randomUUID();
   const widgetId = randomUUID();
   const publicId = randomUUID().replace(/-/g, "").slice(0, 20);
@@ -143,11 +143,14 @@ describe("WebChat Step 2C — Runtime Inbox Certification", () => {
     )) as any[];
 
     expect(messages.length).toBe(2);
-    expect(messages[0].direction).toBe("incoming");
-    expect(messages[1].direction).toBe("outgoing");
-    expect(messages[1].body).toBe("Resposta humana teste WebChat");
-    expect(messages[1].channel).toBe("webchat");
-    expect(messages[1].channel_connection_id).toBe(channelId);
+
+    const incoming = messages.filter((m: any) => m.direction === "incoming");
+    const outgoing = messages.filter((m: any) => m.direction === "outgoing");
+    expect(incoming.length).toBe(1);
+    expect(outgoing.length).toBe(1);
+    expect(outgoing[0].body).toBe("Resposta humana teste WebChat");
+    expect(outgoing[0].channel).toBe("webchat");
+    expect(outgoing[0].channel_connection_id).toBe(channelId);
   });
 
   test("E — widget history restores both messages after reload", async () => {
@@ -157,23 +160,28 @@ describe("WebChat Step 2C — Runtime Inbox Certification", () => {
 
     const history = await getWebchatHistory(freshSession!, 10);
     expect(history.length).toBe(2);
-    expect(history[0].body).toBe("Olá, teste WebChat");
-    expect(history[1].body).toBe("Resposta humana teste WebChat");
+    // created_at is DATETIME (1s precision), so messages within the same second
+    // have an ambiguous relative order. Assert membership, not index.
+    const bodies = history.map((m) => m.body).sort();
+    expect(bodies).toEqual(["Olá, teste WebChat", "Resposta humana teste WebChat"].sort());
+    expect(history.filter((m) => m.direction === "incoming").length).toBe(1);
+    expect(history.filter((m) => m.direction === "outgoing").length).toBe(1);
   });
 
   test("F — second inbound reuses the same conversation", async () => {
     await handleWebchatInboundMessage(session, randomUUID(), "Segunda mensagem WebChat");
 
     const conversations = (await db.query(
-      `SELECT COUNT(*) as n FROM chat_sessions WHERE tenant_id = ? AND contact_id = ?`,
-      [tenantId, session.contactIdentityId],
+      `SELECT COUNT(*) as n FROM chat_sessions WHERE tenant_id = ?`,
+      [tenantId],
     )) as any[];
     expect(conversations[0].n).toBe(1);
 
-    const last = (await db.query(
-      `SELECT body FROM direct_messages WHERE tenant_id = ? AND conversation_id = ? ORDER BY created_at DESC LIMIT 1`,
+    const all = (await db.query(
+      `SELECT body FROM direct_messages WHERE tenant_id = ? AND conversation_id = ?`,
       [tenantId, conversationId],
     )) as any[];
-    expect(last[0].body).toBe("Segunda mensagem WebChat");
+    expect(all.length).toBe(3);
+    expect(all.map((r: any) => r.body)).toContain("Segunda mensagem WebChat");
   });
 });

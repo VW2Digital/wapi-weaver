@@ -23,6 +23,68 @@ function escapeJs(str: string): string {
     .replace(/\$/g, "\\x24");
 }
 
+const DEFAULT_ACCENT = "#0ea5e9";
+
+/**
+ * The accent color is interpolated into CSS rules, HTML style attributes and a
+ * JS string literal. HTML-escaping alone is not safe in the CSS/JS contexts
+ * (browsers decode entities before the JS parser runs), so we allow only a
+ * strict hex color token and fall back to the default otherwise.
+ */
+export function sanitizeColor(value: string | null | undefined): string {
+  if (typeof value !== "string") return DEFAULT_ACCENT;
+  const trimmed = value.trim();
+  return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(trimmed) ? trimmed : DEFAULT_ACCENT;
+}
+
+function normalizeOrigin(origin: string | null): string | null {
+  if (!origin) return null;
+  try {
+    const url = new URL(origin);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Mirrors the session-service origin policy: an empty allow-list means the
+ * widget has not been restricted yet, so framing is not narrowed here either.
+ */
+export function isOriginAllowed(allowedOrigins: string[] | null | undefined, origin: string | null): boolean {
+  if (!origin) return false;
+  if (!allowedOrigins || allowedOrigins.length === 0) return true;
+  return allowedOrigins.some((candidate) => normalizeOrigin(candidate) === origin);
+}
+
+export function buildFrameAncestors(allowedOrigins: string[] | null | undefined): string {
+  const normalized = (allowedOrigins ?? [])
+    .map((candidate) => normalizeOrigin(candidate))
+    .filter((candidate): candidate is string => Boolean(candidate));
+
+  if (normalized.length === 0) {
+    // No configured origins: keep the widget embeddable anywhere, matching the
+    // documented default. Configure allowed origins to lock this down.
+    return "frame-ancestors *;";
+  }
+  return `frame-ancestors 'self' ${normalized.join(" ")};`;
+}
+
+/** Only same-origin/absolute http(s) URLs may be used as an <img> source. */
+export function sanitizeUrl(value: string | null | undefined): string {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  try {
+    const parsed = new URL(trimmed, "https://placeholder.invalid");
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+    return trimmed;
+  } catch {
+    return "";
+  }
+}
+
 function renderIframe(
   widget: {
     title: string;
@@ -32,12 +94,13 @@ function renderIframe(
     avatarUrl: string | null;
   },
   publicId: string,
+  parentOrigin: string | null,
 ) {
   const title = escapeHtml(widget.title || "Chat");
-  const accent = escapeHtml(widget.accentColor || "#0ea5e9");
+  const accent = sanitizeColor(widget.accentColor);
   const placeholder = escapeHtml(widget.placeholder || "Digite uma mensagem...");
   const welcome = escapeJs(widget.welcomeMessage || "Olá! Como podemos ajudar?");
-  const avatar = widget.avatarUrl ? escapeHtml(widget.avatarUrl) : "";
+  const avatar = escapeHtml(sanitizeUrl(widget.avatarUrl));
   const avatarEl = avatar ? `<img src="${avatar}" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;">` : "&#128172;";
 
   return `<!DOCTYPE html>
@@ -147,9 +210,10 @@ function renderIframe(
   </div>
 
   <script>
-    const __publicId = '${publicId}';
-    const __accent = '${accent}';
+    const __publicId = ${JSON.stringify(publicId)};
+    const __accent = ${JSON.stringify(accent)};
     const __welcome = '${welcome}';
+    const __parentOrigin = ${JSON.stringify(parentOrigin)};
     const storageKey = 'webchat_session_' + __publicId;
     const visitorKey = 'webchat_visitor_' + __publicId;
     const API = (path) => '/api/public/webchat/' + __publicId + path;
@@ -163,14 +227,137 @@ function renderIframe(
     let session = null;
     let optimistic = new Map();
 
+    /* ---------------- delivered / read acknowledgements ---------------- */
+
+    const STATUS_RANK = { queued: 0, sent: 1, delivered: 2, read: 3 };
+    /* Highest status already confirmed by the server for each message. */
+    const ackedStatus = new Map();
+    /* Pending ACKs waiting to be flushed, messageId -> status. */
+    const pendingAcks = new Map();
+    /* Widget open state, driven by the host page. Starts false: an iframe that
+       was never displayed must not mark anything as read. */
+    let widgetOpen = false;
+    let flushTimer = null;
+    let flushBackoff = 0;
+    const MAX_BACKOFF_MS = 30000;
+
+    function rank(status) {
+      return STATUS_RANK[status] !== undefined ? STATUS_RANK[status] : -1;
+    }
+
+    /* A message counts as visible only when the host actually shows the widget
+       and the browser tab is in the foreground. */
+    function widgetIsVisible() {
+      return widgetOpen && document.visibilityState === 'visible';
+    }
+
+    function queueAck(messageId, status) {
+      if (!messageId || String(messageId).indexOf('temp:') === 0) return;
+      if (rank(ackedStatus.get(messageId)) >= rank(status)) return;
+      if (rank(pendingAcks.get(messageId)) >= rank(status)) return;
+      pendingAcks.set(messageId, status);
+      scheduleFlush();
+    }
+
+    function scheduleFlush() {
+      if (flushTimer || pendingAcks.size === 0) return;
+      flushTimer = setTimeout(() => {
+        flushTimer = null;
+        flushAcks();
+      }, flushBackoff || 250);
+    }
+
+    async function flushAcks() {
+      if (!session?.token || pendingAcks.size === 0) return;
+
+      const batch = Array.from(pendingAcks.entries()).map(([messageId, status]) => ({
+        messageId: messageId,
+        status: status,
+      }));
+
+      try {
+        const result = await fetchJSON(API('/status'), {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + session.token },
+          body: JSON.stringify({ updates: batch }),
+        });
+        flushBackoff = 0;
+        /* Both updated and unchanged are settled server-side; rejected ids are
+           not ours and must never be retried. */
+        batch.forEach((item) => {
+          if (rank(ackedStatus.get(item.messageId)) < rank(item.status)) {
+            ackedStatus.set(item.messageId, item.status);
+          }
+          if (pendingAcks.get(item.messageId) === item.status) {
+            pendingAcks.delete(item.messageId);
+          }
+        });
+        (result.rejected || []).forEach((id) => {
+          ackedStatus.set(id, 'read');
+          pendingAcks.delete(id);
+        });
+      } catch (e) {
+        /* Bounded retry so a flaky network never turns into a tight loop. */
+        flushBackoff = Math.min(flushBackoff ? flushBackoff * 2 : 1000, MAX_BACKOFF_MS);
+        scheduleFlush();
+      }
+    }
+
+    /* Marks outgoing bubbles as read once they are actually on screen. */
+    const readObserver = typeof IntersectionObserver !== 'undefined'
+      ? new IntersectionObserver((entries) => {
+          if (!widgetIsVisible()) return;
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            const id = entry.target.dataset.id;
+            if (!id) return;
+            queueAck(id, 'read');
+            readObserver.unobserve(entry.target);
+          });
+        }, { threshold: 0.5 })
+      : null;
+
+    /* Re-check every outgoing bubble that has not been read yet. Used when the
+       widget is opened or the tab becomes visible again. */
+    function reevaluateReadState() {
+      if (!widgetIsVisible()) return;
+      const nodes = messagesEl.querySelectorAll('.bubble.outgoing[data-id]');
+      nodes.forEach((node) => {
+        const id = node.dataset.id;
+        if (!id || rank(ackedStatus.get(id)) >= rank('read')) return;
+        const box = node.getBoundingClientRect();
+        const inViewport = box.height > 0 && box.bottom > 0 && box.top < window.innerHeight;
+        if (inViewport) queueAck(id, 'read');
+      });
+    }
+
+    function setWidgetOpen(open) {
+      widgetOpen = !!open;
+      if (widgetOpen) reevaluateReadState();
+    }
+
+    document.addEventListener('visibilitychange', reevaluateReadState);
+    window.addEventListener('focus', reevaluateReadState);
+
+    /* The host page tells us when the panel is shown or hidden. Only accept it
+       from our direct parent; the payload is a non-sensitive UI hint. */
+    window.addEventListener('message', (e) => {
+      if (e.source !== window.parent) return;
+      if (__parentOrigin && e.origin !== __parentOrigin) return;
+      const data = e.data;
+      if (!data || data.type !== 'bliv-webchat-visibility') return;
+      setWidgetOpen(data.open === true);
+    });
+
     function genId() {
       return crypto.randomUUID();
     }
 
     function closeWidget() {
       if (window.parent !== window) {
-        window.parent.postMessage('bliv-webchat-close', '*');
+        window.parent.postMessage('bliv-webchat-close', __parentOrigin || '/');
       }
+      setWidgetOpen(false);
     }
 
     function setStatus(text) {
@@ -199,7 +386,11 @@ function renderIframe(
     }
 
     function render(msg) {
-      if (rendered.has(msg.id)) return;
+      /* Dedupe strictly by server message id, never by text or timestamp. */
+      if (rendered.has(msg.id)) {
+        if (msg.direction === 'outgoing') trackOutgoing(msg);
+        return;
+      }
       const div = document.createElement('div');
       div.className = 'bubble ' + (msg.direction === 'outgoing' ? 'outgoing' : 'incoming');
       div.style.background = msg.direction === 'outgoing' ? __accent : '';
@@ -215,6 +406,29 @@ function renderIframe(
       messagesEl.appendChild(div);
       rendered.add(msg.id);
       messagesEl.scrollTop = messagesEl.scrollHeight;
+
+      if (msg.direction === 'outgoing') trackOutgoing(msg, div);
+    }
+
+    /* An outgoing message that reached this function has been received by the
+       browser, so it is genuinely "delivered". "read" is decided separately by
+       the visibility observer. */
+    function trackOutgoing(msg, node) {
+      const id = msg.id;
+      if (!id || String(id).indexOf('temp:') === 0) return;
+
+      /* Trust the server's stored status so a reload does not re-ACK forever. */
+      if (msg.status && rank(ackedStatus.get(id)) < rank(msg.status)) {
+        ackedStatus.set(id, msg.status);
+      }
+
+      queueAck(id, 'delivered');
+
+      const target = node || messagesEl.querySelector('[data-id="' + id + '"]');
+      if (target && readObserver && rank(ackedStatus.get(id)) < rank('read')) {
+        readObserver.observe(target);
+      }
+      reevaluateReadState();
     }
 
     async function fetchJSON(url, opts) {
@@ -408,15 +622,28 @@ export const Route = createFileRoute("/api/public/webchat/$publicId/iframe")({
 
         const avatarUrl = widget.avatarUrl ? new URL(widget.avatarUrl, request.url).toString() : null;
 
+        // The host page passes its own origin so the iframe can target
+        // postMessage precisely instead of broadcasting with "*".
+        const requestUrl = new URL(request.url);
+        const parentOrigin = normalizeOrigin(requestUrl.searchParams.get("parentOrigin"));
+        const allowedParentOrigin = isOriginAllowed(widget.allowedOrigins, parentOrigin)
+          ? parentOrigin
+          : null;
+
+        // frame-ancestors is derived from the widget configuration, not from the
+        // requesting Origin header, which an attacker fully controls.
         const headers: Record<string, string> = {
           "Content-Type": "text/html",
           "Access-Control-Allow-Origin": origin || "*",
-          "X-Frame-Options": "ALLOW-FROM " + (origin || "*"),
-          "Content-Security-Policy": "frame-ancestors 'self' " + (origin || "*") + ";",
+          "Content-Security-Policy": buildFrameAncestors(widget.allowedOrigins),
         };
 
-        return new Response(renderIframe({ ...widget, avatarUrl }, publicId), { headers });
+        return new Response(
+          renderIframe({ ...widget, avatarUrl }, publicId, allowedParentOrigin),
+          { headers },
+        );
       },
     },
   },
 });
+
