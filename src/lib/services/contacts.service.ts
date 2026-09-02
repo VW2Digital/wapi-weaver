@@ -2,8 +2,22 @@ import { normalizeToE164 } from "../phone.js";
 import db from "../db.js";
 import crypto from "crypto";
 import { resolveEffectiveUserId, getTenantFilter } from "../chat-helpers.js";
+import { syncContactFieldValuesFromJson } from "./contact-custom-field.service.js";
 
-function normalizeOptionalPhone(raw: unknown): { phoneE164: string | null; whatsappNumber: string | null } {
+function parseCustomFieldsJson(value: unknown): Record<string, unknown> {
+  if (!value) return {};
+  if (typeof value === "object") return value as Record<string, unknown>;
+  try {
+    return JSON.parse(value as string) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+function normalizeOptionalPhone(raw: unknown): {
+  phoneE164: string | null;
+  whatsappNumber: string | null;
+} {
   const value = raw === null || raw === undefined ? "" : String(raw).trim();
   if (!value) return { phoneE164: null, whatsappNumber: null };
   if (value.startsWith("ig_") || value.startsWith("fb_")) {
@@ -20,7 +34,7 @@ export async function createContactForUser(userId: string, data: any) {
 
   const effectiveUserId = await resolveEffectiveUserId(userId);
   const channel = data.channel ?? "whatsapp";
-  const rawPhone = (data.phone === null || data.phone === undefined ? "" : String(data.phone).trim());
+  const rawPhone = data.phone === null || data.phone === undefined ? "" : String(data.phone).trim();
 
   let phoneE164: string | null = null;
   let whatsappNumber: string | null = null;
@@ -46,13 +60,13 @@ export async function createContactForUser(userId: string, data: any) {
         [effectiveUserId, phoneE164],
       );
       existingId = existingRows?.[0]?.id ?? null;
-      existingCustomFields = existingRows?.[0]?.custom_fields ?? {};
+      existingCustomFields = parseCustomFieldsJson(existingRows?.[0]?.custom_fields);
     }
 
-    const mergedCustomFields =
-      existingCustomFields && typeof existingCustomFields === "object"
-        ? { ...existingCustomFields, ...(data.custom_fields ?? {}) }
-        : (data.custom_fields ?? {});
+    const incomingCustomFields =
+      data.custom_fields && typeof data.custom_fields === "object" ? data.custom_fields : {};
+
+    const mergedCustomFields = { ...existingCustomFields, ...incomingCustomFields };
 
     const id = existingId ?? crypto.randomUUID();
     await conn.execute(
@@ -94,6 +108,12 @@ export async function createContactForUser(userId: string, data: any) {
     const [rows]: any = await conn.execute("SELECT * FROM contacts WHERE id = ?", [id]);
     return rows[0];
   });
+
+  // Mantém contact_custom_field_values sincronizado com o JSON enviado.
+  const contactCustomFields = parseCustomFieldsJson(contact.custom_fields);
+  if (Object.keys(contactCustomFields).length > 0) {
+    await syncContactFieldValuesFromJson(effectiveUserId, contact.id, contactCustomFields);
+  }
 
   // Notify outgoing webhooks
   try {
@@ -155,7 +175,9 @@ export async function getContactDetailForUser(userId: string, id: string) {
   const contact = contacts?.[0];
   if (!contact) throw new Error("Contato não encontrado");
 
-  const threadKey = contact.phone_e164 ?? (contact.webchat_external_id ? `wc_${contact.webchat_external_id}` : null);
+  const threadKey =
+    contact.phone_e164 ??
+    (contact.webchat_external_id ? `wc_${contact.webchat_external_id}` : null);
 
   const messages = (await db.query(
     `SELECT id, direction, type, body, status, metadata, created_at
@@ -213,13 +235,16 @@ export async function getContactDetailForUser(userId: string, id: string) {
 }
 
 function computeUpdatePhone(data: any, existing: any) {
-  const channel = data.channel !== undefined && data.channel !== null && data.channel !== ""
-    ? data.channel
-    : (existing?.channel ?? "whatsapp");
+  const channel =
+    data.channel !== undefined && data.channel !== null && data.channel !== ""
+      ? data.channel
+      : (existing?.channel ?? "whatsapp");
   const rawPhone = data.phone === null || data.phone === undefined ? "" : String(data.phone).trim();
 
   if (channel === "webchat") {
-    const whatsappNumber = rawPhone ? normalizeToE164(rawPhone) || null : (existing?.whatsapp_number ?? null);
+    const whatsappNumber = rawPhone
+      ? normalizeToE164(rawPhone) || null
+      : (existing?.whatsapp_number ?? null);
     return {
       phoneE164: existing?.phone_e164 ?? null,
       whatsappNumber,
@@ -301,12 +326,15 @@ export async function updateContactForUser(userId: string, data: any) {
 
   const { phoneE164, whatsappNumber, channel } = computeUpdatePhone(data, existing);
 
+  const existingCustomFields =
+    existing.custom_fields && typeof existing.custom_fields === "object"
+      ? (existing.custom_fields as Record<string, unknown>)
+      : parseCustomFieldsJson(existing.custom_fields);
+
   const mergedCustomFields =
-    data.custom_fields !== undefined
-      ? data.custom_fields
-      : existing.custom_fields && typeof existing.custom_fields === "object"
-        ? existing.custom_fields
-        : null;
+    data.custom_fields !== undefined && data.custom_fields !== null
+      ? { ...existingCustomFields, ...(data.custom_fields as Record<string, unknown>) }
+      : existingCustomFields;
 
   const mergedMetadata =
     data.metadata !== undefined
@@ -334,7 +362,7 @@ export async function updateContactForUser(userId: string, data: any) {
       data.company !== undefined ? data.company : null,
       data.position !== undefined ? data.position : null,
       data.status !== undefined ? data.status : null,
-      data.responsible_user_id !== undefined ? (data.responsible_user_id || null) : null,
+      data.responsible_user_id !== undefined ? data.responsible_user_id || null : null,
       source,
       sourceType,
       sourceName,
@@ -349,13 +377,20 @@ export async function updateContactForUser(userId: string, data: any) {
       data.is_archived !== undefined ? data.is_archived : false,
       data.chat_status !== undefined ? data.chat_status : "aberto",
       data.is_unread !== undefined ? data.is_unread : false,
-      data.kanban_stage_id !== undefined ? (data.kanban_stage_id || null) : null,
+      data.kanban_stage_id !== undefined ? data.kanban_stage_id || null : null,
       data.id,
       effectiveUserId,
     ],
   );
 
-  const updatedContacts = (await db.query("SELECT * FROM contacts WHERE id = ?", [data.id])) as any[];
+  // Mantém contact_custom_field_values sincronizado com o JSON enviado.
+  if (mergedCustomFields && Object.keys(mergedCustomFields).length > 0) {
+    await syncContactFieldValuesFromJson(effectiveUserId, data.id, mergedCustomFields);
+  }
+
+  const updatedContacts = (await db.query("SELECT * FROM contacts WHERE id = ?", [
+    data.id,
+  ])) as any[];
   const updated = updatedContacts?.[0];
 
   try {
@@ -391,19 +426,16 @@ export async function deleteContactForUser(userId: string, id: string) {
         "DELETE FROM conversation_assignments WHERE contact_phone = ? AND user_id = ?",
         [contact.phone_e164, effectiveUserId],
       );
-      await conn.execute(
-        "DELETE FROM conversation_tags WHERE contact_number = ? AND user_id = ?",
-        [contact.phone_e164, effectiveUserId],
-      );
+      await conn.execute("DELETE FROM conversation_tags WHERE contact_number = ? AND user_id = ?", [
+        contact.phone_e164,
+        effectiveUserId,
+      ]);
     }
 
     await conn.execute("DELETE FROM contact_tags WHERE contact_id = ?", [id]);
     await conn.execute("DELETE FROM list_contacts WHERE contact_id = ?", [id]);
 
-    await conn.execute("DELETE FROM contacts WHERE id = ? AND user_id = ?", [
-      id,
-      effectiveUserId,
-    ]);
+    await conn.execute("DELETE FROM contacts WHERE id = ? AND user_id = ?", [id, effectiveUserId]);
     return { ok: true };
   });
 }

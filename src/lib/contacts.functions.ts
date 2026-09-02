@@ -74,8 +74,6 @@ export const deleteContact = createServerFn({ method: "POST" })
     return await deleteContactForUser(context.userId, data.id);
   });
 
-
-
 export const updateContact = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => updateContactInput.parse(d))
@@ -186,7 +184,7 @@ export const addContactNote = createServerFn({ method: "POST" })
     const contact = contacts?.[0];
     if (!contact) throw new Error("Contato não encontrado");
 
-    let opps = (await db.query(
+    const opps = (await db.query(
       "SELECT id, title FROM opportunities WHERE user_id = ? AND primary_contact_id = ? AND deleted_at IS NULL ORDER BY created_at ASC LIMIT 1",
       [effectiveUserId, data.contact_id],
     )) as any[];
@@ -314,7 +312,10 @@ export const bulkUpsertContacts = createServerFn({ method: "POST" })
       await db.query(
         `INSERT INTO contacts (id, user_id, tenant_id, phone_e164, name, email, custom_fields, source, source_type)
          VALUES ${placeholders}
-         ON DUPLICATE KEY UPDATE name = VALUES(name), email = VALUES(email), custom_fields = VALUES(custom_fields)`,
+         ON DUPLICATE KEY UPDATE
+           name = VALUES(name),
+           email = VALUES(email),
+           custom_fields = JSON_MERGE_PATCH(COALESCE(custom_fields, '{}'), VALUES(custom_fields))`,
         params,
       );
       inserted += slice.length;

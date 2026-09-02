@@ -1,6 +1,7 @@
 import dns from "dns";
 import ipaddr from "ipaddr.js";
 import crypto from "crypto";
+import { setContactFieldValues } from "./services/contact-custom-field.service.js";
 
 export interface BotFlowExecutionContext {
   tenantId: string;
@@ -147,7 +148,10 @@ export function resolveTemplate(template: string, ctx: BotFlowExecutionContext):
 
 function getNestedValue(obj: any, path: string): any {
   if (!obj || typeof obj !== "object") return undefined;
-  const parts = path.split(".").map((p) => p.trim()).filter(Boolean);
+  const parts = path
+    .split(".")
+    .map((p) => p.trim())
+    .filter(Boolean);
   let curr = obj;
   for (const part of parts) {
     if (curr == null) return undefined;
@@ -212,11 +216,17 @@ export function evaluateCondition(config: ConditionConfig, ctx: BotFlowExecution
         return !isNaN(nL) && !isNaN(nR) && nL <= nR;
       }
       case "in": {
-        const items = rightVal.split(/[,;\n]/).map((s) => s.trim().toLowerCase()).filter(Boolean);
+        const items = rightVal
+          .split(/[,;\n]/)
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean);
         return items.includes(leftVal.toLowerCase());
       }
       case "not_in": {
-        const items = rightVal.split(/[,;\n]/).map((s) => s.trim().toLowerCase()).filter(Boolean);
+        const items = rightVal
+          .split(/[,;\n]/)
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean);
         return !items.includes(leftVal.toLowerCase());
       }
       default:
@@ -263,7 +273,10 @@ export function evaluateRandomizer(
     }
   }
 
-  return { branchId: branches[branches.length - 1].id, nextStepId: branches[branches.length - 1].nextStepId };
+  return {
+    branchId: branches[branches.length - 1].id,
+    nextStepId: branches[branches.length - 1].nextStepId,
+  };
 }
 
 /**
@@ -303,7 +316,9 @@ export async function validateSafeUrlForSSRF(rawUrl: string): Promise<string> {
         range === "broadcast" ||
         range === "carrierGradeNat"
       ) {
-        throw new Error(`O endereço resolvido (${record.address}) pertence à faixa privada/restrita.`);
+        throw new Error(
+          `O endereço resolvido (${record.address}) pertence à faixa privada/restrita.`,
+        );
       }
     }
   } catch (err: any) {
@@ -427,7 +442,8 @@ export async function executeHttpRequest(
       data: responseData,
     };
   } catch (err: any) {
-    const errorMessage = err.name === "AbortError" ? "Timeout de requisição HTTP excedido" : err.message;
+    const errorMessage =
+      err.name === "AbortError" ? "Timeout de requisição HTTP excedido" : err.message;
     return {
       success: false,
       nextStepId: config.errorStepId || undefined,
@@ -450,7 +466,7 @@ export async function executeSaveVariable(
   const value = resolveTemplate(config.value || "", ctx);
 
   if (config.scope === "contact") {
-    // Escopo de Contato: atualiza campos permitidos ou custom_fields
+    // Escopo de Contato: atualiza campos padrão ou campos personalizados canônicos
     const contactId = ctx.contact.id;
     const standardFields = ["name", "email", "company", "notes"];
 
@@ -461,24 +477,31 @@ export async function executeSaveVariable(
       );
       (ctx.contact as any)[key] = value;
     } else if (contactId) {
-      // Salva dentro do JSON custom_fields
-      const rows = (await db.query(
-        `SELECT custom_fields FROM contacts WHERE id = ? AND (tenant_id = ? OR user_id = ?) LIMIT 1`,
-        [contactId, ctx.tenantId, ctx.tenantId],
-      )) as any[];
-      let customFields: Record<string, any> = {};
+      // Tenta salvar como campo personalizado canônico (validado e tenant-scoped).
+      // Se não houver definição, faz merge seguro no JSON legado.
       try {
-        const raw = rows[0]?.custom_fields;
-        customFields = typeof raw === "string" ? JSON.parse(raw) : raw || {};
-      } catch {
-        customFields = {};
+        await setContactFieldValues(ctx.tenantId, contactId, [{ key, value }]);
+        const customFields = ctx.contact.customFields || {};
+        customFields[key] = value;
+        ctx.contact.customFields = customFields;
+      } catch (err: any) {
+        if (err.message?.includes("não encontrada") || err.message?.includes("não encontrado")) {
+          // Chave desconhecida: merge seguro no JSON legado para compatibilidade.
+          const payload = JSON.stringify({ [key]: value });
+          await db.query(
+            `UPDATE contacts
+             SET custom_fields = JSON_MERGE_PATCH(COALESCE(custom_fields, '{}'), CAST(? AS JSON)),
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = ? AND (tenant_id = ? OR user_id = ?)`,
+            [payload, contactId, ctx.tenantId, ctx.tenantId],
+          );
+          const customFields = ctx.contact.customFields || {};
+          customFields[key] = value;
+          ctx.contact.customFields = customFields;
+        } else {
+          throw err;
+        }
       }
-      customFields[key] = value;
-      await db.query(
-        `UPDATE contacts SET custom_fields = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND (tenant_id = ? OR user_id = ?)`,
-        [JSON.stringify(customFields), contactId, ctx.tenantId, ctx.tenantId],
-      );
-      ctx.contact.customFields = customFields;
     }
   }
 

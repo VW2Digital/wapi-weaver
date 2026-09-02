@@ -39,7 +39,13 @@ function buildContactName(identity: CanonicalIdentity, provider: MessagingProvid
 function isInstagramPlaceholderName(value: string): boolean {
   if (!value || typeof value !== "string") return true;
   const lower = value.toLowerCase().trim();
-  return lower.startsWith("instagram (") || lower.startsWith("ig_") || lower.startsWith("contato (") || lower.startsWith("facebook (") || lower === "instagram";
+  return (
+    lower.startsWith("instagram (") ||
+    lower.startsWith("ig_") ||
+    lower.startsWith("contato (") ||
+    lower.startsWith("facebook (") ||
+    lower === "instagram"
+  );
 }
 
 async function maybeEnrichInstagramIdentity(
@@ -51,11 +57,16 @@ async function maybeEnrichInstagramIdentity(
   }
 
   const enriched = (identity.metadata as Record<string, unknown>)?.enriched;
-  const instagramProfileName = (identity.metadata as Record<string, unknown>)?.instagram_profile_name;
+  const instagramProfileName = (identity.metadata as Record<string, unknown>)
+    ?.instagram_profile_name;
 
   // If a real name was already provided by the protected webhook handler,
   // trust it and avoid a redundant second profile lookup.
-  if (identity.name && !isInstagramPlaceholderName(identity.name) && (instagramProfileName || enriched)) {
+  if (
+    identity.name &&
+    !isInstagramPlaceholderName(identity.name) &&
+    (instagramProfileName || enriched)
+  ) {
     return identity;
   }
 
@@ -88,9 +99,7 @@ async function maybeEnrichInstagramIdentity(
   }
 }
 
-export async function ensureContact(
-  options: EnsureContactOptions,
-): Promise<EnsureContactResult> {
+export async function ensureContact(options: EnsureContactOptions): Promise<EnsureContactResult> {
   const {
     tenantId,
     userId,
@@ -108,18 +117,29 @@ export async function ensureContact(
     provider === "instagram" ? await maybeEnrichInstagramIdentity(tenantId, identity) : identity;
 
   const name = buildContactName(enrichedIdentity, provider);
-  const instagramProfileName = (enrichedIdentity.metadata as Record<string, unknown> | null)?.instagram_profile_name;
-  const instagramUsername = (enrichedIdentity.metadata as Record<string, unknown> | null)?.instagram_username;
-  const customFields: Record<string, unknown> = {
+  const instagramProfileName = (enrichedIdentity.metadata as Record<string, unknown> | null)
+    ?.instagram_profile_name;
+  const instagramUsername = (enrichedIdentity.metadata as Record<string, unknown> | null)
+    ?.instagram_username;
+  const rawCustomFields: Record<string, unknown> = {
     ...(metadata ?? {}),
     avatar_url: enrichedIdentity.avatarUrl ?? undefined,
     ...(provider === "instagram"
       ? {
-          instagram_profile_name: typeof instagramProfileName === "string" ? instagramProfileName : undefined,
+          instagram_profile_name:
+            typeof instagramProfileName === "string" ? instagramProfileName : undefined,
           instagram_username: typeof instagramUsername === "string" ? instagramUsername : undefined,
         }
       : {}),
   };
+
+  // Remove chaves inválidas/undefined para evitar poluição do JSON legado.
+  const customFields: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(rawCustomFields)) {
+    if (v === undefined || v === null) continue;
+    if (["__proto__", "prototype", "constructor"].includes(k)) continue;
+    customFields[k] = v;
+  }
 
   return transaction(async (conn) => {
     // 1. Try to resolve the contact by its external identity first.
@@ -132,7 +152,8 @@ export async function ensureContact(
       [userId, provider, identity.externalId],
     );
 
-    const existingContactByIdentity = (identityRows as Array<{ contact_id: string }>)?.[0]?.contact_id;
+    const existingContactByIdentity = (identityRows as Array<{ contact_id: string }>)?.[0]
+      ?.contact_id;
 
     // 2. Upsert contact by (user_id, phone_e164)
     const contactId = existingContactByIdentity ?? randomUUID();
@@ -146,7 +167,7 @@ export async function ensureContact(
             : "messenger";
     const instagramId = provider === "instagram" ? identity.externalId : null;
     const whatsappNumber =
-      provider === "whatsapp" ? (identity.phoneE164 || phoneE164) : (phoneNumber ?? null);
+      provider === "whatsapp" ? identity.phoneE164 || phoneE164 : (phoneNumber ?? null);
 
     const externalContactId = provider !== "whatsapp" ? identity.externalId : null;
     const contactEmail = email ?? null;
@@ -160,9 +181,9 @@ export async function ensureContact(
          last_interaction_at, created_at, updated_at
        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
        ON DUPLICATE KEY UPDATE
-         name = COALESCE(VALUES(name), name),
-         email = COALESCE(VALUES(email), email),
-         custom_fields = VALUES(custom_fields),
+         name = COALESCE(name, VALUES(name)),
+         email = COALESCE(email, VALUES(email)),
+         custom_fields = JSON_MERGE_PATCH(COALESCE(custom_fields, '{}'), VALUES(custom_fields)),
          is_unread = IF(VALUES(is_unread) = 1, 1, is_unread),
          channel = VALUES(channel),
          instagram_id = COALESCE(VALUES(instagram_id), instagram_id),
@@ -274,14 +295,14 @@ export async function getContactByIdentity(
   provider: MessagingProvider,
   externalId: string,
 ): Promise<{ id: string } | null> {
-  const [rows] = await db.query(
+  const [rows] = (await db.query(
     `SELECT c.id
      FROM contacts c
      JOIN contact_identities ci ON ci.contact_id = c.id
      WHERE c.user_id = ? AND ci.provider = ? AND ci.external_id = ?
      LIMIT 1`,
     [userId, provider, externalId],
-  ) as Array<{ id: string }>[];
+  )) as Array<{ id: string }>[];
 
   return rows?.[0] ?? null;
 }
