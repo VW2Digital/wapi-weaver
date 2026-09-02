@@ -99,6 +99,107 @@ async function insertBotFlow(
   );
 }
 
+export async function duplicateBotFlowCore(db: any, tenantId: string, flowId: string): Promise<string> {
+  await ensureBotFlowsTable(db);
+  await ensureBotFlowsColumns(db);
+
+  await assertBelongsToTenant(flowId, "bot_flow", tenantId);
+
+  const [flow] = (await db.query("SELECT * FROM bot_flows WHERE id = ? AND tenant_id = ?", [
+    flowId,
+    tenantId,
+  ])) as any[];
+
+  if (!flow) throw new Error("Fluxo não encontrado.");
+
+  const newId = crypto.randomUUID();
+  const newName = `${flow.name} (Cópia)`;
+
+  await insertBotFlow(db, {
+    id: newId,
+    tenantId,
+    name: newName,
+    channel: flow.channel,
+    triggersCount: flow.triggers_count,
+    actionsCount: flow.actions_count,
+  });
+
+  await ensureBotStepsColumns(db);
+
+  const steps = (await db.query("SELECT * FROM bot_steps WHERE flow_id = ? AND tenant_id = ?", [
+    flowId,
+    tenantId,
+  ])) as any[];
+
+  const idMap = new Map<string, string>();
+  const newStepMeta: { old: any; newId: string }[] = [];
+
+  // First pass: create new step rows and build the old -> new id map.
+  for (const s of steps || []) {
+    const stepId = crypto.randomUUID();
+    idMap.set(s.id, stepId);
+    newStepMeta.push({ old: s, newId: stepId });
+    await db.query(
+      `INSERT INTO bot_steps (
+        id, tenant_id, bot_settings_id, flow_id, user_id, step_order,
+        trigger_type, trigger_value, message_type, message_content,
+        media_url, media_caption, footer_text, buttons_config, next_step_id,
+        delay_seconds, assign_team_id, assign_user_id, handoff_message, card_color,
+        position_x, position_y
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        stepId,
+        tenantId,
+        s.bot_settings_id,
+        newId,
+        tenantId,
+        s.step_order,
+        s.trigger_type,
+        s.trigger_value,
+        s.message_type,
+        s.message_content,
+        s.media_url,
+        s.media_caption,
+        s.footer_text,
+        s.buttons_config,
+        null,
+        s.delay_seconds,
+        s.assign_team_id,
+        s.assign_user_id,
+        s.handoff_message,
+        s.card_color,
+        s.position_x,
+        s.position_y,
+      ],
+    );
+  }
+
+  // Second pass: rewrite next_step_id and all step references inside buttons_config.
+  for (const { old, newId: stepId } of newStepMeta) {
+    let cfg: any = {};
+    try {
+      cfg =
+        typeof old.buttons_config === "string"
+          ? JSON.parse(old.buttons_config || "{}")
+          : old.buttons_config || {};
+    } catch {
+      cfg = {};
+    }
+
+    const newButtons = JSON.stringify(remapFlowStepReferences(cfg, idMap));
+    const oldNext = old.next_step_id;
+    const newNext =
+      oldNext && !SENTINEL_IDS.has(oldNext) && idMap.has(oldNext) ? idMap.get(oldNext) : oldNext;
+
+    await db.query(
+      "UPDATE bot_steps SET next_step_id = ?, buttons_config = ? WHERE id = ? AND tenant_id = ?",
+      [newNext || null, newButtons, stepId, tenantId],
+    );
+  }
+
+  return newId;
+}
+
 async function ensureBotStepsColumns(db: any) {
   try {
     const cols: any[] = (await db.query(`SHOW COLUMNS FROM bot_steps`)) as any[];
@@ -113,6 +214,58 @@ async function ensureBotStepsColumns(db: any) {
   } catch (err) {
     console.warn("[BotSteps] Aviso ao migrar colunas de bot_steps:", err);
   }
+}
+
+const SENTINEL_IDS = new Set(["", "0", "-999", "-998", "-997", "none"]);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const NON_STEP_KEYS = new Set(["handleId", "sourceHandle", "sourceHandleId"]);
+
+function isStepReferenceKey(key: string): boolean {
+  if (NON_STEP_KEYS.has(key)) return false;
+  const lower = key.toLowerCase();
+  return (
+    lower.endsWith("stepid") ||
+    lower === "next_step_id" ||
+    lower === "next_step_on_success"
+  );
+}
+
+function remapStepString(value: string, idMap: Map<string, string>): string {
+  if (!value.startsWith("step:")) return value;
+  const tail = value.slice(5);
+  const sepIdx = tail.indexOf(":");
+  const target = sepIdx >= 0 ? tail.slice(0, sepIdx) : tail;
+  const rest = sepIdx >= 0 ? tail.slice(sepIdx) : "";
+  if (UUID_RE.test(target) && idMap.has(target)) {
+    return `step:${idMap.get(target)}${rest}`;
+  }
+  return value;
+}
+
+function remapFlowStepReferencesWithKey(value: any, idMap: Map<string, string>, key: string): any {
+  if (typeof value === "string") {
+    if (SENTINEL_IDS.has(value)) return value;
+    if (value.startsWith("step:")) return remapStepString(value, idMap);
+    if (UUID_RE.test(value) && idMap.has(value) && (key === "" || isStepReferenceKey(key))) {
+      return idMap.get(value);
+    }
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((v) => remapFlowStepReferencesWithKey(v, idMap, ""));
+  }
+  if (value && typeof value === "object") {
+    const out: any = {};
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = remapFlowStepReferencesWithKey(v, idMap, k);
+    }
+    return out;
+  }
+  return value;
+}
+
+export function remapFlowStepReferences(value: any, idMap: Map<string, string>): any {
+  return remapFlowStepReferencesWithKey(value, idMap, "");
 }
 
 async function ensureBotSettingsColumns(db: any) {
@@ -394,63 +547,7 @@ export const duplicateBotFlow = createServerFn({ method: "POST" })
       const { resolveEffectiveUserId } = await import("./chat-helpers");
       const { default: db } = await import("./db");
       const tenantId = await resolveEffectiveUserId(context.userId);
-
-      await ensureBotFlowsTable(db);
-      await ensureBotFlowsColumns(db);
-
-      await assertBelongsToTenant(data.id, "bot_flow", tenantId);
-
-      const [flow] = (await db.query("SELECT * FROM bot_flows WHERE id = ? AND tenant_id = ?", [
-        data.id,
-        tenantId,
-      ])) as any[];
-
-      if (!flow) throw new Error("Fluxo não encontrado.");
-
-      const newId = crypto.randomUUID();
-      const newName = `${flow.name} (Cópia)`;
-
-      await insertBotFlow(db, {
-        id: newId,
-        tenantId,
-        name: newName,
-        channel: flow.channel,
-        triggersCount: flow.triggers_count,
-        actionsCount: flow.actions_count,
-      });
-
-      const steps = (await db.query("SELECT * FROM bot_steps WHERE flow_id = ? AND tenant_id = ?", [
-        data.id,
-        tenantId,
-      ])) as any[];
-      for (const s of steps || []) {
-        const stepId = crypto.randomUUID();
-        await db.query(
-          `INSERT INTO bot_steps (id, tenant_id, bot_settings_id, flow_id, user_id, step_order, trigger_type, trigger_value, message_type,
-           message_content, media_url, media_caption, footer_text, buttons_config, delay_seconds, position_x, position_y)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            stepId,
-            tenantId,
-            s.bot_settings_id,
-            newId,
-            tenantId,
-            s.step_order,
-            s.trigger_type,
-            s.trigger_value,
-            s.message_type,
-            s.message_content,
-            s.media_url,
-            s.media_caption,
-            s.footer_text,
-            s.buttons_config,
-            s.delay_seconds,
-            s.position_x,
-            s.position_y,
-          ],
-        );
-      }
-
+      await duplicateBotFlowCore(db, tenantId, data.id);
       return { ok: true };
     } catch (err: any) {
       console.error("[BotFlows] Erro ao duplicar fluxo:", err);
