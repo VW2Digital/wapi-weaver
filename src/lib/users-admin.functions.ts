@@ -3,7 +3,6 @@ import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { dbAdmin } from "@/integrations/mysql/client.server";
 import db from "./db";
-import { setResponseStatus } from "@tanstack/react-start/server";
 import { hasCompanyAdminRole, hasMasterRole } from "./roles";
 import {
   assertUserBelongsToTenant,
@@ -81,7 +80,6 @@ async function ensureTenantMembership(tenantId: string, userId: string) {
 async function assertAdmin(ctx: { userId: string; tenantId: string }) {
   const access = await getActorTenantAccess(ctx.userId, ctx.tenantId);
   if (!access.isMaster && !access.isCompanyAdmin) {
-    setResponseStatus(403);
     throw Object.assign(
       new Error("Acesso negado: apenas administradores podem gerenciar usuários."),
       {

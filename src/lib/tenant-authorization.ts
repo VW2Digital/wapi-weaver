@@ -1,6 +1,5 @@
 import db from "./db";
 import { hasCompanyAdminRole, hasMasterRole } from "./roles";
-import { setResponseStatus } from "@tanstack/react-start/server";
 
 export type TenantResource = "bot_flow" | "bot_step" | "lost_reason" | "team";
 
@@ -15,7 +14,6 @@ const RESOURCE_SCOPE: Record<
 };
 
 function deny(message: string, statusCode: 403 | 404): never {
-  setResponseStatus(statusCode);
   throw Object.assign(new Error(message), { statusCode });
 }
 
