@@ -45,7 +45,7 @@ export async function triggerBotForMessage(options: TriggerBotOptions): Promise<
     userId,
     buttonPayload ?? undefined,
     provider,
-    messageId,
+    message.providerMessageId,
     conversationId,
   );
 }

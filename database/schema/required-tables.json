@@ -89,6 +89,8 @@
   "templates",
   "user_roles",
   "users",
+  "webchat_sessions",
+  "webchat_widgets",
   "webhook_bot_logs",
   "webhook_delivery_logs",
   "webhook_events",

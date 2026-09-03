@@ -16,6 +16,50 @@ function logError(message: string, data?: any) {
   console.error(`[botflow] ${message}`, data ? JSON.stringify(data) : "");
 }
 
+function parseMetadata(metadata: unknown): Record<string, unknown> {
+  if (typeof metadata === "string") {
+    try {
+      return JSON.parse(metadata);
+    } catch {
+      return {};
+    }
+  }
+  return (metadata as Record<string, unknown>) ?? {};
+}
+
+async function isBotAlreadyProcessedForMessage(
+  tenantId: string,
+  channel: string,
+  providerMessageId: string | null | undefined,
+): Promise<boolean> {
+  if (!providerMessageId) return false;
+  const { default: db } = await import("./db");
+  const [rows] = await db.query(
+    `SELECT id, metadata FROM direct_messages
+     WHERE tenant_id = ? AND channel = ? AND provider_message_id = ? AND direction = 'incoming'
+     LIMIT 1`,
+    [tenantId, channel, providerMessageId],
+  );
+  const row = (rows as any[])?.[0];
+  if (!row) return false;
+  return Boolean(parseMetadata(row.metadata)?.bot_processed_at);
+}
+
+async function markBotProcessedForMessage(
+  tenantId: string,
+  channel: string,
+  providerMessageId: string | null | undefined,
+): Promise<void> {
+  if (!providerMessageId) return;
+  const { default: db } = await import("./db");
+  await db.query(
+    `UPDATE direct_messages
+     SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.bot_processed_at', ?)
+     WHERE tenant_id = ? AND channel = ? AND provider_message_id = ? AND direction = 'incoming'`,
+    [new Date().toISOString(), tenantId, channel, providerMessageId],
+  );
+}
+
 const MIME_EXT: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/jpg": "jpg",
@@ -269,13 +313,13 @@ export async function processBotFlow(
   messageBody: string,
   phoneDigits: string,
   phoneNumberId: string,
-  userId: string,
+  tenantId: string,
   buttonPayload?: string,
   channel: "whatsapp" | "instagram" | "messenger" | "whatsapp_group" | "webchat" = "whatsapp",
   incomingMessageId?: string | null,
   conversationId?: string | null,
 ) {
-  if (!phoneNumberId || !phoneDigits || !userId || (!messageBody && !buttonPayload)) return;
+  if (!phoneNumberId || !phoneDigits || !tenantId || (!messageBody && !buttonPayload)) return;
 
   const { checkLicense } = await import("@/lib/license-verifier");
   const isLicenseValid = await checkLicense(undefined, false);
@@ -285,6 +329,14 @@ export async function processBotFlow(
   }
 
   try {
+    // 0. Gate de idempotência: um mesmo provider message id só pode executar o
+    //    fluxo uma vez, independentemente de quantos caminhos (webhook direto,
+    //    fila, retry de webhook) o invoquem.
+    if (await isBotAlreadyProcessedForMessage(tenantId, channel, incomingMessageId)) {
+      logInfo("Bot flow skipped: message already processed", { incomingMessageId, channel, phoneDigits });
+      return;
+    }
+
     // 1. Localizar configurações legadas e fluxos criados pelo construtor.
     // O construtor novo tem bot_flows como fonte de verdade; não dependa de
     // bot_settings para descobrir seus passos, pois essa associação pode estar
@@ -292,14 +344,14 @@ export async function processBotFlow(
     let { data: flows } = await dbAdmin
       .from("bot_settings")
       .select("*")
-      .eq("user_id", userId)
+      .eq("tenant_id", tenantId)
       .eq("channel", channel);
     flows = flows || [];
 
     const { default: db } = await import("./db");
     const builderFlows: any[] = (await db.query(
-      `SELECT id, name, channel, is_active, last_executed_at FROM bot_flows WHERE (tenant_id = ? OR user_id = ?) AND channel = ?`,
-      [userId, userId, channel],
+      `SELECT id, name, channel, is_active, last_executed_at FROM bot_flows WHERE tenant_id = ? AND channel = ?`,
+      [tenantId, channel],
     )) as any[];
     const activeBuilderFlowIds = new Set(
       (builderFlows || []).filter((f: any) => Boolean(f.is_active)).map((f: any) => f.id),
@@ -336,7 +388,7 @@ export async function processBotFlow(
     const { data: stateForCurrentInstance } = await dbAdmin
       .from("bot_conversation_state")
       .select("*")
-      .eq("user_id", userId)
+      .eq("tenant_id", tenantId)
       .eq("contact_number", phoneDigits)
       .eq("channel", channel)
       .eq("instance_id", phoneNumberId)
@@ -349,7 +401,7 @@ export async function processBotFlow(
       : await dbAdmin
           .from("bot_conversation_state")
           .select("*")
-          .eq("user_id", userId)
+          .eq("tenant_id", tenantId)
           .eq("contact_number", phoneDigits)
           .eq("channel", channel)
           .is("instance_id", null)
@@ -363,7 +415,7 @@ export async function processBotFlow(
     const { data: controlState } = await dbAdmin
       .from("bot_conversation_state")
       .select("id, bot_active, is_paused, paused_until")
-      .eq("user_id", userId)
+      .eq("tenant_id", tenantId)
       .eq("contact_number", phoneDigits)
       .eq("channel", channel)
       .order("updated_at", { ascending: false })
@@ -408,19 +460,19 @@ export async function processBotFlow(
     const builderSteps = builderStepIds.length
       ? ((await db.query(
           `SELECT * FROM bot_steps
-           WHERE (user_id = ? OR tenant_id = ?)
+           WHERE tenant_id = ?
              AND flow_id IN (${builderStepIds.map(() => "?").join(",")})
            ORDER BY step_order ASC`,
-          [userId, userId, ...builderStepIds],
+          [tenantId, ...builderStepIds],
         )) as any[])
       : [];
     const legacySteps = legacySettingIds.length
       ? ((await db.query(
           `SELECT * FROM bot_steps
-           WHERE (user_id = ? OR tenant_id = ?) AND flow_id IS NULL
+           WHERE tenant_id = ? AND flow_id IS NULL
              AND bot_settings_id IN (${legacySettingIds.map(() => "?").join(",")})
            ORDER BY step_order ASC`,
-          [userId, userId, ...legacySettingIds],
+          [tenantId, ...legacySettingIds],
         )) as any[])
       : [];
 
@@ -500,7 +552,7 @@ export async function processBotFlow(
           await dbAdmin
             .from("conversation_assignments")
             .update({ is_active: false, unassigned_at: new Date().toISOString() })
-            .eq("user_id", userId)
+            .eq("tenant_id", tenantId)
             .eq("contact_phone", phoneDigits)
             .eq("is_active", true);
 
@@ -510,13 +562,13 @@ export async function processBotFlow(
             const agents: any = await db.query(
               `SELECT tm.user_id as agent_id, COUNT(ca.id) as active_chats
                FROM team_members tm
-               LEFT JOIN conversation_assignments ca 
-                 ON ca.agent_id = tm.user_id AND ca.is_active = true AND ca.user_id = ?
+               LEFT JOIN conversation_assignments ca
+                 ON ca.agent_id = tm.user_id AND ca.is_active = true AND ca.tenant_id = ?
                WHERE tm.team_id = ?
                GROUP BY tm.user_id
                ORDER BY active_chats ASC, RAND()
                LIMIT 1`,
-              [userId, assignTeamId],
+              [tenantId, assignTeamId],
             );
             if (agents && agents.length > 0) {
               finalAgentId = agents[0].agent_id;
@@ -526,7 +578,8 @@ export async function processBotFlow(
           const { randomUUID } = await import("crypto");
           await dbAdmin.from("conversation_assignments").insert({
             id: randomUUID(),
-            user_id: userId,
+            tenant_id: tenantId,
+            user_id: tenantId,
             contact_phone: phoneDigits,
             team_id: assignTeamId,
             agent_id: finalAgentId || null,
@@ -549,8 +602,8 @@ export async function processBotFlow(
           await dbAdmin.from("bot_conversation_state").update(updateData).eq("id", state.id);
         } else {
           await dbAdmin.from("bot_conversation_state").insert({
-            user_id: userId,
-            tenant_id: userId,
+            user_id: tenantId,
+            tenant_id: tenantId,
             contact_number: phoneDigits,
             instance_id: phoneNumberId,
             channel,
@@ -632,8 +685,8 @@ export async function processBotFlow(
               await dbAdmin.from("bot_conversation_state").update(updateData).eq("id", state.id);
             } else {
               await dbAdmin.from("bot_conversation_state").insert({
-                user_id: userId,
-                tenant_id: userId,
+                user_id: tenantId,
+                tenant_id: tenantId,
                 contact_number: phoneDigits,
                 instance_id: phoneNumberId,
                 channel,
@@ -749,8 +802,8 @@ export async function processBotFlow(
     try {
       const { default: db } = await import("./db");
       const cRows = (await db.query(
-        "SELECT * FROM contacts WHERE (user_id = ? OR tenant_id = ?) AND (phone_e164 = ? OR whatsapp_number = ?) LIMIT 1",
-        [userId, userId, phoneDigits, phoneDigits],
+        "SELECT * FROM contacts WHERE tenant_id = ? AND (phone_e164 = ? OR whatsapp_number = ?) LIMIT 1",
+        [tenantId, phoneDigits, phoneDigits],
       )) as any[];
       contactRecord = cRows?.[0] || null;
     } catch {
@@ -762,9 +815,9 @@ export async function processBotFlow(
     let leadFieldDefinitions: Record<string, LeadFieldDefinition> = {};
     try {
       if (contactRecord?.id) {
-        parsedCustomFields = await getContactFieldValues(userId, contactRecord.id);
+        parsedCustomFields = await getContactFieldValues(tenantId, contactRecord.id);
       }
-      const leadFields = await listLeadFields(userId);
+      const leadFields = await listLeadFields(tenantId);
       leadFieldDefinitions = Object.fromEntries(
         leadFields.map((f) => [`${f.kind}:${f.id}`, f] as const),
       );
@@ -773,8 +826,8 @@ export async function processBotFlow(
     }
 
     const executionContext: any = {
-      tenantId: userId,
-      userId,
+      tenantId: tenantId,
+      userId: tenantId,
       contact: {
         id: contactRecord?.id,
         phone: contactRecord?.phone_e164 || contactRecord?.whatsapp_number || phoneDigits,
@@ -850,8 +903,8 @@ export async function processBotFlow(
           // Delay longo: agenda estado para retomada
           await dbAdmin.from("bot_conversation_state").upsert(
             {
-              user_id: userId,
-              tenant_id: userId,
+              user_id: tenantId,
+              tenant_id: tenantId,
               contact_number: phoneDigits,
               instance_id: phoneNumberId,
               channel,
@@ -912,7 +965,7 @@ export async function processBotFlow(
         .from("bot_flows")
         .update({ last_executed_at: new Date().toISOString() })
         .eq("id", stepToExecute.flow_id)
-        .eq("tenant_id", userId);
+        .eq("tenant_id", tenantId);
     }
 
     logInfo("[BOTFLOW] Executando step do bot", {
@@ -951,8 +1004,8 @@ export async function processBotFlow(
     const commitState = async () => {
       await dbAdmin.from("bot_conversation_state").upsert(
         {
-          user_id: userId,
-          tenant_id: userId,
+          user_id: tenantId,
+          tenant_id: tenantId,
           contact_number: phoneDigits,
           instance_id: phoneNumberId,
           channel,
@@ -972,13 +1025,14 @@ export async function processBotFlow(
         await dbAdmin
           .from("conversation_assignments")
           .update({ is_active: false })
-          .eq("user_id", userId)
+          .eq("tenant_id", tenantId)
           .eq("contact_phone", phoneDigits)
           .eq("is_active", true);
         const { randomUUID } = await import("crypto");
         await dbAdmin.from("conversation_assignments").insert({
           id: randomUUID(),
-          user_id: userId,
+          tenant_id: tenantId,
+          user_id: tenantId,
           contact_phone: phoneDigits,
           team_id: stepToExecute.assign_team_id || null,
           agent_id: stepToExecute.assign_user_id || null,
@@ -992,6 +1046,7 @@ export async function processBotFlow(
       const confirmation = String(stepToExecute.handoff_message || stepToExecute.message_content || "").trim();
       if (!confirmation) {
         await commitState();
+        await markBotProcessedForMessage(tenantId, channel, incomingMessageId);
         logInfo("[BOT] Handoff executado sem mensagem de confirmação", { stepId: stepToExecute.id });
         return;
       }
@@ -1002,16 +1057,17 @@ export async function processBotFlow(
     // mensagem da Cloud API. Executamos a IA antes de montar um payload Meta.
     if (stepToExecute.message_type === "link_ai_agent" && channel === "whatsapp") {
       const preAiDecision = await evaluateBotActivation(
-        await getBotActivationContext(userId, channel, phoneDigits),
+        await getBotActivationContext(tenantId, channel, phoneDigits),
       );
       if (!preAiDecision.active) {
         logInfo("[BOT] Execução abortada antes da IA", { reason: preAiDecision.reason, phoneDigits, stepId: stepToExecute.id });
         return;
       }
       const { processAiAgent } = await import("./ai-agent.server");
-      const handledByAi = await processAiAgent(messageBody, phoneDigits, phoneNumberId, userId);
+      const handledByAi = await processAiAgent(messageBody, phoneDigits, phoneNumberId, tenantId);
       if (handledByAi) {
         await commitState();
+        await markBotProcessedForMessage(tenantId, channel, incomingMessageId);
         logInfo("[BOT] Resposta gerada pelo agente IA", { stepId: stepToExecute.id });
         return;
       }
@@ -1038,7 +1094,7 @@ export async function processBotFlow(
 
     // 4. Disparar o envio da mensagem para o canal correto
     const preSendDecision = await evaluateBotActivation(
-      await getBotActivationContext(userId, channel, phoneDigits),
+      await getBotActivationContext(tenantId, channel, phoneDigits),
     );
     if (!preSendDecision.active) {
       logInfo("[BOT] Envio abortado por desativação/pausa durante execução", { reason: preSendDecision.reason, phoneDigits, stepId: stepToExecute.id });
@@ -1054,12 +1110,12 @@ export async function processBotFlow(
       const { data: p } = await dbAdmin
         .from("profiles")
         .select("whatsapp_access_token, meta_graph_version")
-        .eq("id", userId)
+        .eq("id", tenantId)
         .maybeSingle();
 
       const accessToken = p?.whatsapp_access_token || process.env.META_ACCESS_TOKEN;
       if (!accessToken) {
-        logError("Token de acesso do WhatsApp (whatsapp_access_token) não encontrado no perfil ou env", { userId });
+        logError("Token de acesso do WhatsApp (whatsapp_access_token) não encontrado no perfil ou env", { tenantId });
         return;
       }
 
@@ -1206,8 +1262,8 @@ export async function processBotFlow(
         (stepToExecute.message_type === "document" ? "Documento enviado pelo bot" : "");
 
       await dbAdmin.from("direct_messages").insert({
-        tenant_id: userId,
-        user_id: userId,
+        tenant_id: tenantId,
+        user_id: tenantId,
         contact_phone: phoneDigits,
         conversation_id: conversationId ?? null,
         channel_connection_id: phoneNumberId,
@@ -1232,6 +1288,8 @@ export async function processBotFlow(
       });
       logInfo("Mensagem enviada pelo bot salva no banco", { providerMsgId, msgType });
     }
+
+    await markBotProcessedForMessage(tenantId, channel, incomingMessageId);
   } catch (err: any) {
     logError("Exceção fatal no processBotFlow", { error: err.message });
   }
@@ -1241,11 +1299,11 @@ export async function executeInactivityStep(
   stepToExecute: any,
   phoneDigits: string,
   phoneNumberId: string,
-  userId: string,
+  tenantId: string,
   channel: "whatsapp" | "instagram" | "messenger" | "webchat" = "whatsapp",
   conversationId?: string | null,
 ) {
-  if (!phoneNumberId || !phoneDigits || !userId || !stepToExecute) return;
+  if (!phoneNumberId || !phoneDigits || !tenantId || !stepToExecute) return;
 
   try {
     const { default: db } = await import("./db");
@@ -1261,8 +1319,8 @@ export async function executeInactivityStep(
     let allSteps: any[] = [];
     if (stepToExecute.flow_id) {
       allSteps = (await db.query(
-        "SELECT * FROM bot_steps WHERE flow_id = ? AND (user_id = ? OR tenant_id = ?)",
-        [stepToExecute.flow_id, userId, userId],
+        "SELECT * FROM bot_steps WHERE flow_id = ? AND tenant_id = ?",
+        [stepToExecute.flow_id, tenantId],
       )) as any[];
     }
 
@@ -1270,8 +1328,8 @@ export async function executeInactivityStep(
     let contactRecord: any = null;
     try {
       const cRows = (await db.query(
-        "SELECT * FROM contacts WHERE (user_id = ? OR tenant_id = ?) AND (phone_e164 = ? OR whatsapp_number = ?) LIMIT 1",
-        [userId, userId, phoneDigits, phoneDigits],
+        "SELECT * FROM contacts WHERE tenant_id = ? AND (phone_e164 = ? OR whatsapp_number = ?) LIMIT 1",
+        [tenantId, phoneDigits, phoneDigits],
       )) as any[];
       contactRecord = cRows?.[0] || null;
     } catch {
@@ -1282,9 +1340,9 @@ export async function executeInactivityStep(
     let leadFieldDefinitions: Record<string, LeadFieldDefinition> = {};
     try {
       if (contactRecord?.id) {
-        parsedCustomFields = await getContactFieldValues(userId, contactRecord.id);
+        parsedCustomFields = await getContactFieldValues(tenantId, contactRecord.id);
       }
-      const leadFields = await listLeadFields(userId);
+      const leadFields = await listLeadFields(tenantId);
       leadFieldDefinitions = Object.fromEntries(
         leadFields.map((f) => [`${f.kind}:${f.id}`, f] as const),
       );
@@ -1293,8 +1351,8 @@ export async function executeInactivityStep(
     }
 
     const executionContext: any = {
-      tenantId: userId,
-      userId,
+      tenantId: tenantId,
+      userId: tenantId,
       contact: {
         id: contactRecord?.id,
         phone: contactRecord?.phone_e164 || contactRecord?.whatsapp_number || phoneDigits,
@@ -1352,8 +1410,8 @@ export async function executeInactivityStep(
         } else {
           await dbAdmin.from("bot_conversation_state").upsert(
             {
-              user_id: userId,
-              tenant_id: userId,
+              user_id: tenantId,
+              tenant_id: tenantId,
               contact_number: phoneDigits,
               instance_id: phoneNumberId,
               channel,
@@ -1407,7 +1465,7 @@ export async function executeInactivityStep(
       const { data: p } = await dbAdmin
         .from("profiles")
         .select("whatsapp_access_token, meta_graph_version")
-        .eq("id", userId)
+        .eq("id", tenantId)
         .maybeSingle();
 
       if (!p || !p.whatsapp_access_token) return;
@@ -1530,8 +1588,8 @@ export async function executeInactivityStep(
     if (isSuccess) {
       await dbAdmin.from("bot_conversation_state").upsert(
         {
-          user_id: userId,
-          tenant_id: userId,
+          user_id: tenantId,
+          tenant_id: tenantId,
           contact_number: phoneDigits,
           instance_id: phoneNumberId,
           channel,
@@ -1554,8 +1612,8 @@ export async function executeInactivityStep(
         (stepToExecute.message_type === "document" ? "Documento enviado pelo bot" : "");
 
       await dbAdmin.from("direct_messages").insert({
-        tenant_id: userId,
-        user_id: userId,
+        tenant_id: tenantId,
+        user_id: tenantId,
         contact_phone: phoneDigits,
         conversation_id: conversationId ?? null,
         channel_connection_id: phoneNumberId,
@@ -1584,7 +1642,7 @@ export async function executeInactivityStep(
           .from("bot_flows")
           .update({ last_executed_at: new Date().toISOString() })
           .eq("id", stepToExecute.flow_id)
-          .eq("tenant_id", userId);
+          .eq("tenant_id", tenantId);
       }
     } else {
       // Envio falhou: limpa o paused_until para não ficar em loop eterno de
@@ -1597,7 +1655,7 @@ export async function executeInactivityStep(
       await dbAdmin
         .from("bot_conversation_state")
         .update({ is_paused: false, paused_until: null })
-        .eq("user_id", userId)
+        .eq("tenant_id", tenantId)
         .eq("contact_number", phoneDigits)
         .eq("instance_id", phoneNumberId)
         .eq("channel", channel);
@@ -1626,17 +1684,17 @@ export async function triggerWebhookBotFlow(
        LEFT JOIN bot_flows bf
          ON CONVERT(bf.id USING utf8mb4) COLLATE utf8mb4_unicode_ci =
             CONVERT(bs.flow_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
-       WHERE (bs.user_id = ? OR bs.tenant_id = ?)
+       WHERE bs.tenant_id = ?
          AND bs.trigger_type = 'webhook'
          AND ((bs.flow_id IS NOT NULL AND bf.is_active = true)
            OR (bs.flow_id IS NULL AND b.is_active = true))`,
-      [tenantId, tenantId],
+      [tenantId],
     )) as any[];
     if (activeTriggers.length === 0) return;
 
     const contactRows = (await db.query(
-      "SELECT phone_e164 FROM contacts WHERE id = ? AND (user_id = ? OR tenant_id = ?) LIMIT 1",
-      [contactId, tenantId, tenantId],
+      "SELECT phone_e164 FROM contacts WHERE id = ? AND tenant_id = ? LIMIT 1",
+      [contactId, tenantId],
     )) as Array<{ phone_e164?: string | null }>;
     const contact = contactRows[0];
     if (!contact?.phone_e164) return;

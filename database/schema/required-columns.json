@@ -8,7 +8,8 @@
     "model",
     "system_prompt",
     "created_at",
-    "updated_at"
+    "updated_at",
+    "tenant_id"
   ],
   "ai_usage_logs": [
     "id",
@@ -315,6 +316,8 @@
     "recipient",
     "provider_recipient_id",
     "provider_account_id",
+    "channel_connection_id",
+    "conversation_id",
     "payload",
     "status",
     "attempts",
@@ -334,6 +337,7 @@
     "tenant_id",
     "user_id",
     "contact_id",
+    "channel_connection_id",
     "status",
     "started_at",
     "answered_at",
@@ -470,6 +474,8 @@
     "client_message_id",
     "tenant_id",
     "user_id",
+    "channel_connection_id",
+    "conversation_id",
     "contact_phone",
     "direction",
     "type",
@@ -771,7 +777,8 @@
     "title",
     "content",
     "created_at",
-    "updated_at"
+    "updated_at",
+    "tenant_id"
   ],
   "license_activations": [
     "id",
@@ -871,6 +878,8 @@
     "user_id",
     "provider",
     "channel_resource_id",
+    "channel_connection_id",
+    "meta_app_connection_id",
     "external_event_id",
     "event_type",
     "payload_json",
@@ -958,7 +967,8 @@
     "completed_at",
     "created_at",
     "updated_at",
-    "deleted_at"
+    "deleted_at",
+    "tenant_id"
   ],
   "opportunity_audit_logs": [
     "id",
@@ -1005,7 +1015,8 @@
     "is_pinned",
     "created_at",
     "updated_at",
-    "deleted_at"
+    "deleted_at",
+    "tenant_id"
   ],
   "opportunity_stage_history": [
     "id",
@@ -1024,7 +1035,8 @@
   "opportunity_tags": [
     "opportunity_id",
     "tag_id",
-    "user_id"
+    "user_id",
+    "tenant_id"
   ],
   "outgoing_webhook_logs": [
     "id",
@@ -1315,6 +1327,39 @@
     "created_at",
     "updated_at"
   ],
+  "webchat_sessions": [
+    "id",
+    "tenant_id",
+    "widget_id",
+    "channel_connection_id",
+    "visitor_id",
+    "contact_identity_id",
+    "conversation_id",
+    "token_hash",
+    "status",
+    "expires_at",
+    "last_seen_at",
+    "created_at",
+    "updated_at"
+  ],
+  "webchat_widgets": [
+    "id",
+    "tenant_id",
+    "channel_connection_id",
+    "public_id",
+    "name",
+    "enabled",
+    "title",
+    "welcome_message",
+    "placeholder",
+    "accent_color",
+    "position",
+    "allowed_origins",
+    "prechat_enabled",
+    "avatar_url",
+    "created_at",
+    "updated_at"
+  ],
   "webhook_bot_logs": [
     "id",
     "tenant_id",
@@ -1418,7 +1463,8 @@
     "flow_json",
     "endpoint_url",
     "created_at",
-    "updated_at"
+    "updated_at",
+    "tenant_id"
   ],
   "whatsapp_group_participants": [
     "id",

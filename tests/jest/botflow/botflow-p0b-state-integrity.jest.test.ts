@@ -26,6 +26,7 @@ describe("P0-B State / Data Integrity", () => {
   });
 
   afterAll(async () => {
+    await db.query(`DELETE FROM bot_conversation_state WHERE tenant_id = ?`, [tenantId]);
     await db.query(`DELETE FROM bot_steps WHERE tenant_id = ?`, [tenantId]);
     await db.query(`DELETE FROM bot_flows WHERE tenant_id = ?`, [tenantId]);
     await db.query(`DELETE FROM bot_settings WHERE tenant_id = ?`, [tenantId]);
@@ -249,8 +250,58 @@ describe("P0-B State / Data Integrity", () => {
   });
 
   describe("bot_conversation_state cross-channel isolation", () => {
-    test.todo(
-      "requires migration 056 (bot_conversation_state unique key with channel) before it can be enabled",
-    );
+    test("allows one state row per channel for the same user/contact/instance", async () => {
+      const contactNumber = `555000${Math.floor(Math.random() * 100000)}`;
+      const instanceId = `instance-${randomUUID()}`;
+
+      await db.query(
+        `INSERT INTO bot_conversation_state (id, user_id, tenant_id, contact_number, instance_id, channel, current_step_id)
+         VALUES (?, ?, ?, ?, ?, 'whatsapp', NULL)`,
+        [randomUUID(), tenantId, tenantId, contactNumber, instanceId],
+      );
+
+      await db.query(
+        `INSERT INTO bot_conversation_state (id, user_id, tenant_id, contact_number, instance_id, channel, current_step_id)
+         VALUES (?, ?, ?, ?, ?, 'instagram', NULL)`,
+        [randomUUID(), tenantId, tenantId, contactNumber, instanceId],
+      );
+
+      const rows = (await db.query(
+        `SELECT channel FROM bot_conversation_state WHERE tenant_id = ? AND contact_number = ? AND instance_id = ?`,
+        [tenantId, contactNumber, instanceId],
+      )) as any[];
+
+      expect(rows.map((r) => r.channel).sort()).toEqual(["instagram", "whatsapp"]);
+
+      // Cleanup
+      await db.query(
+        `DELETE FROM bot_conversation_state WHERE tenant_id = ? AND contact_number = ? AND instance_id = ?`,
+        [tenantId, contactNumber, instanceId],
+      );
+    });
+
+    test("enforces uniqueness on (user_id, contact_number, instance_id, channel)", async () => {
+      const contactNumber = `555000${Math.floor(Math.random() * 100000)}`;
+      const instanceId = `instance-${randomUUID()}`;
+
+      await db.query(
+        `INSERT INTO bot_conversation_state (id, user_id, tenant_id, contact_number, instance_id, channel, current_step_id)
+         VALUES (?, ?, ?, ?, ?, 'whatsapp', NULL)`,
+        [randomUUID(), tenantId, tenantId, contactNumber, instanceId],
+      );
+
+      await expect(
+        db.query(
+          `INSERT INTO bot_conversation_state (id, user_id, tenant_id, contact_number, instance_id, channel, current_step_id)
+           VALUES (?, ?, ?, ?, ?, 'whatsapp', NULL)`,
+          [randomUUID(), tenantId, tenantId, contactNumber, instanceId],
+        ),
+      ).rejects.toThrow(/Duplicate entry/);
+
+      await db.query(
+        `DELETE FROM bot_conversation_state WHERE tenant_id = ? AND contact_number = ? AND instance_id = ?`,
+        [tenantId, contactNumber, instanceId],
+      );
+    });
   });
 });

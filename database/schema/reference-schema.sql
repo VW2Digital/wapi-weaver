@@ -179,7 +179,7 @@ CREATE TABLE `bot_conversation_state` (
   `channel` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'whatsapp',
   `provider_account_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_bot_conv_state` (`user_id`,`contact_number`,`instance_id`),
+  UNIQUE KEY `uq_bot_conv_state` (`user_id`,`contact_number`,`instance_id`,`channel`),
   KEY `current_step_id` (`current_step_id`),
   KEY `idx_bot_conv_state_contact` (`contact_number`),
   KEY `idx_bot_conversation_state_tenant` (`tenant_id`),

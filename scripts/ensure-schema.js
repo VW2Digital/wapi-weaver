@@ -110,6 +110,26 @@ async function indexExists(connection, tableName, indexName) {
   return Number(rows?.[0]?.total ?? 0) > 0;
 }
 
+async function indexHasAllColumns(connection, tableName, indexName, expectedColumns) {
+  if (!(await indexExists(connection, tableName, indexName))) return false;
+  const [rows] = await connection.query(
+    `
+      SELECT COLUMN_NAME, SEQ_IN_INDEX
+      FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = ?
+        AND INDEX_NAME = ?
+      ORDER BY SEQ_IN_INDEX
+    `,
+    [tableName, indexName],
+  );
+  const actualColumns = rows.map((r) => r.COLUMN_NAME);
+  return (
+    actualColumns.length === expectedColumns.length &&
+    expectedColumns.every((c, i) => actualColumns[i] === c)
+  );
+}
+
 async function getPrimaryKeyColumns(connection, tableName) {
   const [rows] = await connection.query(
     `
@@ -1472,22 +1492,47 @@ export async function ensureDatabaseSchema() {
       "VARCHAR(255) NULL",
     );
     // Adiciona channel à unique key para isolar WhatsApp de Instagram
-    // Idempotente: verifica se o índice novo já existe antes de recriar.
+    // Idempotente: verifica as colunas reais do índice antes de recriar.
     try {
-      const newKeyExists = await indexExists(
+      const expectedKey = ["user_id", "contact_number", "instance_id", "channel"];
+      const newKeyOk = await indexHasAllColumns(
         connection,
         "bot_conversation_state",
         "uq_bot_conv_state",
+        expectedKey,
       );
-      if (!newKeyExists) {
+      if (!newKeyOk) {
+        // Garante um índice secundário em user_id antes de dropar a unique key,
+        // pois a FK de bot_conversation_state(user_id) pode depender dela.
+        try {
+          await connection.query(`ALTER TABLE bot_conversation_state ADD INDEX idx_bot_conv_state_user (user_id)`);
+        } catch (e) {}
         // Tenta remover a versão antiga sem channel (pode não existir)
         try {
           await connection.query(`ALTER TABLE bot_conversation_state DROP INDEX uq_bot_conv_state`);
           logSchema("Índice uq_bot_conv_state antigo removido de bot_conversation_state.");
         } catch (e) {}
+        // Remove any duplicate rows that could violate the new 4-column key
+        await connection.query(`
+          DELETE t1 FROM bot_conversation_state t1
+          JOIN bot_conversation_state t2
+            ON t1.user_id = t2.user_id
+            AND t1.contact_number = t2.contact_number
+            AND t1.channel = t2.channel
+            AND (t1.instance_id = t2.instance_id OR (t1.instance_id IS NULL AND t2.instance_id IS NULL))
+            AND t1.id <> t2.id
+            AND (
+              t1.updated_at < t2.updated_at
+              OR (t1.updated_at = t2.updated_at AND t1.id < t2.id)
+            )
+        `);
         await connection.query(
           `ALTER TABLE bot_conversation_state ADD UNIQUE KEY uq_bot_conv_state (user_id, contact_number, instance_id, channel)`,
         );
+        // A nova unique key cobre a FK de user_id; o índice temporário pode ser removido.
+        try {
+          await connection.query(`ALTER TABLE bot_conversation_state DROP INDEX idx_bot_conv_state_user`);
+        } catch (e) {}
         logSchema("Nova unique key uq_bot_conv_state (com channel) adicionada.");
       } else {
         logSchema("Índice uq_bot_conv_state já existe com a definição correta. Ignorando.");
