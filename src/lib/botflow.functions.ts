@@ -678,7 +678,6 @@ const saveBotStepInput = z.object({
   step_order: z.number(),
   trigger_type: z.string().min(1),
   trigger_value: z.string().nullable().optional(),
-  condition_operator: z.string().nullable().optional(),
   message_type: z.string().optional(),
   message_content: z.string().optional().nullable(),
   media_url: z.string().optional().nullable(),

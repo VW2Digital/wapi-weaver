@@ -3,6 +3,9 @@ import ipaddr from "ipaddr.js";
 import crypto from "crypto";
 import type { DbInterface } from "./db.js";
 import { setContactFieldValues } from "./services/contact-custom-field.service.js";
+
+/** Limite de hops compartilhado pelos loops de controle do processBotFlow e executeInactivityStep. */
+export const MAX_CONTROL_HOPS = 50;
 import {
   getLeadFieldDefinition,
   getLeadFieldValue,
@@ -378,9 +381,6 @@ async function evaluateTypedCondition(
   if (typeof rawRight === "string") {
     rawRight = resolveTemplate(rawRight, ctx);
   }
-  if ((rawRight === undefined || rawRight === null || rawRight === "") && rule.right) {
-    rawRight = resolveTemplate(rule.right, ctx);
-  }
 
   const right = coerceRightValue(rawRight, def.type);
 
@@ -482,27 +482,27 @@ export async function evaluateCondition(
           results.push(leftVal.trim().length === 0);
           break;
         case "greater_than": {
-          const nL = parseFloat(leftVal);
-          const nR = parseFloat(rightVal);
-          results.push(!isNaN(nL) && !isNaN(nR) && nL > nR);
+          const nL = parseNumber(leftVal);
+          const nR = parseNumber(rightVal);
+          results.push(nL !== null && nR !== null && nL > nR);
           break;
         }
         case "greater_or_equal": {
-          const nL = parseFloat(leftVal);
-          const nR = parseFloat(rightVal);
-          results.push(!isNaN(nL) && !isNaN(nR) && nL >= nR);
+          const nL = parseNumber(leftVal);
+          const nR = parseNumber(rightVal);
+          results.push(nL !== null && nR !== null && nL >= nR);
           break;
         }
         case "less_than": {
-          const nL = parseFloat(leftVal);
-          const nR = parseFloat(rightVal);
-          results.push(!isNaN(nL) && !isNaN(nR) && nL < nR);
+          const nL = parseNumber(leftVal);
+          const nR = parseNumber(rightVal);
+          results.push(nL !== null && nR !== null && nL < nR);
           break;
         }
         case "less_or_equal": {
-          const nL = parseFloat(leftVal);
-          const nR = parseFloat(rightVal);
-          results.push(!isNaN(nL) && !isNaN(nR) && nL <= nR);
+          const nL = parseNumber(leftVal);
+          const nR = parseNumber(rightVal);
+          results.push(nL !== null && nR !== null && nL <= nR);
           break;
         }
         case "in": {
@@ -519,6 +519,27 @@ export async function evaluateCondition(
             .map((s) => s.trim().toLowerCase())
             .filter(Boolean);
           results.push(!items.includes(leftVal.toLowerCase()));
+          break;
+        }
+        case "is_true": {
+          const v = leftVal.trim().toLowerCase();
+          results.push(v === "true" || v === "1" || v === "sim");
+          break;
+        }
+        case "is_false": {
+          const v = leftVal.trim().toLowerCase();
+          results.push(v === "false" || v === "0" || v === "nao" || v === "não");
+          break;
+        }
+        case "before":
+        case "after": {
+          const leftDate = new Date(leftVal);
+          const rightDate = new Date(rightVal);
+          if (isNaN(leftDate.getTime()) || isNaN(rightDate.getTime())) {
+            results.push(false);
+          } else {
+            results.push(compareDates(leftDate, rightDate, op));
+          }
           break;
         }
         default:
@@ -668,7 +689,7 @@ export async function executeHttpRequest(
     }
 
     let requestBody: any = undefined;
-    const bodyType = config.bodyType || "none";
+    const bodyType = config.bodyType || (config.body ? "json" : "none");
     if (bodyType === "json" && config.body) {
       const resolvedBodyStr = resolveTemplate(config.body, ctx);
       try {

@@ -4,9 +4,11 @@ import { dbAdmin } from "@/integrations/mysql/client.server";
 import { transcodeAudioToMp3 } from "@/lib/audio-transcode.server";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
 import { buildWhatsAppBotMessage } from "@/lib/meta-whatsapp-message";
+import { BOTFLOW_ACTION_REGISTRY } from "@/lib/bot-registry";
 import { getBotActivationContext, evaluateBotActivation } from "@/lib/messaging/services/bot-lifecycle.service";
 import { getContactFieldValues } from "./services/contact-custom-field.service.js";
 import { listLeadFields, type LeadFieldDefinition } from "./services/lead-field.service.js";
+import { MAX_CONTROL_HOPS } from "./botflow-control";
 
 function logInfo(message: string, data?: any) {
   console.log(`[botflow] ${message}`, data ? JSON.stringify(data) : "");
@@ -14,6 +16,12 @@ function logInfo(message: string, data?: any) {
 
 function logError(message: string, data?: any) {
   console.error(`[botflow] ${message}`, data ? JSON.stringify(data) : "");
+}
+
+const UNSUPPORTED_MESSAGE_TYPES = new Set(["product", "whatsapp_flow", "location", "create_chat"]);
+
+function isUnsupportedMessageType(messageType: string) {
+  return !messageType || UNSUPPORTED_MESSAGE_TYPES.has(messageType) || !BOTFLOW_ACTION_REGISTRY[messageType];
 }
 
 function parseMetadata(metadata: unknown): Record<string, unknown> {
@@ -855,7 +863,6 @@ export async function processBotFlow(
     };
 
     const CONTROL_TYPES = new Set(["delay", "condition", "randomizer", "save_variable", "http_request"]);
-    const MAX_CONTROL_HOPS = 50;
     let hops = 0;
 
     while (stepToExecute && CONTROL_TYPES.has(stepToExecute.message_type)) {
@@ -865,6 +872,7 @@ export async function processBotFlow(
           stepId: stepToExecute.id,
           flowId: activeFlow?.id,
         });
+        stepToExecute = null;
         break;
       }
 
@@ -1098,6 +1106,15 @@ export async function processBotFlow(
     );
     if (!preSendDecision.active) {
       logInfo("[BOT] Envio abortado por desativação/pausa durante execução", { reason: preSendDecision.reason, phoneDigits, stepId: stepToExecute.id });
+      return;
+    }
+
+    if (isUnsupportedMessageType(stepToExecute.message_type)) {
+      logError("Mensagem do bot com message_type não suportado", {
+        messageType: stepToExecute.message_type,
+        channel,
+        stepId: stepToExecute.id,
+      });
       return;
     }
 
@@ -1382,7 +1399,11 @@ export async function executeInactivityStep(
     let hops = 0;
     while (stepToExecute && CONTROL_TYPES.has(stepToExecute.message_type)) {
       hops++;
-      if (hops > 50) break;
+      if (hops > MAX_CONTROL_HOPS) {
+        logError("Limite máximo de hops de controle atingido em inatividade", { stepId: stepToExecute.id });
+        stepToExecute = null;
+        break;
+      }
 
       let stepConfig: any = {};
       try {
@@ -1448,6 +1469,15 @@ export async function executeInactivityStep(
     }
 
     if (!stepToExecute) return;
+
+    if (isUnsupportedMessageType(stepToExecute.message_type)) {
+      logError("Mensagem do bot com message_type não suportado (inatividade)", {
+        messageType: stepToExecute.message_type,
+        channel,
+        stepId: stepToExecute.id,
+      });
+      return;
+    }
 
     if (stepToExecute.message_content) {
       stepToExecute.message_content = resolveTemplate(stepToExecute.message_content, executionContext);
