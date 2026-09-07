@@ -81,7 +81,7 @@ export class InstagramProfileEnrichmentService {
     igsid: string,
     profile: InstagramProfile | null,
   ): Promise<void> {
-    if (!profile || (!profile.profilePic && !profile.username)) return;
+    if (!profile || (!profile.profilePic && !profile.username && !profile.name)) return;
 
     const [rows] = await db.query(
       `SELECT id, metadata FROM contact_identities

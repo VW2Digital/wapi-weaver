@@ -824,7 +824,7 @@ function SettingsPage() {
         appId,
         autoLogAppEvents: true,
         xfbml: true,
-        version: "v20.0",
+        version: form.meta_graph_version || "v26.0",
       });
       (window as any).fbInitialized = true;
     }
@@ -3426,7 +3426,7 @@ const MENU_ITEMS = [
   { to: "/campaigns", label: "Campanhas", icon: Send },
   { to: "/crm", label: "Kanban", icon: Kanban },
   { to: "/bot", label: "Bot de Fluxo", icon: Bot },
-  { to: "/ai-agent", label: "Agente de IA", icon: BrainCircuit },
+  { to: "/ds-agente", label: "Agente de IA", icon: BrainCircuit },
   { to: "/billing", label: "Faturamento", icon: Receipt },
   { to: "/settings", label: "Configurações", icon: Settings },
 ];
@@ -8781,13 +8781,21 @@ function InstagramSettingsTab({
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="api_version">Versão da API</Label>
-                    <Input
-                      id="api_version"
-                      value={form.meta_graph_version ?? ""}
-                      onChange={(e) => setForm({ ...form, meta_graph_version: e.target.value })}
-                      placeholder="v26.0"
-                      className="font-mono text-xs"
-                    />
+                    <Select
+                      value={form.meta_graph_version || "v26.0"}
+                      onValueChange={(val) => setForm({ ...form, meta_graph_version: val })}
+                    >
+                      <SelectTrigger id="api_version" className="font-mono text-xs">
+                        <SelectValue placeholder="v26.0" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {["v26.0", "v25.0", "v24.0"].map((v) => (
+                          <SelectItem key={v} value={v}>
+                            {v}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>

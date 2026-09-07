@@ -18,6 +18,7 @@ import {
 } from "@/lib/contacts.functions";
 import { getProfile } from "@/lib/profile.functions";
 import { resolveContactDisplayName } from "@/lib/messaging/services/contact-display.service";
+import { hydrateInstagramInboxContacts } from "@/lib/instagram-inbox-hydrate.functions";
 import {
   listTeams,
   listTeamMembers,
@@ -423,6 +424,7 @@ interface ChatContactRecord {
   kanban_stage_name?: string | null;
   kanban_stage_color?: string | null;
   custom_fields?: ContactCustomFields | null;
+  avatar_url?: string | null;
   [key: string]: unknown;
 }
 
@@ -1182,8 +1184,12 @@ function isInventoryProduct(value: unknown): value is InventoryProduct {
  */
 function getContactAvatarUrl(contact: ChatContactRecord | null): string {
   const cf = contact?.custom_fields;
-  if (!cf || typeof cf !== "object") return "";
-  const rawUrl = cf.avatar_url || cf.photo_url || cf.photo || cf.picture || cf.image_url || cf.image || "";
+  const fromRecord = typeof contact?.avatar_url === "string" ? contact.avatar_url : "";
+  const rawUrl =
+    fromRecord ||
+    (cf && typeof cf === "object"
+      ? cf.avatar_url || cf.photo_url || cf.photo || cf.picture || cf.image_url || cf.image || ""
+      : "");
   if (typeof rawUrl === "string" && (rawUrl.includes("whatsapp.net") || rawUrl.includes("whatsapp.com"))) {
     return "";
   }
@@ -1426,6 +1432,7 @@ function ChatPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const fetchContacts = useServerFn(listChatContacts);
+  const hydrateInstagramInbox = useServerFn(hydrateInstagramInboxContacts);
   const fetchContactDetails = useServerFn(getChatContactDetails);
   const fetchMessages = useServerFn(getChatMessages);
   const sendMessage = useServerFn(sendDirectMessage);
@@ -2932,6 +2939,17 @@ function ChatPage() {
     refetchOnWindowFocus: true,
   });
 
+  const instagramInboxIds = (contactsQuery.data ?? [])
+    .filter((contact) => contact.channel === "instagram")
+    .map((contact) => contact.id);
+
+  const instagramHydrateQuery = useQuery({
+    queryKey: ["instagram-inbox-hydrate", instagramInboxIds],
+    enabled: instagramInboxIds.length > 0,
+    queryFn: () => hydrateInstagramInbox({ data: { contactIds: instagramInboxIds } }),
+    staleTime: 60_000,
+  });
+
   // Auto-seleciona o contato ativo com base nos parâmetros da URL ou no localStorage persistido
   const hasAttemptedRestoreRef = useRef(false);
   useEffect(() => {
@@ -3100,14 +3118,39 @@ function ChatPage() {
     }
     const deduplicated = Array.from(seenMap.values());
 
-    if (!selectedContact?.id) return deduplicated;
+    const hydrated = instagramHydrateQuery.data ?? {};
+    const withInstagramDisplay = deduplicated.map((contact) => {
+      const patch = hydrated[contact.id];
+      if (!patch) return contact;
+      const customFields = {
+        ...(contact.custom_fields ?? {}),
+        ...(patch.name ? { instagram_profile_name: patch.name } : {}),
+        ...(patch.username ? { instagram_username: patch.username } : {}),
+        ...(patch.avatarUrl ? { avatar_url: patch.avatarUrl } : {}),
+      };
+      return {
+        ...contact,
+        name: patch.name || contact.name,
+        avatar_url: patch.avatarUrl || contact.avatar_url,
+        custom_fields: customFields,
+        last_message_time: contact.last_message_time || patch.lastMessageTime,
+      };
+    });
 
-    return deduplicated.map((contact) =>
+    if (!selectedContact?.id) return withInstagramDisplay;
+
+    return withInstagramDisplay.map((contact) =>
       contact.id === selectedContact.id
-        ? mergeChatContactRecord(contact, selectedContact)
+        ? mergeChatContactRecord(contact, {
+            ...selectedContact,
+            name: contact.name,
+            custom_fields: contact.custom_fields,
+            avatar_url: contact.avatar_url,
+            last_message_time: contact.last_message_time || selectedContact.last_message_time,
+          })
         : contact,
     );
-  }, [contactsQuery.data, draftChatContacts, selectedContact]);
+  }, [contactsQuery.data, draftChatContacts, selectedContact, instagramHydrateQuery.data]);
 
   const hasUnreadInOpenChat = useMemo(() => {
     if (!selectedPhone) return false;

@@ -2,6 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { dbAdmin } from "@/integrations/mysql/client.server";
 import { buildWhatsAppPayload } from "@/lib/whatsapp-payload";
 import { getOrSetCache } from "@/lib/cache";
+import db from "@/lib/db";
+import {
+  listChannelConnectionsForTenant,
+  resolveChannelAccessToken,
+} from "@/lib/messaging/channel-connection.service";
 
 const BATCH = 60;
 const STUCK_SENDING_MINUTES = 5;
@@ -305,7 +310,32 @@ export async function processOnce() {
       return data;
     });
 
-    if (!profile?.whatsapp_phone_number_id || !profile?.whatsapp_access_token) {
+    let phoneNumberId = profile?.whatsapp_phone_number_id as string | undefined;
+    let accessToken = profile?.whatsapp_access_token as string | undefined;
+    let apiVersion = (profile?.meta_graph_version as string | undefined) || "v26.0";
+    let rateLimit = profile?.rate_limit_per_second || 20;
+
+    try {
+      const channels = await listChannelConnectionsForTenant(userId, "whatsapp");
+      const active = channels.find((c) => c.status === "active") ?? channels[0];
+      if (active?.externalAccountId) {
+        phoneNumberId = active.externalAccountId;
+        accessToken = resolveChannelAccessToken(active);
+        const graphRows = (await db.query(
+          `SELECT mac.graph_version
+           FROM channel_connections cc
+           LEFT JOIN meta_app_connections mac ON mac.id = cc.meta_app_connection_id
+           WHERE cc.id = ? AND cc.tenant_id = ?
+           LIMIT 1`,
+          [active.id, active.tenantId],
+        )) as Array<{ graph_version?: string | null }>;
+        if (graphRows[0]?.graph_version) apiVersion = graphRows[0].graph_version;
+      }
+    } catch (err) {
+      console.warn("[Campaigns] channel_connection resolve failed, using profile credentials", err);
+    }
+
+    if (!phoneNumberId || !accessToken) {
       const ids = msgs.map((x) => x.id);
       await dbAdmin
         .from("campaign_messages")
@@ -326,9 +356,8 @@ export async function processOnce() {
       .in("id", campIds)
       .eq("status", "queued");
 
-    const apiVersion = profile.meta_graph_version || "v26.0";
-    const url = `https://graph.facebook.com/${apiVersion}/${profile.whatsapp_phone_number_id}/messages`;
-    const delayMs = Math.max(20, Math.floor(1000 / (profile.rate_limit_per_second || 20)));
+    const url = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`;
+    const delayMs = Math.max(20, Math.floor(1000 / (rateLimit || 20)));
 
     for (const m of msgs) {
       // Pular contatos do Instagram e Messenger (disparo em massa proibido)
@@ -352,11 +381,13 @@ export async function processOnce() {
         await new Promise((r) => setTimeout(r, delayMs));
         continue;
       }
-      // mark sending
-      await dbAdmin
-        .from("campaign_messages")
-        .update({ status: "sending", attempts: (m.attempts ?? 0) + 1 })
-        .eq("id", m.id);
+      const claimed = (await db.query(
+        `UPDATE campaign_messages
+         SET status = 'sending', attempts = attempts + 1
+         WHERE id = ? AND status = 'pending'`,
+        [m.id],
+      )) as { affectedRows?: number };
+      if (!claimed?.affectedRows) continue;
 
       let campaignPayload: any = {};
       try {
@@ -439,7 +470,7 @@ export async function processOnce() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${profile.whatsapp_access_token}`,
+            Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify(payload),
         });

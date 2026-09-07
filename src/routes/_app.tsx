@@ -358,6 +358,18 @@ function AppLayout() {
         router.navigate({ to: "/webhook-events" });
       } else if (p === "/licenses") {
         router.navigate({ to: "/licenses" });
+      } else if (p === "/docs") {
+        router.navigate({ to: "/docs" });
+      } else if (p === "/webchat") {
+        router.navigate({ to: "/webchat" });
+      } else if (p === "/profile") {
+        router.navigate({ to: "/profile" });
+      } else if (p === "/groups") {
+        router.navigate({ to: "/groups" });
+      } else if (p === "/settings/custom-fields") {
+        router.navigate({ to: "/settings/custom-fields" });
+      } else if (p === "/ai-agent") {
+        router.navigate({ to: "/ds-agente" });
       } else {
         router.navigate({ to: "/settings", search: { s: undefined } });
       }

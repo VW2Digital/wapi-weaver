@@ -1037,9 +1037,9 @@ function CRMPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas</SelectItem>
-                  <SelectItem value="cold">❄️ Frio</SelectItem>
-                  <SelectItem value="warm">🔥 Morno</SelectItem>
-                  <SelectItem value="hot">⚡ Quente</SelectItem>
+                  <SelectItem value="cold">Frio</SelectItem>
+                  <SelectItem value="warm">Morno</SelectItem>
+                  <SelectItem value="hot">Quente</SelectItem>
                 </SelectContent>
               </Select>
             </div>

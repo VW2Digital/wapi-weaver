@@ -23,24 +23,18 @@ export const Route = createFileRoute("/api/storage/file")({
             return new Response("Missing path parameter", { status: 400 });
           }
 
-          let user: any = null;
+          let user;
           try {
             user = await verifyStorageUser(request);
           } catch {
-            // Requisições GET originadas de tags <img>, <audio> ou <video> do navegador não anexam cabeçalhos customizados de Authorization
+            return new Response("Unauthorized", { status: 401 });
           }
 
-          // Safety normalization to prevent directory traversal
           let safePath: string;
-          if (user) {
-            try {
-              safePath = await assertTenantStoragePath(filePath, user);
-            } catch {
-              safePath = filePath.trim().replace(/\\/g, "/").replace(/^\/?uploads\//, "").replace(/^\/+/, "");
-            }
-          } else {
-            // Sanitização de caminho para requisições de mídia do navegador
-            safePath = filePath.trim().replace(/\\/g, "/").replace(/^\/?uploads\//, "").replace(/^\/+/, "");
+          try {
+            safePath = await assertTenantStoragePath(filePath, user);
+          } catch {
+            return new Response("Forbidden", { status: 403 });
           }
 
           if (safePath.includes("..") || path.posix.isAbsolute(safePath)) {

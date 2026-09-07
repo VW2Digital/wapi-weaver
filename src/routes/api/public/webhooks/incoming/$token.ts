@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { createHash } from "crypto";
 
 function corsHeaders() {
   return {
@@ -112,7 +113,9 @@ export const Route = createFileRoute("/api/public/webhooks/incoming/$token")({
         const parsed = await parsePayload(request);
         const idempotencyKey =
           request.headers.get("x-idempotency-key") ??
-          (parsed.body.idempotency_key == null ? null : String(parsed.body.idempotency_key));
+          (parsed.body.idempotency_key == null
+            ? createHash("sha256").update(JSON.stringify(parsed.body ?? {})).digest("hex")
+            : String(parsed.body.idempotency_key));
         if (idempotencyKey) {
           const db = (await import("@/lib/db")).default;
           const existing = await db
@@ -142,7 +145,21 @@ export const Route = createFileRoute("/api/public/webhooks/incoming/$token")({
               idempotencyKey: idempotencyKey ?? undefined,
             },
           );
-        } catch (error) {
+        } catch (error: any) {
+          if (error?.errno === 1062 || error?.code === "ER_DUP_ENTRY") {
+            const existing = await (await import("@/lib/db")).default
+              .query<Array<{ id: string | number }>>(
+                "SELECT id FROM incoming_webhook_events WHERE incoming_webhook_id = ? AND idempotency_key = ? LIMIT 1",
+                [webhook.id, idempotencyKey],
+              )
+              .catch(() => []);
+            if (existing[0]) {
+              return new Response(JSON.stringify({ ok: true, event_id: String(existing[0].id) }), {
+                status: 200,
+                headers,
+              });
+            }
+          }
           console.error("[Webhook] Falha ao persistir evento:", error);
           return new Response(JSON.stringify({ error: "Falha ao persistir webhook" }), {
             status: 500,

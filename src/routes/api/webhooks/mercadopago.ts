@@ -27,7 +27,7 @@ function verifyMercadoPagoSignature(
   dataId: string,
   secret: string
 ): boolean {
-  if (!secret) return true;
+  if (!secret) return false;
   if (!signatureHeader) return false;
 
   const parts = signatureHeader.split(",");
@@ -85,15 +85,20 @@ export const Route = createFileRoute("/api/webhooks/mercadopago")({
 
         // Validate webhook signature: when secret is configured, signature is STRICTLY REQUIRED
         const webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET || process.env.MP_WEBHOOK_SECRET || "";
-        if (webhookSecret) {
-          const isValid = verifyMercadoPagoSignature(signature, requestId, resourceId, webhookSecret);
-          if (!isValid) {
-            console.warn(`[MercadoPago Webhook] Invalid or missing signature for event resource: ${resourceId}`);
-            return new Response(JSON.stringify({ error: "Invalid or missing webhook signature" }), {
-              status: 401,
-              headers: { "Content-Type": "application/json" },
-            });
-          }
+        if (!webhookSecret) {
+          console.error("[MercadoPago Webhook] MERCADOPAGO_WEBHOOK_SECRET is not configured");
+          return new Response(JSON.stringify({ error: "Webhook secret not configured" }), {
+            status: 503,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        const isValid = verifyMercadoPagoSignature(signature, requestId, resourceId, webhookSecret);
+        if (!isValid) {
+          console.warn(`[MercadoPago Webhook] Invalid or missing signature for event resource: ${resourceId}`);
+          return new Response(JSON.stringify({ error: "Invalid or missing webhook signature" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          });
         }
 
         // Deduplication event ID based on unique request or resource + action/event

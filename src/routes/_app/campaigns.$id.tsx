@@ -132,9 +132,9 @@ function CampaignDetailPage() {
   usePageHeader({
     title: c ? c.name : "Carregando...",
     subtitle: c ? `Criada em ${new Date(c.created_at).toLocaleString("pt-BR")}` : "Detalhes da campanha",
-    action: c ? (
+    action: (
       <div className="flex items-center gap-2">
-        {(c.status === "failed" || c.status === "cancelled") && (
+        {c && (c.status === "failed" || c.status === "cancelled") && (
           <Button variant="outline" size="sm" onClick={() => setOpenEdit(true)} className="text-xs h-9">
             <Pencil className="mr-1.5 h-3.5 w-3.5" /> Editar e reenviar
           </Button>
@@ -165,7 +165,7 @@ function CampaignDetailPage() {
           </Link>
         </Button>
       </div>
-    ) : undefined,
+    ),
   });
 
   if (isLoading) {

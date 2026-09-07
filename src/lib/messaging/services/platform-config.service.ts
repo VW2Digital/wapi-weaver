@@ -88,11 +88,11 @@ export async function getMetaWebhookSecret(
   if (provider === "whatsapp") {
     let query = "SELECT whatsapp_app_secret, whatsapp_app_id FROM profiles WHERE whatsapp_app_secret IS NOT NULL AND whatsapp_app_secret <> ''";
     const params: any[] = [];
-    if (resourceId) {
-      query += " AND whatsapp_phone_number_id = ?";
-      params.push(resourceId);
+    if (!resourceId) {
+      throw new Error("META_APP_SECRET_NOT_CONFIGURED");
     }
-    query += " LIMIT 1";
+    query += " AND whatsapp_phone_number_id = ? LIMIT 1";
+    params.push(resourceId);
 
     const rows = (await db.query(query, params)) as Array<{
       whatsapp_app_secret: string | null;
@@ -109,11 +109,11 @@ export async function getMetaWebhookSecret(
   } else if (provider === "instagram") {
     let query = "SELECT app_secret FROM instagram_accounts WHERE app_secret IS NOT NULL AND app_secret <> ''";
     const params: any[] = [];
-    if (resourceId) {
-      query += " AND (page_id = ? OR instagram_business_account_id = ? OR ig_user_id = ?)";
-      params.push(resourceId, resourceId, resourceId);
+    if (!resourceId) {
+      throw new Error("META_APP_SECRET_NOT_CONFIGURED");
     }
-    query += " LIMIT 1";
+    query += " AND (page_id = ? OR instagram_business_account_id = ? OR ig_user_id = ?) LIMIT 1";
+    params.push(resourceId, resourceId, resourceId);
 
     const rows = (await db.query(query, params)) as Array<{ app_secret: string | null }>;
     const igSecret = String(rows[0]?.app_secret ?? "").trim();
@@ -166,27 +166,10 @@ export async function verifyMetaWebhookSignature(
 
   const expected = "sha256=" + createHmac("sha256", secret).update(Buffer.from(rawBody, "utf8")).digest("hex");
 
-  const strict = process.env.META_WEBHOOK_LEGACY_STRICT !== "0";
-
   const valid =
     typeof signatureHeader === "string" &&
     expected.length === signatureHeader.length &&
     timingSafeEqual(Buffer.from(expected, "utf8"), Buffer.from(signatureHeader, "utf8"));
-
-  if (!valid && !strict) {
-    console.warn(
-      `[META_WEBHOOK_SIGNATURE] provider=${provider} appId=${appId} secretSource=${source} rawBodyLength=${Buffer.byteLength(
-        rawBody,
-        "utf8",
-      )} BYPASSING_LEGACY_SIGNATURE_CHECK accepted_unverified`,
-    );
-    return {
-      valid: true,
-      matchedSource: source,
-      appId,
-      reason: undefined,
-    };
-  }
 
   console.log(
     `[META_WEBHOOK_SIGNATURE] provider=${provider} appId=${appId} secretSource=${source} secretLength=${secret.length} signaturePresent=true rawBodyLength=${Buffer.byteLength(

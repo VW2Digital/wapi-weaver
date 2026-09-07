@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect } from "react";
@@ -348,5 +348,8 @@ function AiAgentPage() {
 
 // @ts-ignore
 export const Route = createFileRoute("/_app/ai-agent")({
+  beforeLoad: () => {
+    throw redirect({ to: "/ds-agente" });
+  },
   component: AiAgentPage,
 });

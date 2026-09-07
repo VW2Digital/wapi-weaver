@@ -125,17 +125,19 @@ function CustomFieldsSettingsPage() {
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Button variant="ghost" size="sm" asChild className="-ml-2">
-              <Link to="/settings" search={{ s: undefined }}><ArrowLeft className="h-4 w-4" /></Link>
-            </Button>
-            <h1 className="text-xl font-semibold">Campos personalizados dos contatos</h1>
-          </div>
-          <p className="text-sm text-muted-foreground ml-9">Gerencie os campos personalizados que aparecem no formulário, lista e detalhe dos contatos.</p>
+          <h1 className="text-xl font-semibold">Campos personalizados dos contatos</h1>
+          <p className="text-sm text-muted-foreground">Gerencie os campos personalizados que aparecem no formulário, lista e detalhe dos contatos.</p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="mr-2 h-4 w-4" /> Novo campo
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" asChild>
+            <Link to="/settings" search={{ s: undefined }}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
+            </Link>
+          </Button>
+          <Button onClick={openCreate}>
+            <Plus className="mr-2 h-4 w-4" /> Novo campo
+          </Button>
+        </div>
       </div>
 
       <Card>

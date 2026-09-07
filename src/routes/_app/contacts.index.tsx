@@ -215,7 +215,7 @@ function ContactsPage() {
   const fetchCustomFields = useServerFn(listCustomFields);
   const fetchAgents = useServerFn(listAllAgents);
 
-  const { data: contacts, isLoading } = useQuery({
+  const { data: contacts, isLoading, isError, refetch } = useQuery({
     queryKey: ["contacts"],
     queryFn: () => fetch(),
   });
@@ -852,6 +852,17 @@ function ContactsPage() {
           <div className="overflow-auto">
             {isLoading ? (
               <TableSkeleton rows={8} cols={5} />
+            ) : isError ? (
+              <EmptyState
+                icon={Users}
+                title="Não foi possível carregar os contatos"
+                description="Tente novamente. Se o erro persistir, verifique a sessão e o banco."
+                action={
+                  <Button onClick={() => refetch()}>
+                    Tentar novamente
+                  </Button>
+                }
+              />
             ) : total === 0 ? (
               <EmptyState
                 icon={Users}

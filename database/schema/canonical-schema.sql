@@ -1073,6 +1073,7 @@ CREATE TABLE IF NOT EXISTS `incoming_webhook_events` (
   KEY `idx_iwe_contact` (`contact_id`),
   KEY `idx_iwe_status` (`user_id`,`status`),
   KEY `idx_iwe_received` (`user_id`,`received_at`),
+  UNIQUE KEY `uq_incoming_webhook_events_idempotency` (`incoming_webhook_id`,`idempotency_key`),
   CONSTRAINT `incoming_webhook_events_ibfk_1` FOREIGN KEY (`incoming_webhook_id`) REFERENCES `incoming_webhooks` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

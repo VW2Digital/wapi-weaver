@@ -2694,6 +2694,34 @@ export async function ensureDatabaseSchema() {
       }
     }
 
+    if (await tableExists(connection, "incoming_webhook_events")) {
+      await ensureIndexExists(
+        connection,
+        "incoming_webhook_events",
+        "uq_incoming_webhook_events_idempotency",
+        "ALTER TABLE `incoming_webhook_events` ADD UNIQUE KEY `uq_incoming_webhook_events_idempotency` (`incoming_webhook_id`, `idempotency_key`)",
+      );
+    }
+
+    const graphTables = [
+      ["profiles", "meta_graph_version"],
+      ["platform_settings", "meta_graph_version"],
+      ["meta_app_connections", "graph_version"],
+    ];
+    for (const [tableName, columnName] of graphTables) {
+      if (!(await tableExists(connection, tableName))) continue;
+      if (!(await columnExists(connection, tableName, columnName))) continue;
+      const [result] = await connection.query(
+        `UPDATE \`${tableName}\` SET \`${columnName}\` = 'v26.0'
+         WHERE \`${columnName}\` IS NULL OR \`${columnName}\` NOT IN ('v24.0', 'v25.0', 'v26.0')`,
+      );
+      if (result?.affectedRows) {
+        logSchema(
+          `Graph API: ${result.affectedRows} linha(s) em \`${tableName}.${columnName}\` alinhadas para v26.0.`,
+        );
+      }
+    }
+
     logSchema("Schema validado com sucesso.");
   } finally {
     await connection.end();
