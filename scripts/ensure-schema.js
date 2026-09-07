@@ -688,7 +688,7 @@ export async function ensureDatabaseSchema() {
         user_id VARCHAR(36) NOT NULL,
         contact_phone VARCHAR(50) NOT NULL,
         direction ENUM('incoming', 'outgoing') NOT NULL,
-        type ENUM('text', 'reaction', 'image', 'audio', 'video', 'document', 'sticker', 'location', 'contacts') NOT NULL DEFAULT 'text',
+        type VARCHAR(50) NOT NULL DEFAULT 'text',
         body TEXT NOT NULL,
         wa_message_id VARCHAR(255) NULL,
         status ENUM('sent', 'delivered', 'read', 'failed') DEFAULT 'sent',
@@ -798,15 +798,16 @@ export async function ensureDatabaseSchema() {
       "CREATE INDEX idx_contact_activities_contact ON contact_activities(contact_id)",
     );
 
-    // Garantir enum atualizado para direct_messages.type
+    // list_reply / button_reply da Meta chegam como type=interactive.
+    // ENUM curto causa "Data truncated for column 'type'" e o bot não executa.
     try {
       await connection.query(`
-        ALTER TABLE \`direct_messages\` 
-        MODIFY COLUMN \`type\` ENUM('text', 'reaction', 'image', 'audio', 'video', 'document', 'sticker', 'location', 'contacts') NOT NULL DEFAULT 'text'
+        ALTER TABLE \`direct_messages\`
+        MODIFY COLUMN \`type\` VARCHAR(50) NOT NULL DEFAULT 'text'
       `);
     } catch (err) {
       console.warn(
-        "[Schema] Falha ao atualizar enum de direct_messages.type (pode já estar atualizado):",
+        "[Schema] Falha ao atualizar direct_messages.type para VARCHAR(50):",
         err.message,
       );
     }
