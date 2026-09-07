@@ -44,7 +44,9 @@ export function evaluateBotActivation(input: BotActivationInput): BotActivationD
   }
 
   if (conversationState) {
-    if (!toBool(conversationState.bot_active)) {
+    // Ausência de valor segue o default do schema (bot_active = 1).
+    // Só bloqueia quando a conversa foi desligada explicitamente.
+    if (conversationState.bot_active != null && !toBool(conversationState.bot_active)) {
       return { active: false, reason: "CONVERSATION_BOT_INACTIVE" };
     }
     if (isPaused(conversationState)) {

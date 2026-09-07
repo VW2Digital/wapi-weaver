@@ -6,6 +6,10 @@ import { normalizeWaMessageId } from "@/lib/wa-message-id";
 import { buildWhatsAppBotMessage } from "@/lib/meta-whatsapp-message";
 import { BOTFLOW_ACTION_REGISTRY } from "@/lib/bot-registry";
 import { getBotActivationContext, evaluateBotActivation } from "@/lib/messaging/services/bot-lifecycle.service";
+import {
+  listChannelConnectionsForTenant,
+  resolveChannelAccessToken,
+} from "@/lib/messaging/channel-connection.service";
 import { getContactFieldValues } from "./services/contact-custom-field.service.js";
 import { listLeadFields, type LeadFieldDefinition } from "./services/lead-field.service.js";
 import { MAX_CONTROL_HOPS } from "./botflow-control";
@@ -35,6 +39,43 @@ function parseMetadata(metadata: unknown): Record<string, unknown> {
   return (metadata as Record<string, unknown>) ?? {};
 }
 
+async function resolveBotSendAuth(
+  tenantId: string,
+  provider: "whatsapp" | "instagram" | "messenger",
+  resourceId: string,
+): Promise<{ accessToken: string; apiVersion: string; sendResourceId: string } | null> {
+  try {
+    const channels = await listChannelConnectionsForTenant(tenantId, provider);
+    const matched =
+      channels.find((channel) => channel.externalAccountId === resourceId && channel.status === "active") ||
+      channels.find((channel) => channel.status === "active") ||
+      channels.find((channel) => channel.externalAccountId === resourceId) ||
+      channels[0];
+    if (matched) {
+      const accessToken = resolveChannelAccessToken(matched);
+      const { default: db } = await import("./db");
+      const graphRows = matched.metaAppConnectionId
+        ? ((await db.query(
+            `SELECT graph_version FROM meta_app_connections WHERE id = ? LIMIT 1`,
+            [matched.metaAppConnectionId],
+          )) as Array<{ graph_version?: string | null }>)
+        : [];
+      return {
+        accessToken,
+        apiVersion: graphRows[0]?.graph_version || process.env.META_GRAPH_VERSION || "v26.0",
+        sendResourceId: matched.externalAccountId || resourceId,
+      };
+    }
+  } catch (error) {
+    logInfo("Falha ao resolver channel_connection do bot; tentando credencial legado", {
+      tenantId,
+      provider,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+  return null;
+}
+
 async function isBotAlreadyProcessedForMessage(
   tenantId: string,
   channel: string,
@@ -42,13 +83,13 @@ async function isBotAlreadyProcessedForMessage(
 ): Promise<boolean> {
   if (!providerMessageId) return false;
   const { default: db } = await import("./db");
-  const [rows] = await db.query(
+  const rows = (await db.query(
     `SELECT id, metadata FROM direct_messages
      WHERE tenant_id = ? AND channel = ? AND provider_message_id = ? AND direction = 'incoming'
      LIMIT 1`,
     [tenantId, channel, providerMessageId],
-  );
-  const row = (rows as any[])?.[0];
+  )) as Array<{ id?: string; metadata?: unknown }>;
+  const row = Array.isArray(rows) ? rows[0] : null;
   if (!row) return false;
   return Boolean(parseMetadata(row.metadata)?.bot_processed_at);
 }
@@ -358,8 +399,8 @@ export async function processBotFlow(
 
     const { default: db } = await import("./db");
     const builderFlows: any[] = (await db.query(
-      `SELECT id, name, channel, is_active, last_executed_at FROM bot_flows WHERE tenant_id = ? AND channel = ?`,
-      [tenantId, channel],
+      `SELECT id, name, channel, is_active, last_executed_at FROM bot_flows WHERE (tenant_id = ? OR user_id = ?) AND channel = ?`,
+      [tenantId, tenantId, channel],
     )) as any[];
     const activeBuilderFlowIds = new Set(
       (builderFlows || []).filter((f: any) => Boolean(f.is_active)).map((f: any) => f.id),
@@ -431,7 +472,12 @@ export async function processBotFlow(
       .maybeSingle();
     const effectiveControlState = controlState ?? state;
 
-    if (effectiveControlState && !effectiveControlState.bot_active) {
+    if (
+      effectiveControlState &&
+      (effectiveControlState.bot_active === 0 ||
+        effectiveControlState.bot_active === false ||
+        effectiveControlState.bot_active === "0")
+    ) {
       logInfo("Bot desativado manualmente para este contato", { phoneDigits });
       return;
     }
@@ -468,19 +514,19 @@ export async function processBotFlow(
     const builderSteps = builderStepIds.length
       ? ((await db.query(
           `SELECT * FROM bot_steps
-           WHERE tenant_id = ?
+           WHERE (tenant_id = ? OR user_id = ?)
              AND flow_id IN (${builderStepIds.map(() => "?").join(",")})
            ORDER BY step_order ASC`,
-          [tenantId, ...builderStepIds],
+          [tenantId, tenantId, ...builderStepIds],
         )) as any[])
       : [];
     const legacySteps = legacySettingIds.length
       ? ((await db.query(
           `SELECT * FROM bot_steps
-           WHERE tenant_id = ? AND flow_id IS NULL
+           WHERE (tenant_id = ? OR user_id = ?) AND flow_id IS NULL
              AND bot_settings_id IN (${legacySettingIds.map(() => "?").join(",")})
            ORDER BY step_order ASC`,
-          [tenantId, ...legacySettingIds],
+          [tenantId, tenantId, ...legacySettingIds],
         )) as any[])
       : [];
 
@@ -1124,22 +1170,26 @@ export async function processBotFlow(
     let messageBuildMeta: Record<string, unknown> | null = null;
 
     if (channel === "whatsapp" || channel === "whatsapp_group") {
+      const channelAuth = await resolveBotSendAuth(tenantId, "whatsapp", phoneNumberId);
       const { data: p } = await dbAdmin
         .from("profiles")
         .select("whatsapp_access_token, meta_graph_version")
         .eq("id", tenantId)
         .maybeSingle();
 
-      const accessToken = p?.whatsapp_access_token || process.env.META_ACCESS_TOKEN;
+      const accessToken =
+        channelAuth?.accessToken || p?.whatsapp_access_token || process.env.META_ACCESS_TOKEN;
       if (!accessToken) {
-        logError("Token de acesso do WhatsApp (whatsapp_access_token) não encontrado no perfil ou env", { tenantId });
+        logError("Token de acesso do WhatsApp não encontrado em channel_connection nem no perfil", { tenantId });
         return;
       }
 
-      const apiVersion = p?.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
+      const apiVersion =
+        channelAuth?.apiVersion || p?.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
+      const sendPhoneNumberId = channelAuth?.sendResourceId || phoneNumberId;
       const preparedMedia = await prepareStepMediaForMeta(
         stepToExecute,
-        phoneNumberId,
+        sendPhoneNumberId,
         accessToken,
         apiVersion,
       );
@@ -1163,7 +1213,7 @@ export async function processBotFlow(
       if (channel === "whatsapp_group") payload.recipient_type = "group";
       logInfo("Enviando mensagem WhatsApp do fluxo", { flowId: stepToExecute.flow_id, stepId: stepToExecute.id, botflowType: build.meta.botflowType, metaType: build.meta.metaType, interactiveType: build.meta.interactiveType, recipient: `${phoneDigits.slice(0, 4)}***${phoneDigits.slice(-2)}` });
 
-      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
+      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${sendPhoneNumberId}/messages`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -1186,29 +1236,32 @@ export async function processBotFlow(
         });
       }
     } else if (channel === "instagram") {
+      const channelAuth = await resolveBotSendAuth(tenantId, "instagram", phoneNumberId);
       const { data: igAcc } = await dbAdmin
         .from("instagram_accounts")
         .select("access_token")
         .eq("instagram_business_account_id", phoneNumberId)
         .maybeSingle();
 
-      if (!igAcc || !igAcc.access_token) {
+      const igToken = channelAuth?.accessToken || igAcc?.access_token;
+      if (!igToken) {
         logError("Acesso ao Instagram não configurado ou token expirado");
         return;
       }
 
       const igRecipientId = phoneDigits.startsWith("ig_") ? phoneDigits.slice(3) : phoneDigits;
-      const apiVersion = process.env.META_GRAPH_VERSION || "v26.0";
+      const apiVersion = channelAuth?.apiVersion || process.env.META_GRAPH_VERSION || "v26.0";
+      const igResourceId = channelAuth?.sendResourceId || phoneNumberId;
 
       const payload = {
         recipient: { id: igRecipientId },
         message: { text: stepToExecute.message_content || "" },
       };
 
-      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
+      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${igResourceId}/messages`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${igAcc.access_token}`,
+          Authorization: `Bearer ${igToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
@@ -1223,29 +1276,32 @@ export async function processBotFlow(
         logError("Erro ao enviar mensagem no Instagram", errText);
       }
     } else if (channel === "messenger") {
+      const channelAuth = await resolveBotSendAuth(tenantId, "messenger", phoneNumberId);
       const { data: page } = await dbAdmin
         .from("facebook_pages")
         .select("page_access_token")
         .eq("page_id", phoneNumberId)
         .maybeSingle();
 
-      if (!page || !page.page_access_token) {
+      const pageToken = channelAuth?.accessToken || page?.page_access_token;
+      if (!pageToken) {
         logError("Acesso ao Facebook Messenger não configurado ou token expirado");
         return;
       }
 
       const fbRecipientId = phoneDigits.startsWith("fb_") ? phoneDigits.slice(3) : phoneDigits;
-      const apiVersion = process.env.META_GRAPH_API_VERSION || "v26.0";
+      const apiVersion = channelAuth?.apiVersion || process.env.META_GRAPH_API_VERSION || "v26.0";
+      const pageResourceId = channelAuth?.sendResourceId || phoneNumberId;
 
       const payload = {
         recipient: { id: fbRecipientId },
         message: { text: stepToExecute.message_content || "" },
       };
 
-      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
+      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${pageResourceId}/messages`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${page.page_access_token}`,
+          Authorization: `Bearer ${pageToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
@@ -1492,19 +1548,23 @@ export async function executeInactivityStep(
     let inactivityBuildMeta: Record<string, unknown> | null = null;
 
     if (channel === "whatsapp") {
+      const channelAuth = await resolveBotSendAuth(tenantId, "whatsapp", phoneNumberId);
       const { data: p } = await dbAdmin
         .from("profiles")
         .select("whatsapp_access_token, meta_graph_version")
         .eq("id", tenantId)
         .maybeSingle();
 
-      if (!p || !p.whatsapp_access_token) return;
+      const accessToken = channelAuth?.accessToken || p?.whatsapp_access_token;
+      if (!accessToken) return;
 
-      const apiVersion = p.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
+      const apiVersion =
+        channelAuth?.apiVersion || p?.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
+      const sendPhoneNumberId = channelAuth?.sendResourceId || phoneNumberId;
       const preparedMedia = await prepareStepMediaForMeta(
         stepToExecute,
-        phoneNumberId,
-        p.whatsapp_access_token,
+        sendPhoneNumberId,
+        accessToken,
         apiVersion,
       );
 
@@ -1521,10 +1581,10 @@ export async function executeInactivityStep(
       inactivitySentPayload = payload;
       inactivityBuildMeta = build.meta;
 
-      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
+      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${sendPhoneNumberId}/messages`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${p.whatsapp_access_token}`,
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
@@ -1536,29 +1596,32 @@ export async function executeInactivityStep(
         providerMsgId = normalizeWaMessageId(resJson?.messages?.[0]?.id) || null;
       }
     } else if (channel === "instagram") {
+      const channelAuth = await resolveBotSendAuth(tenantId, "instagram", phoneNumberId);
       const { data: igAcc } = await dbAdmin
         .from("instagram_accounts")
         .select("access_token")
         .eq("instagram_business_account_id", phoneNumberId)
         .maybeSingle();
 
-      if (!igAcc || !igAcc.access_token) {
+      const igToken = channelAuth?.accessToken || igAcc?.access_token;
+      if (!igToken) {
         logError("Acesso ao Instagram não configurado ou token expirado");
         return;
       }
 
       const igRecipientId = phoneDigits.startsWith("ig_") ? phoneDigits.slice(3) : phoneDigits;
-      const apiVersion = process.env.META_GRAPH_VERSION || "v26.0";
+      const apiVersion = channelAuth?.apiVersion || process.env.META_GRAPH_VERSION || "v26.0";
+      const igResourceId = channelAuth?.sendResourceId || phoneNumberId;
 
       const payload = {
         recipient: { id: igRecipientId },
         message: { text: stepToExecute.message_content || "" },
       };
 
-      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
+      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${igResourceId}/messages`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${igAcc.access_token}`,
+          Authorization: `Bearer ${igToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
@@ -1573,29 +1636,32 @@ export async function executeInactivityStep(
         logError("Erro ao enviar mensagem no Instagram", errText);
       }
     } else if (channel === "messenger") {
+      const channelAuth = await resolveBotSendAuth(tenantId, "messenger", phoneNumberId);
       const { data: page } = await dbAdmin
         .from("facebook_pages")
         .select("page_access_token")
         .eq("page_id", phoneNumberId)
         .maybeSingle();
 
-      if (!page || !page.page_access_token) {
+      const pageToken = channelAuth?.accessToken || page?.page_access_token;
+      if (!pageToken) {
         logError("Acesso ao Facebook Messenger não configurado ou token expirado");
         return;
       }
 
       const fbRecipientId = phoneDigits.startsWith("fb_") ? phoneDigits.slice(3) : phoneDigits;
-      const apiVersion = process.env.META_GRAPH_API_VERSION || "v26.0";
+      const apiVersion = channelAuth?.apiVersion || process.env.META_GRAPH_API_VERSION || "v26.0";
+      const pageResourceId = channelAuth?.sendResourceId || phoneNumberId;
 
       const payload = {
         recipient: { id: fbRecipientId },
         message: { text: stepToExecute.message_content || "" },
       };
 
-      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
+      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${pageResourceId}/messages`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${page.page_access_token}`,
+          Authorization: `Bearer ${pageToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
