@@ -101,7 +101,7 @@ show_usage() {
 Uso: sudo bash install.sh [opções]
 
 Opções:
-  --update                Atualiza o código da aplicação, roda migrações e reinicia os serviços.
+  --update                Atualiza o código, aplica migrações + ensure-schema (índices, Graph v26) e reinicia.
   --fresh-database        Faz backup prévio e recria o banco de dados do zero.
   --database-dump=ARQUIVO Restaura um arquivo de dump (.sql ou .sql.gz) no banco.
   --force-clone           Força o download limpo do código do GitHub.
@@ -933,6 +933,18 @@ run_database_migrations() {
   print_ok "Migrações aplicadas com sucesso."
 }
 
+# Contrato aditivo sem DDL no Bash: unique de webhook, tenant_id legado,
+# Graph API v24–v26 e demais ensures do ensure-schema.js.
+# Necessário no UPDATE porque database/migrations/ está congelado.
+run_ensure_schema() {
+  print_step "Aplicando contrato runtime do schema (ensure-schema.js)..."
+  docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/ensure-schema.js
+  if [ $? -ne 0 ]; then
+    dump_diagnostics_and_exit "Falha ao aplicar ensure-schema.js (índices, Graph version, colunas tenant)."
+  fi
+  print_ok "Contrato runtime do schema aplicado (idempotência, Graph v26, tenant_id)."
+}
+
 run_schema_sync() {
   print_step "Sincronizando schema canônico (sync-schema.js — aditivo, sem DROP)..."
   SYNC_EXIT=0
@@ -954,6 +966,7 @@ case "$DB_MODE" in
       create_database_schema
     fi
     run_database_migrations
+    run_ensure_schema
     run_schema_sync
     ;;
   RESTORE_DUMP)
@@ -965,11 +978,14 @@ case "$DB_MODE" in
     fi
     print_ok "Dump do banco importado com sucesso."
     run_database_migrations
+    run_ensure_schema
     run_schema_sync
     ;;
   FRESH|NEW)
     create_database_schema
     run_database_migrations
+    run_ensure_schema
+    run_schema_sync
     ;;
 esac
 
