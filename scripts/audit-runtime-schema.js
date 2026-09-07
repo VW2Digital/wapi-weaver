@@ -110,8 +110,18 @@ function main() {
   let planBasicFallbackCount = 0;
 
   const sqlKeywordBlocklist = new Set([
-    "select", "where", "set", "values", "dual", "information_schema", "inner", "left", "right", "outer", "cross", "on", "as", "from", "join", "into", "update", "group", "order", "by", "limit", "offset", "and", "or", "not", "null", "is", "in", "like", "having", "count", "sum", "avg", "min", "max", "coalesce", "now", "concat", "if", "else", "then", "end", "case", "when", "table", "columns", "show", "alter", "create", "drop", "delete", "insert", "exec", "execute"
+    "select", "where", "set", "values", "dual", "information_schema", "inner", "left", "right", "outer", "cross", "on", "as", "from", "join", "into", "update", "group", "order", "by", "limit", "offset", "and", "or", "not", "null", "is", "in", "like", "having", "count", "sum", "avg", "min", "max", "coalesce", "now", "concat", "if", "else", "then", "end", "case", "when", "table", "columns", "show", "alter", "create", "drop", "delete", "insert", "exec", "execute", "requires", "must", "valid", "status", "error",
   ]);
+
+  function looksLikeSql(inner) {
+    return (
+      /\bSELECT\b[\s\S]+\bFROM\b/i.test(inner) ||
+      /\bINSERT\s+INTO\b/i.test(inner) ||
+      /\bDELETE\s+FROM\b/i.test(inner) ||
+      /\bSHOW\s+COLUMNS\b/i.test(inner) ||
+      /\bUPDATE\s+[`'"]?[a-z_][a-z0-9_]*[`'"]?\s+SET\b/i.test(inner)
+    );
+  }
 
   const allColumnNames = new Set();
   for (const cols of Object.values(requiredColumns)) {
@@ -142,7 +152,7 @@ function main() {
     for (const strLit of stringLiterals) {
       const inner = strLit.slice(1, -1).trim();
       // Check if string contains SQL operation keywords
-      if (!/\b(?:SELECT|INSERT\s+INTO|UPDATE|DELETE\s+FROM|SHOW\s+COLUMNS)\b/i.test(inner)) {
+      if (!looksLikeSql(inner)) {
         continue;
       }
 

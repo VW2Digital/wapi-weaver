@@ -1030,11 +1030,10 @@ else
   fi
 fi
 
-# Auditoria Runtime
+# Auditoria Runtime (referências SQL em src/ vs required-tables/columns)
 echo "  Executando auditoria runtime de schema..."
-docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/audit-runtime-schema.js
-if [ $? -ne 0 ]; then
-  dump_diagnostics_and_exit "Falha na auditoria runtime de schema."
+if ! docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/audit-runtime-schema.js; then
+  dump_diagnostics_and_exit "Falha na auditoria runtime de schema. Veja o output do audit-runtime-schema.js acima (falsos positivos de inglês tipo 'update requires' já são ignorados)."
 fi
 
 # Executar CRUD Smoke Test no Banco de Dados
