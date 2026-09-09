@@ -5768,8 +5768,8 @@
       },
       "type": {
         "ordinal_position": 9,
-        "data_type": "enum",
-        "column_type": "enum('text','reaction','image','audio','video','document','sticker','location','contacts')",
+        "data_type": "varchar",
+        "column_type": "varchar(50)",
         "nullable": false,
         "default": "text",
         "key": "",

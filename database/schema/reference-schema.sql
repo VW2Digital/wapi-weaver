@@ -611,7 +611,7 @@ CREATE TABLE `direct_messages` (
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `contact_phone` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
   `direction` enum('incoming','outgoing') COLLATE utf8mb4_unicode_ci NOT NULL,
-  `type` enum('text','reaction','image','audio','video','document','sticker','location','contacts') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'text',
+  `type` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'text',
   `body` text COLLATE utf8mb4_unicode_ci NOT NULL,
   `wa_message_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `status` enum('queued','sent','delivered','read','failed') COLLATE utf8mb4_unicode_ci DEFAULT 'sent',
