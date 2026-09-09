@@ -18,6 +18,7 @@ interface CallButtonProps {
   waId?: string | null;
   disabled?: boolean;
   className?: string;
+  iconOnly?: boolean;
 }
 
 interface WebRtcCallSession {
@@ -89,6 +90,7 @@ export function CallButton({
   waId,
   disabled = false,
   className,
+  iconOnly = false,
 }: CallButtonProps) {
   const [isCalling, setIsCalling] = useState(false);
   const [isRequestingPerm, setIsRequestingPerm] = useState(false);
@@ -283,19 +285,21 @@ export function CallButton({
       <Button
         onClick={handleCall}
         disabled={disabled || isCalling || isRequestingPerm}
-        size="sm"
+        size={iconOnly ? "icon" : "sm"}
         className={cn(
-          "h-8 sm:h-8.5 px-3 sm:px-3.5 rounded-xl text-xs font-semibold bg-[#ff3366] hover:bg-[#e02453] active:scale-95 text-white shadow-sm border-0 gap-1.5 inline-flex items-center justify-center shrink-0 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
+          iconOnly
+            ? "h-10 w-10 rounded-full bg-transparent hover:bg-accent text-muted-foreground hover:text-foreground shadow-none border-0 shrink-0"
+            : "h-8 sm:h-8.5 px-3 sm:px-3.5 rounded-xl text-xs font-semibold bg-[#ff3366] hover:bg-[#e02453] active:scale-95 text-white shadow-sm border-0 gap-1.5 inline-flex items-center justify-center shrink-0 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
           className,
         )}
         title={contactName ? `Ligar para ${contactName}` : "Ligar"}
       >
         {isCalling || isRequestingPerm ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-white" />
+          <Loader2 className={cn("animate-spin", iconOnly ? "h-5 w-5" : "h-3.5 w-3.5 text-white")} />
         ) : (
-          <Phone className="h-3.5 w-3.5 text-white" />
+          <Phone className={cn(iconOnly ? "h-5 w-5" : "h-3.5 w-3.5 text-white")} />
         )}
-        <span>Ligar</span>
+        {!iconOnly && <span>Ligar</span>}
       </Button>
 
       {/* Interface Completa da Chamada em Execução */}

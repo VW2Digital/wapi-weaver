@@ -17,7 +17,9 @@ import {
   Shuffle,
   Database,
   Webhook,
+  CheckCheck,
 } from "lucide-react";
+import { WhatsAppListMessagePreview } from "@/components/whatsapp-list-message-preview";
 
 const getMediaType = (url: string, type: string) => {
   if (["image", "video", "audio", "document"].includes(type)) return type;
@@ -264,12 +266,14 @@ export function CustomNode({ data, selected }: any) {
         </div>
       )}
 
-      {/* Message Content */}
-      <div className="p-3 text-xs line-clamp-3 text-muted-foreground leading-relaxed">
-        {step.message_content || (
-          <span className="italic text-muted-foreground/50">Sem conteúdo de texto...</span>
-        )}
-      </div>
+      {/* Message Content (list uses the WhatsApp bubble below) */}
+      {step.message_type !== "list" && (
+        <div className="p-3 text-xs line-clamp-3 text-muted-foreground leading-relaxed">
+          {step.message_content || (
+            <span className="italic text-muted-foreground/50">Sem conteúdo de texto...</span>
+          )}
+        </div>
+      )}
 
       {/* Interactive Buttons / Quick Replies */}
       {["buttons", "dynamic_buttons"].includes(step.message_type) &&
@@ -307,56 +311,51 @@ export function CustomNode({ data, selected }: any) {
           );
         })()}
 
-      {/* Interactive List Options */}
+      {/* Interactive List — WhatsApp collapsed / expandable preview */}
       {step.message_type === "list" &&
         (() => {
           const sections = config?.action?.sections || [];
           const buttonText = config?.action?.button || "Ver opções";
-          const hasRows = sections.some((sec: any) => sec.rows?.length > 0);
+          const headerText = String(step.message_content || "").trim();
+          const rows = sections.flatMap((sec: any, secIdx: number) =>
+            (sec.rows || []).map((row: any, rowIdx: number) => ({
+              handleId: row.handleId || row.id || `row-${secIdx}-${rowIdx}`,
+            })),
+          );
           return (
-            <div className="px-3 pb-3 space-y-1.5 border-t border-border/30 pt-2">
-              <div className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1">
-                <span>Menu:</span>
-                <span className="text-foreground italic font-medium">{buttonText}</span>
-              </div>
-              {sections.map((sec: any, secIdx: number) => (
-                <div key={secIdx} className="space-y-1 pl-1">
-                  {sec.title && (
-                    <div className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-wider mt-1">
-                      {sec.title}
-                    </div>
+            <div className="px-3 pb-3 pt-2 relative">
+              <div
+                className="rounded-lg overflow-hidden shadow-sm"
+                style={{ backgroundColor: "#202c33", color: "#e9edef" }}
+              >
+                <div className="px-2.5 pt-2 pb-1">
+                  {headerText ? (
+                    <p className="text-[13px] leading-snug whitespace-pre-wrap">{headerText}</p>
+                  ) : (
+                    <p className="text-[13px] leading-snug italic opacity-50">Sem conteúdo de texto...</p>
                   )}
-                  {(sec.rows || []).map((row: any, rowIdx: number) => {
-                    const dest = getTargetLabel(row.id);
-                    const handleId = row.handleId || row.id || `row-${rowIdx}`;
-                    return (
-                      <div
-                        key={rowIdx}
-                        className="bg-background border border-border/80 rounded px-2 py-0.5 text-[10px] flex items-center justify-between relative"
-                      >
-                        <span className="font-medium truncate">{row.title || "Item"}</span>
-                        {dest && (
-                          <span className="text-[8px] font-bold text-primary bg-primary/10 px-1 py-0.5 rounded ml-1">
-                            → {dest}
-                          </span>
-                        )}
-                        <Handle
-                          type="source"
-                          position={Position.Right}
-                          id={handleId}
-                          style={{ right: -6, top: "50%", transform: "translateY(-50%)", width: 8, height: 8 }}
-                          className="bg-teal-500 hover:scale-125 transition-transform"
-                        />
-                      </div>
-                    );
-                  })}
+                  <div className="mt-1 flex items-end justify-end gap-1">
+                    <span className="text-[10px] leading-none" style={{ color: "#8696a0" }}>
+                      12:34
+                    </span>
+                    <CheckCheck className="h-3.5 w-3.5 shrink-0" style={{ color: "#53bdeb" }} />
+                  </div>
                 </div>
+                <WhatsAppListMessagePreview
+                  buttonText={buttonText}
+                  sections={sections}
+                />
+              </div>
+              {rows.map((row: { handleId: string }) => (
+                <Handle
+                  key={row.handleId}
+                  type="source"
+                  position={Position.Right}
+                  id={row.handleId}
+                  style={{ right: -6, width: 8, height: 8 }}
+                  className="bg-teal-500 hover:scale-125 transition-transform"
+                />
               ))}
-              {!hasRows && (
-                <div className="text-[10px] text-muted-foreground/50 italic">
-                  Sem itens configurados...
-                </div>
-              )}
             </div>
           );
         })()}

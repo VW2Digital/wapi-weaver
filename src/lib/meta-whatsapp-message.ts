@@ -86,7 +86,10 @@ export function buildWhatsAppBotMessage(to: string, step: WhatsAppBotStep, conte
     for (const raw of source) { const button = object(raw); const reply = object(button?.reply) || button; const id = text(reply?.id); const title = text(reply?.title); if (!id || !title) return invalid("Cada botão exige id e título."); if (id.length > 256 || title.length > 20) return invalid("ID ou título de botão excede o limite da Meta."); if (ids.has(id)) return invalid("Os IDs dos botões devem ser únicos."); ids.add(id); buttons.push({ type: "reply", reply: { id, title } }); }
     const validBody = requireText(body, "Texto dos botões", 1024); if (typeof validBody !== "string") return validBody;
     const headerCfg = object(action.header) || {}; let header: JsonObject | undefined;
-    if (rawType === "image_buttons") { const ref = mediaReference(step.media_url); if (!ref) return invalid("Imagem com botões exige uma imagem."); header = { type: "image", image: ref }; }
+    if (rawType === "image_buttons") {
+      const ref = mediaReference(step.media_url);
+      if (ref) header = { type: "image", image: ref };
+    }
     else if (text(headerCfg.type) === "text") { const headerText = requireText(text(headerCfg.text), "Cabeçalho", 60); if (typeof headerText !== "string") return headerText; header = { type: "text", text: headerText }; }
     else if (["image", "video", "document"].includes(text(headerCfg.type))) { const headerType = text(headerCfg.type); const ref = mediaReference(headerCfg.media || step.media_url); if (!ref) return invalid(`Cabeçalho ${headerType} exige mídia.`); header = { type: headerType, [headerType]: ref }; }
     else if (step.media_url) {
@@ -113,11 +116,33 @@ export function buildWhatsAppBotMessage(to: string, step: WhatsAppBotStep, conte
   if (type === "list" || type === "poll") {
     const source = type === "poll" ? (Array.isArray(action.options) ? action.options : []) : (Array.isArray(action.sections) ? action.sections : []);
     if (type === "list" && source.length > 10) return invalid("A lista aceita no máximo 10 seções.");
-    const sections = type === "poll" ? [{ rows: source.map((entry) => { const o = object(entry); return { id: text(o?.id), title: text(o?.title || o?.label), ...(text(o?.description) ? { description: text(o?.description) } : {}) }; }) }] : source.map((entry) => { const s = object(entry) || {}; return { ...(text(s.title) ? { title: text(s.title) } : {}), rows: (Array.isArray(s.rows) ? s.rows : []).map((row) => { const r = object(row); return { id: text(r?.id), title: text(r?.title), ...(text(r?.description) ? { description: text(r?.description) } : {}) }; }) }; });
-    const rows = sections.flatMap((s) => s.rows); if (!rows.length || rows.length > 10) return invalid("A lista exige entre 1 e 10 opções no total."); const ids = new Set<string>();
-    for (const row of rows) { if (!row.id || !row.title || row.id.length > 200 || row.title.length > 24 || (row.description && row.description.length > 72) || ids.has(row.id)) return invalid("Cada opção da lista exige id/título válidos e únicos."); ids.add(row.id); }
-    const validBody = requireText(body, "Texto da lista", 1024); if (typeof validBody !== "string") return validBody; const button = text(action.button || (type === "poll" ? "Escolher" : "Ver opções")); if (!button || button.length > 20) return invalid("Texto do botão da lista é inválido.");
-    return success({ ...payloadBase, type: "interactive", interactive: { type: "list", ...(text(action.header) ? { header: { type: "text", text: text(action.header) } } : {}), body: { text: validBody }, ...(text(step.footer_text) ? { footer: { text: text(step.footer_text) } } : {}), action: { button, sections } } }, type, "interactive", "list");
+    const ids = new Set<string>();
+    const sanitizeRow = (entry: unknown) => {
+      const r = object(entry);
+      const id = text(r?.id);
+      let title = text(r?.title || r?.label);
+      let description = text(r?.description);
+      if (!id || !title || id.length > 200 || ids.has(id)) return null;
+      if (title.length > 24) title = title.slice(0, 24);
+      if (description.length > 72) description = description.slice(0, 72);
+      ids.add(id);
+      return { id, title, ...(description ? { description } : {}) };
+    };
+    const sections = type === "poll"
+      ? [{ rows: source.map(sanitizeRow).filter((row): row is NonNullable<typeof row> => Boolean(row)) }]
+      : source.map((entry) => {
+          const s = object(entry) || {};
+          return {
+            ...(text(s.title) ? { title: text(s.title).slice(0, 24) } : {}),
+            rows: (Array.isArray(s.rows) ? s.rows : []).map(sanitizeRow).filter((row): row is NonNullable<typeof row> => Boolean(row)),
+          };
+        }).filter((section) => section.rows.length > 0);
+    const rows = sections.flatMap((s) => s.rows);
+    if (!rows.length || rows.length > 10) return invalid("A lista exige entre 1 e 10 opções no total.");
+    const validBody = requireText(body, "Texto da lista", 1024); if (typeof validBody !== "string") return validBody;
+    const buttonRaw = text(action.button || (type === "poll" ? "Escolher" : "Ver opções"));
+    const button = (buttonRaw || "Ver opções").slice(0, 20);
+    return success({ ...payloadBase, type: "interactive", interactive: { type: "list", ...(text(action.header) ? { header: { type: "text", text: text(action.header).slice(0, 60) } } : {}), body: { text: validBody }, ...(text(step.footer_text) ? { footer: { text: text(step.footer_text).slice(0, 60) } } : {}), action: { button, sections } } }, type, "interactive", "list");
   }
   if (type === "product_list") {
     const catalogId = text(action.catalog_id); const header = text(action.header); const validBody = requireText(body, "Texto da lista de produtos", 1024);

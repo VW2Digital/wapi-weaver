@@ -157,6 +157,7 @@ import {
   Plus,
 } from "lucide-react";
 import { WhatsAppIcon } from "@/components/brand-icons";
+import { WhatsAppListMessagePreview } from "@/components/whatsapp-list-message-preview";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -3334,6 +3335,20 @@ function ChatPage() {
     return date.toLocaleDateString([], { day: "numeric", month: "short" });
   };
 
+  const formatLastSeen = (dateInput: string | number | Date | null | undefined): string => {
+    if (!dateInput) return "";
+    const date = new Date(dateInput);
+    if (isNaN(date.getTime())) return "";
+    const time = date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    const now = new Date();
+    const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startMsg = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const dayDiff = Math.round((startToday.getTime() - startMsg.getTime()) / 86400000);
+    if (dayDiff === 0) return `visto por último hoje às ${time}`;
+    if (dayDiff === 1) return `visto por último ontem às ${time}`;
+    return `visto por último em ${date.toLocaleDateString("pt-BR")} às ${time}`;
+  };
+
   const unreadConversas = useMemo(() => {
     return contactsForUi
       .filter(
@@ -4281,6 +4296,15 @@ function ChatPage() {
         .dark .wa-bubble-outgoing {
           background: color-mix(in oklab, var(--primary) 22%, var(--card)) !important;
           border-color: color-mix(in oklab, var(--primary) 38%, var(--border)) !important;
+        }
+
+        .chat-thread-header {
+          background: var(--card);
+          border-bottom: 1px solid var(--border);
+        }
+        .dark .chat-thread-header {
+          background: #1B1B1B !important;
+          border-bottom-color: var(--border) !important;
         }
 
         .wa-bubble-incoming {
@@ -5379,14 +5403,14 @@ function ChatPage() {
             {selectedContact ? (
               <>
                 {/* Header do Chat */}
-                <div className="px-3 py-2.5 sm:px-4 sm:py-3 bg-card dark:bg-[#18161f] border border-border/80 dark:border-white/10 rounded-2xl mx-2.5 mt-2.5 mb-1 sm:mx-4 sm:mt-3 shadow-lg dark:shadow-2xl dark:shadow-black/60 flex items-center justify-between shrink-0 gap-2">
+                <div className="chat-thread-header h-[59px] px-3 sm:px-4 flex items-center justify-between shrink-0 gap-3">
                   {/* Informações do Contato à Esquerda */}
                   <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                     {/* Botão de Voltar (Mobile) */}
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="md:hidden h-8 w-8 -ml-1 text-muted-foreground hover:text-foreground shrink-0 rounded-lg"
+                      className="md:hidden h-9 w-9 -ml-1 text-muted-foreground hover:text-foreground hover:bg-accent shrink-0 rounded-full"
                       onClick={() => handleCloseChat()}
                       title="Voltar para a lista de conversas"
                     >
@@ -5429,127 +5453,82 @@ function ChatPage() {
                       );
                     })()}
 
-                    {/* Nome, Status e Tags */}
+                    {/* Nome e último visto */}
                     <div className="flex flex-col min-w-0 flex-1 justify-center">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <h3
-                          onClick={() => setContactInfoOpen((o) => !o)}
-                          title={selectedContact.name || formatPhone(getDisplayPhone(selectedContact)) || "Sem Nome"}
-                          className="font-bold text-sm sm:text-[15px] truncate text-foreground leading-none cursor-pointer hover:underline"
-                        >
-                          {selectedContact.name || formatPhone(getDisplayPhone(selectedContact)) || "Sem Nome"}
-                        </h3>
-
-                        {/* Status em texto colorido com dropdown */}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button
-                              type="button"
-                              className={cn(
-                                "text-xs font-semibold select-none cursor-pointer transition-opacity hover:opacity-80 shrink-0",
-                                selectedContact.chat_status === "fechado"
-                                  ? "text-zinc-400"
-                                  : selectedContact.chat_status === "aguardando"
-                                    ? "text-amber-500"
-                                    : "text-emerald-500",
-                              )}
-                              title="Alterar status da conversa"
-                            >
-                              {selectedContact.chat_status === "fechado"
-                                ? "Resolvida"
-                                : selectedContact.chat_status === "aguardando"
-                                  ? "Pendente"
-                                  : "Aberta"}
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent
-                            align="start"
-                            className="w-[150px] bg-popover border-border text-popover-foreground"
-                          >
-                            <DropdownMenuItem
-                              onClick={() =>
-                                statusMutation.mutate({
-                                  contactId: selectedContact.id,
-                                  status: "aberto",
-                                })
-                              }
-                              className="flex items-center justify-between cursor-pointer"
-                            >
-                              <div className="flex items-center gap-2">
-                                <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                                <span>Aberta</span>
-                              </div>
-                              {selectedContact.chat_status === "aberto" && (
-                                <Check className="h-3.5 w-3.5 text-violet-500" />
-                              )}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() =>
-                                statusMutation.mutate({
-                                  contactId: selectedContact.id,
-                                  status: "aguardando",
-                                })
-                              }
-                              className="flex items-center justify-between cursor-pointer"
-                            >
-                              <div className="flex items-center gap-2">
-                                <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-                                <span>Pendente</span>
-                              </div>
-                              {selectedContact.chat_status === "aguardando" && (
-                                <Check className="h-3.5 w-3.5 text-violet-500" />
-                              )}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() =>
-                                statusMutation.mutate({
-                                  contactId: selectedContact.id,
-                                  status: "fechado",
-                                })
-                              }
-                              className="flex items-center justify-between cursor-pointer"
-                            >
-                              <div className="flex items-center gap-2">
-                                <span className="h-2.5 w-2.5 rounded-full bg-zinc-500" />
-                                <span>Resolvida</span>
-                              </div>
-                              {selectedContact.chat_status === "fechado" && (
-                                <Check className="h-3.5 w-3.5 text-violet-500" />
-                              )}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-
-                      {/* Linha 2: Tags ou Telefone */}
-                      <div className="flex items-center gap-1.5 text-xs text-violet-500 dark:text-violet-400 font-medium leading-none mt-1 truncate">
-                        {(() => {
-                          const contactTags = cachedConvTags.filter(
-                            (conversationTag) =>
-                              conversationTag.contact_number === selectedContact.phone_e164,
-                          );
-                          if (contactTags.length > 0) {
-                            return contactTags.map((ct) => (
-                              <span key={ct.tag_id} className="truncate">
-                                {ct.tags?.name}
-                              </span>
-                            ));
-                          }
-                          return (
-                            <span className="text-muted-foreground truncate">
-                              {formatPhone(getDisplayPhone(selectedContact))}
-                            </span>
-                          );
-                        })()}
-                      </div>
+                      <h3
+                        onClick={() => setContactInfoOpen((o) => !o)}
+                        title={selectedContact.name || formatPhone(getDisplayPhone(selectedContact)) || "Sem Nome"}
+                        className="font-semibold text-[16px] truncate text-foreground leading-tight cursor-pointer"
+                      >
+                        {selectedContact.name || formatPhone(getDisplayPhone(selectedContact)) || "Sem Nome"}
+                      </h3>
+                      <p className="text-[13px] text-muted-foreground leading-tight truncate mt-0.5">
+                        {formatLastSeen(selectedContact.last_message_time) ||
+                          formatPhone(getDisplayPhone(selectedContact)) ||
+                          " "}
+                      </p>
                     </div>
                   </div>
 
                   {/* Ações à Direita */}
-                  <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                    {/* Call Button */}
+                  <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                    {(() => {
+                      const headerTags = cachedConvTags.filter(
+                        (conversationTag) =>
+                          conversationTag.contact_number === selectedContact.phone_e164,
+                      );
+                      const selectionCount = isSelectionMode ? visibleSelectedContactIds.length : 0;
+                      const count = selectionCount > 0 ? selectionCount : headerTags.length;
+                      const label =
+                        count > 0
+                          ? `${count} selecionada${count === 1 ? "" : "s"}`
+                          : "Etiquetas";
+                      return (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="h-8 max-w-[180px] inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 text-[13px] text-foreground shrink-0 hover:bg-accent"
+                              title="Etiquetas e seleção"
+                            >
+                              <span className="h-3.5 w-3.5 rounded-full overflow-hidden flex shrink-0 border border-border">
+                                <span className="w-1/2 h-full bg-primary" />
+                                <span className="w-1/2 h-full bg-amber-500" />
+                              </span>
+                              <span className="truncate">{label}</span>
+                              <ChevronDown className="h-3.5 w-3.5 opacity-80 shrink-0" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-52">
+                            {headerTags.length === 0 && selectionCount === 0 ? (
+                              <DropdownMenuItem disabled className="text-xs">
+                                Nenhuma etiqueta
+                              </DropdownMenuItem>
+                            ) : null}
+                            {headerTags.map((ct) => (
+                              <DropdownMenuItem key={ct.tag_id} className="text-xs" disabled>
+                                {ct.tags?.name || "Etiqueta"}
+                              </DropdownMenuItem>
+                            ))}
+                            {selectionCount > 0 ? (
+                              <DropdownMenuItem
+                                className="text-xs cursor-pointer"
+                                onClick={() => {
+                                  setIsSelectionMode(false);
+                                  setSelectedContactIds([]);
+                                }}
+                              >
+                                Limpar seleção
+                              </DropdownMenuItem>
+                            ) : null}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      );
+                    })()}
+
                     {selectedContact.channel === "whatsapp" && profileQuery.data?.whatsapp_phone_number_id && (
                       <CallButton
+                        iconOnly
                         phoneId={profileQuery.data.whatsapp_phone_number_id}
                         recipientPhone={selectedContact.phone_e164?.replace(/\D/g, "") || ""}
                         contactName={selectedContact.name ?? undefined}
@@ -5557,16 +5536,26 @@ function ChatPage() {
                       />
                     )}
 
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-10 w-10 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
+                      title="Buscar mensagens"
+                      onClick={() => setIsMessageSearchOpen((open) => !open)}
+                    >
+                      <Search className="h-5 w-5" />
+                    </Button>
+
                     {/* Options Dropdown Menu */}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 rounded-lg cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground shrink-0"
+                          className="h-10 w-10 rounded-full cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
                           title="Mais opções"
                         >
-                          <MoreVertical className="h-4 w-4" />
+                          <MoreVertical className="h-5 w-5" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-[220px]">
@@ -6857,42 +6846,12 @@ function ChatPage() {
                                                 </div>
                                               )}
 
-                                            {/* F. Render List selection action */}
+                                            {/* F. Render List selection action (WhatsApp collapsed menu) */}
                                             {interactive?.type === "list" && (
-                                              <div className="space-y-2 px-2.5 pb-2.5 pt-2 border-t border-border/40">
-                                                {(interactive.action?.sections ?? []).map(
-                                                  (section, sectionIndex) => (
-                                                    <div key={sectionIndex} className="space-y-1">
-                                                      {section.title && (
-                                                        <p className="px-1 text-[10px] font-semibold text-muted-foreground">
-                                                          {section.title}
-                                                        </p>
-                                                      )}
-                                                      {(section.rows ?? []).map((row, rowIndex) => (
-                                                        <div
-                                                          key={rowIndex}
-                                                          className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-2 text-left"
-                                                        >
-                                                          <p className="text-xs font-bold leading-tight">
-                                                            {row.title || `Opção ${rowIndex + 1}`}
-                                                          </p>
-                                                          {row.description && (
-                                                            <p className="mt-0.5 text-[10px] text-muted-foreground">
-                                                              {row.description}
-                                                            </p>
-                                                          )}
-                                                        </div>
-                                                      ))}
-                                                    </div>
-                                                  ),
-                                                )}
-                                                {!interactive.action?.sections?.length && (
-                                                  <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 py-2 text-center text-xs font-semibold text-emerald-500">
-                                                    <Menu className="mr-1.5 inline h-3.5 w-3.5" />
-                                                    {interactive.action?.button || "Ver Recursos"}
-                                                  </div>
-                                                )}
-                                              </div>
+                                              <WhatsAppListMessagePreview
+                                                buttonText={interactive.action?.button || "Ver Recursos"}
+                                                sections={interactive.action?.sections ?? []}
+                                              />
                                             )}
                                             {interactive?.type === "cta_url" && (
                                               <div className="px-2.5 pb-2.5 pt-2 border-t border-border/40">

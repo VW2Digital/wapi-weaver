@@ -101,36 +101,29 @@ export const hydrateInstagramInboxContacts = createServerFn({ method: "POST" })
       identity_metadata: unknown;
     }>;
 
-    const lastByContact = (await db.query(
-      `SELECT contact_id, MAX(created_at) AS last_at
-       FROM direct_messages
-       WHERE (tenant_id = ? OR user_id = ?)
-         AND contact_id IN (${placeholders})
-       GROUP BY contact_id`,
-      [tenantId, tenantId, ...ids],
-    )) as Array<{ contact_id: string; last_at: string | Date | null }>;
-    const lastMap = new Map(
-      lastByContact.map((row) => [row.contact_id, row.last_at ? new Date(row.last_at).toISOString() : null]),
-    );
-
+    const lastMap = new Map<string, string | null>();
     const phones = rows.map((row) => row.phone_e164).filter((phone): phone is string => Boolean(phone));
     if (phones.length > 0) {
-      const phonePlaceholders = phones.map(() => "?").join(",");
-      const lastByPhone = (await db.query(
-        `SELECT contact_phone, MAX(created_at) AS last_at
-         FROM direct_messages
-         WHERE (tenant_id = ? OR user_id = ?)
-           AND contact_phone IN (${phonePlaceholders})
-         GROUP BY contact_phone`,
-        [tenantId, tenantId, ...phones],
-      )) as Array<{ contact_phone: string; last_at: string | Date | null }>;
-      const phoneLast = new Map(
-        lastByPhone.map((row) => [row.contact_phone, row.last_at ? new Date(row.last_at).toISOString() : null]),
-      );
-      for (const row of rows) {
-        if (row.phone_e164 && phoneLast.get(row.phone_e164) && !lastMap.get(row.id)) {
-          lastMap.set(row.id, phoneLast.get(row.phone_e164) ?? null);
+      try {
+        const phonePlaceholders = phones.map(() => "?").join(",");
+        const lastByPhone = (await db.query(
+          `SELECT contact_phone, MAX(created_at) AS last_at
+           FROM direct_messages
+           WHERE (tenant_id = ? OR user_id = ?)
+             AND contact_phone IN (${phonePlaceholders})
+           GROUP BY contact_phone`,
+          [tenantId, tenantId, ...phones],
+        )) as Array<{ contact_phone: string; last_at: string | Date | null }>;
+        const phoneLast = new Map(
+          lastByPhone.map((row) => [row.contact_phone, row.last_at ? new Date(row.last_at).toISOString() : null]),
+        );
+        for (const row of rows) {
+          if (row.phone_e164 && phoneLast.get(row.phone_e164)) {
+            lastMap.set(row.id, phoneLast.get(row.phone_e164) ?? null);
+          }
         }
+      } catch {
+        // Horário é complementar; falha aqui não pode bloquear nome/foto.
       }
     }
 
@@ -171,80 +164,88 @@ export const hydrateInstagramInboxContacts = createServerFn({ method: "POST" })
 
     if (needsGraph.length === 0) return result;
 
-    const channels = await listChannelConnectionsForTenant(tenantId, "instagram");
-    const active = channels.find((channel) => channel.status === "active") ?? channels[0];
-    if (!active) return result;
-
-    let accessToken = "";
     try {
-      accessToken = resolveChannelAccessToken(active);
-    } catch {
-      return result;
-    }
+      const channels = await listChannelConnectionsForTenant(tenantId, "instagram");
+      const active = channels.find((channel) => channel.status === "active") ?? channels[0];
+      if (!active) return result;
 
-    const graphRows = (await db.query(
-      `SELECT graph_version FROM meta_app_connections WHERE id = ? LIMIT 1`,
-      [active.metaAppConnectionId],
-    )) as Array<{ graph_version?: string | null }>;
-    const service = new InstagramProfileEnrichmentService(graphRows[0]?.graph_version || "v26.0");
+      let accessToken = "";
+      try {
+        accessToken = resolveChannelAccessToken(active);
+      } catch {
+        return result;
+      }
 
-    for (const row of needsGraph.slice(0, GRAPH_BATCH)) {
-      const igsid = resolveIgsid(row);
-      if (!igsid) continue;
-      const profile = await service.fetchProfile(igsid, accessToken);
-      if (!profile) continue;
+      const graphRows = (await db.query(
+        `SELECT graph_version FROM meta_app_connections WHERE id = ? LIMIT 1`,
+        [active.metaAppConnectionId],
+      )) as Array<{ graph_version?: string | null }>;
+      const service = new InstagramProfileEnrichmentService(graphRows[0]?.graph_version || "v26.0");
 
-      const displayName = asString(profile.name) || asString(profile.username);
-      const username = asString(profile.username) || result[row.id]?.username || null;
-      const avatarUrl = asString(profile.profilePic) || result[row.id]?.avatarUrl || null;
-      const name =
-        (displayName && !isInstagramPlaceholderName(displayName) ? displayName : null) ||
-        (username ? `@${username}` : result[row.id]?.name || null);
+      for (const row of needsGraph.slice(0, GRAPH_BATCH)) {
+        const igsid = resolveIgsid(row);
+        if (!igsid) continue;
+        const profile = await service.fetchProfile(igsid, accessToken);
+        if (!profile) continue;
 
-      result[row.id] = {
-        name,
-        username,
-        avatarUrl,
-        lastMessageTime: result[row.id]?.lastMessageTime ?? null,
-      };
+        const displayName = asString(profile.name) || asString(profile.username);
+        const username = asString(profile.username) || result[row.id]?.username || null;
+        const avatarUrl = asString(profile.profilePic) || result[row.id]?.avatarUrl || null;
+        const name =
+          (displayName && !isInstagramPlaceholderName(displayName) ? displayName : null) ||
+          (username ? `@${username}` : result[row.id]?.name || null);
 
-      const customPatch = {
-        instagram_profile_name: asString(profile.name),
-        instagram_username: username,
-        avatar_url: avatarUrl,
-      };
-
-      await db.query(
-        `UPDATE contacts
-         SET name = CASE
-               WHEN name IS NULL OR name = '' OR name LIKE 'Instagram (%' OR name = 'Instagram' THEN COALESCE(?, name)
-               ELSE name
-             END,
-             custom_fields = JSON_MERGE_PATCH(COALESCE(custom_fields, '{}'), ?),
-             updated_at = NOW()
-         WHERE id = ? AND (tenant_id = ? OR user_id = ?)`,
-        [name, JSON.stringify(customPatch), row.id, tenantId, tenantId],
-      );
-
-      await db.query(
-        `UPDATE contact_identities
-         SET username = COALESCE(?, username),
-             avatar_url = COALESCE(?, avatar_url),
-             metadata = JSON_MERGE_PATCH(COALESCE(metadata, '{}'), ?),
-             updated_at = NOW()
-         WHERE contact_id = ? AND provider = 'instagram' AND tenant_id = ?`,
-        [
+        result[row.id] = {
+          name,
           username,
           avatarUrl,
-          JSON.stringify({
-            instagram_profile_name: asString(profile.name),
-            instagram_username: username,
-            avatar_source: "instagram_user_profile_api",
-          }),
-          row.id,
-          tenantId,
-        ],
-      );
+          lastMessageTime: result[row.id]?.lastMessageTime ?? null,
+        };
+
+        const customPatch = {
+          instagram_profile_name: asString(profile.name),
+          instagram_username: username,
+          avatar_url: avatarUrl,
+        };
+
+        try {
+          await db.query(
+            `UPDATE contacts
+             SET name = CASE
+                   WHEN name IS NULL OR name = '' OR name LIKE 'Instagram (%' OR name = 'Instagram' THEN COALESCE(?, name)
+                   ELSE name
+                 END,
+                 custom_fields = JSON_MERGE_PATCH(COALESCE(custom_fields, '{}'), ?),
+                 updated_at = NOW()
+             WHERE id = ? AND (tenant_id = ? OR user_id = ?)`,
+            [name, JSON.stringify(customPatch), row.id, tenantId, tenantId],
+          );
+
+          await db.query(
+            `UPDATE contact_identities
+             SET username = COALESCE(?, username),
+                 avatar_url = COALESCE(?, avatar_url),
+                 metadata = JSON_MERGE_PATCH(COALESCE(metadata, '{}'), ?),
+                 updated_at = NOW()
+             WHERE contact_id = ? AND provider = 'instagram' AND tenant_id = ?`,
+            [
+              username,
+              avatarUrl,
+              JSON.stringify({
+                instagram_profile_name: asString(profile.name),
+                instagram_username: username,
+                avatar_source: "instagram_user_profile_api",
+              }),
+              row.id,
+              tenantId,
+            ],
+          );
+        } catch {
+          // Resposta ao inbox já está em `result`; persistência não pode derrubar o hydrate.
+        }
+      }
+    } catch {
+      return result;
     }
 
     return result;

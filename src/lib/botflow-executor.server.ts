@@ -4,8 +4,12 @@ import { dbAdmin } from "@/integrations/mysql/client.server";
 import { transcodeAudioToMp3 } from "@/lib/audio-transcode.server";
 import { normalizeWaMessageId } from "@/lib/wa-message-id";
 import { buildWhatsAppBotMessage } from "@/lib/meta-whatsapp-message";
-import { BOTFLOW_ACTION_REGISTRY } from "@/lib/bot-registry";
+import { BOTFLOW_ACTION_REGISTRY, normalizeBotFlowMessageType } from "@/lib/bot-registry";
 import { getBotActivationContext, evaluateBotActivation } from "@/lib/messaging/services/bot-lifecycle.service";
+import {
+  listChannelConnectionsForTenant,
+  resolveChannelAccessToken,
+} from "@/lib/messaging/channel-connection.service";
 import { getContactFieldValues } from "./services/contact-custom-field.service.js";
 import { listLeadFields, type LeadFieldDefinition } from "./services/lead-field.service.js";
 import { MAX_CONTROL_HOPS } from "./botflow-control";
@@ -19,9 +23,144 @@ function logError(message: string, data?: any) {
 }
 
 const UNSUPPORTED_MESSAGE_TYPES = new Set(["product", "whatsapp_flow", "location", "create_chat"]);
+const INTERACTIVE_WAIT_TYPES = new Set(["list", "poll", "buttons", "dynamic_buttons", "image_buttons"]);
+
+function parseStepConfig(step: { buttons_config?: unknown }): Record<string, any> {
+  try {
+    const raw = step.buttons_config;
+    if (typeof raw === "string") {
+      return JSON.parse(raw || "{}", (key, value) =>
+        key === "__proto__" || key === "constructor" || key === "prototype" ? undefined : value,
+      );
+    }
+    return raw && typeof raw === "object" ? (raw as Record<string, any>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function collectInteractiveChoices(step: any): Array<{ id: string; title: string; description?: string }> {
+  const action = parseStepConfig(step).action || {};
+  const choices: Array<{ id: string; title: string; description?: string }> = [];
+  for (const button of Array.isArray(action.buttons) ? action.buttons : []) {
+    const reply = button?.reply || button;
+    const id = String(reply?.id || "").trim();
+    const title = String(reply?.title || "").trim();
+    if (id && title) choices.push({ id, title });
+  }
+  for (const section of Array.isArray(action.sections) ? action.sections : []) {
+    for (const row of Array.isArray(section?.rows) ? section.rows : []) {
+      const id = String(row?.id || "").trim();
+      const title = String(row?.title || "").trim();
+      const description = String(row?.description || "").trim();
+      if (id && title) choices.push({ id, title, ...(description ? { description } : {}) });
+    }
+  }
+  return choices;
+}
+
+function compileInteractiveTextFallback(step: any): string {
+  const body = String(step?.message_content || "").trim();
+  const lines = collectInteractiveChoices(step).map((choice, index) => {
+    const suffix = choice.description ? ` / ${choice.description}` : "";
+    return `${index + 1}. ${choice.title}${suffix}`;
+  });
+  return [body, ...lines].filter(Boolean).join("\n");
+}
 
 function isUnsupportedMessageType(messageType: string) {
-  return !messageType || UNSUPPORTED_MESSAGE_TYPES.has(messageType) || !BOTFLOW_ACTION_REGISTRY[messageType];
+  const normalized = normalizeBotFlowMessageType(messageType);
+  return !normalized || UNSUPPORTED_MESSAGE_TYPES.has(normalized) || !BOTFLOW_ACTION_REGISTRY[normalized];
+}
+
+function resolveDestinationStep(allSteps: any[], rawId: string | null | undefined): any | null {
+  const value = String(rawId || "").trim();
+  if (!value) return null;
+  const withoutPrefix = value.replace(/^step:/i, "");
+  const primary = withoutPrefix.split(":")[0] || withoutPrefix;
+  return (
+    allSteps.find((step) => step.id === value) ||
+    allSteps.find((step) => step.id === withoutPrefix) ||
+    allSteps.find((step) => step.id === primary) ||
+    allSteps.find((step) => String(step.trigger_value || "").trim() === value) ||
+    allSteps.find((step) => String(step.trigger_value || "").trim() === primary) ||
+    null
+  );
+}
+
+function normalizeChoiceText(value: unknown): string {
+  return String(value ?? "")
+    .trim()
+    .toLocaleLowerCase("pt-BR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function isStartOrListMenu(step: any): boolean {
+  if (!step) return false;
+  const type = String(step.message_type || "");
+  return step.trigger_type === "start" || type === "list";
+}
+
+function selectionLooksLikeRestart(messageBody: string): boolean {
+  const body = normalizeChoiceText(messageBody);
+  return (
+    body.includes("voltar") ||
+    body.includes("inicio") ||
+    body === "menu" ||
+    body.includes("reiniciar")
+  );
+}
+
+function findStepByInteractiveSelection(
+  allSteps: any[],
+  messageBody: string,
+  buttonPayload?: string,
+): any | null {
+  const fromPayload = resolveDestinationStep(allSteps, buttonPayload);
+  if (fromPayload && !isStartOrListMenu(fromPayload)) return fromPayload;
+  if (fromPayload && isStartOrListMenu(fromPayload) && selectionLooksLikeRestart(messageBody)) {
+    return fromPayload;
+  }
+
+  const normalizedBody = normalizeChoiceText(messageBody);
+  const payload = String(buttonPayload || "").trim();
+
+  for (const step of allSteps) {
+    const choices = collectInteractiveChoices(step);
+    for (const [index, choice] of choices.entries()) {
+      const title = normalizeChoiceText(choice.title);
+      const description = normalizeChoiceText(choice.description);
+      const matched =
+        (payload && (choice.id === payload || choice.id === `step:${payload}` || payload.endsWith(choice.id))) ||
+        (normalizedBody &&
+          (normalizedBody === title ||
+            normalizedBody === description ||
+            normalizedBody === String(index + 1) ||
+            (title && normalizedBody.startsWith(title))));
+      if (!matched) continue;
+      const dest = resolveDestinationStep(allSteps, choice.id);
+      if (dest) return dest;
+
+      const titleWords = title.replace(/^\d+[\.\)]\s*/, "");
+      const inferred = allSteps.find((candidate) => {
+        if (candidate.id === step.id) return false;
+        const trigger = normalizeChoiceText(candidate.trigger_value);
+        const content = normalizeChoiceText(candidate.message_content);
+        const type = String(candidate.message_type || "");
+        if (trigger && titleWords && (titleWords.includes(trigger) || trigger.includes(titleWords))) return true;
+        if (titleWords.includes("imagem") && (type === "image_buttons" || type === "image" || type === "buttons")) return true;
+        if (titleWords.includes("documento") && (type === "document" || type === "buttons")) return true;
+        if (titleWords.includes("audio") && type === "audio") return true;
+        if (titleWords.includes("link") && type === "cta_url") return true;
+        if (titleWords.includes("humano") && type === "transfer_chat") return true;
+        if (content && titleWords && content.includes(titleWords.split(" ")[0] || "")) return true;
+        return false;
+      });
+      if (inferred) return inferred;
+    }
+  }
+  return null;
 }
 
 function parseMetadata(metadata: unknown): Record<string, unknown> {
@@ -35,6 +174,43 @@ function parseMetadata(metadata: unknown): Record<string, unknown> {
   return (metadata as Record<string, unknown>) ?? {};
 }
 
+async function resolveBotSendAuth(
+  tenantId: string,
+  provider: "whatsapp" | "instagram" | "messenger",
+  resourceId: string,
+): Promise<{ accessToken: string; apiVersion: string; sendResourceId: string } | null> {
+  try {
+    const channels = await listChannelConnectionsForTenant(tenantId, provider);
+    const matched =
+      channels.find((channel) => channel.externalAccountId === resourceId && channel.status === "active") ||
+      channels.find((channel) => channel.status === "active") ||
+      channels.find((channel) => channel.externalAccountId === resourceId) ||
+      channels[0];
+    if (matched) {
+      const accessToken = resolveChannelAccessToken(matched);
+      const { default: db } = await import("./db");
+      const graphRows = matched.metaAppConnectionId
+        ? ((await db.query(
+            `SELECT graph_version FROM meta_app_connections WHERE id = ? LIMIT 1`,
+            [matched.metaAppConnectionId],
+          )) as Array<{ graph_version?: string | null }>)
+        : [];
+      return {
+        accessToken,
+        apiVersion: graphRows[0]?.graph_version || process.env.META_GRAPH_VERSION || "v26.0",
+        sendResourceId: matched.externalAccountId || resourceId,
+      };
+    }
+  } catch (error) {
+    logInfo("Falha ao resolver channel_connection do bot; tentando credencial legado", {
+      tenantId,
+      provider,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+  return null;
+}
+
 async function isBotAlreadyProcessedForMessage(
   tenantId: string,
   channel: string,
@@ -42,13 +218,13 @@ async function isBotAlreadyProcessedForMessage(
 ): Promise<boolean> {
   if (!providerMessageId) return false;
   const { default: db } = await import("./db");
-  const [rows] = await db.query(
+  const rows = (await db.query(
     `SELECT id, metadata FROM direct_messages
      WHERE tenant_id = ? AND channel = ? AND provider_message_id = ? AND direction = 'incoming'
      LIMIT 1`,
     [tenantId, channel, providerMessageId],
-  );
-  const row = (rows as any[])?.[0];
+  )) as Array<{ id?: string; metadata?: unknown }>;
+  const row = Array.isArray(rows) ? rows[0] : null;
   if (!row) return false;
   return Boolean(parseMetadata(row.metadata)?.bot_processed_at);
 }
@@ -336,7 +512,18 @@ export async function processBotFlow(
     return;
   }
 
+  const { createHash } = await import("crypto");
+  const lockName = createHash("md5")
+    .update(`botflow:${tenantId}:${incomingMessageId || phoneDigits}:${channel}`)
+    .digest("hex");
   try {
+    const { default: dbLock } = await import("./db");
+    const lockRows = (await dbLock.query("SELECT GET_LOCK(?, 10) AS taken", [lockName])) as Array<{ taken: number }>;
+    if (!lockRows?.[0] || !["1", 1].includes(lockRows[0].taken as number | string)) {
+      logInfo("Bot flow skipped: lock busy", { lockName, incomingMessageId, channel });
+      return;
+    }
+
     // 0. Gate de idempotência: um mesmo provider message id só pode executar o
     //    fluxo uma vez, independentemente de quantos caminhos (webhook direto,
     //    fila, retry de webhook) o invoquem.
@@ -358,8 +545,8 @@ export async function processBotFlow(
 
     const { default: db } = await import("./db");
     const builderFlows: any[] = (await db.query(
-      `SELECT id, name, channel, is_active, last_executed_at FROM bot_flows WHERE tenant_id = ? AND channel = ?`,
-      [tenantId, channel],
+      `SELECT id, name, channel, is_active, last_executed_at FROM bot_flows WHERE (tenant_id = ? OR user_id = ?) AND channel = ?`,
+      [tenantId, tenantId, channel],
     )) as any[];
     const activeBuilderFlowIds = new Set(
       (builderFlows || []).filter((f: any) => Boolean(f.is_active)).map((f: any) => f.id),
@@ -431,7 +618,12 @@ export async function processBotFlow(
       .maybeSingle();
     const effectiveControlState = controlState ?? state;
 
-    if (effectiveControlState && !effectiveControlState.bot_active) {
+    if (
+      effectiveControlState &&
+      (effectiveControlState.bot_active === 0 ||
+        effectiveControlState.bot_active === false ||
+        effectiveControlState.bot_active === "0")
+    ) {
       logInfo("Bot desativado manualmente para este contato", { phoneDigits });
       return;
     }
@@ -468,19 +660,19 @@ export async function processBotFlow(
     const builderSteps = builderStepIds.length
       ? ((await db.query(
           `SELECT * FROM bot_steps
-           WHERE tenant_id = ?
+           WHERE (tenant_id = ? OR user_id = ?)
              AND flow_id IN (${builderStepIds.map(() => "?").join(",")})
            ORDER BY step_order ASC`,
-          [tenantId, ...builderStepIds],
+          [tenantId, tenantId, ...builderStepIds],
         )) as any[])
       : [];
     const legacySteps = legacySettingIds.length
       ? ((await db.query(
           `SELECT * FROM bot_steps
-           WHERE tenant_id = ? AND flow_id IS NULL
+           WHERE (tenant_id = ? OR user_id = ?) AND flow_id IS NULL
              AND bot_settings_id IN (${legacySettingIds.map(() => "?").join(",")})
            ORDER BY step_order ASC`,
-          [tenantId, ...legacySettingIds],
+          [tenantId, tenantId, ...legacySettingIds],
         )) as any[])
       : [];
 
@@ -507,8 +699,7 @@ export async function processBotFlow(
           normalizedReceived === trigger ||
           normalizedReceived.startsWith(`${trigger} `) ||
           normalizedReceived.endsWith(` ${trigger}`) ||
-          normalizedReceived.includes(` ${trigger} `) ||
-          (trigger.length >= 3 && normalizedReceived.includes(trigger)),
+          normalizedReceived.includes(` ${trigger} `),
       );
     };
     const findFlowForStep = (step: any) =>
@@ -599,6 +790,19 @@ export async function processBotFlow(
         }
       }
 
+      if (nextStepId && nextStepId !== "-999" && nextStepId !== "-997") {
+        const routed = resolveDestinationStep(allSteps, nextStepId) || resolveDestinationStep(allSteps, buttonPayload);
+        const acceptRouted =
+          routed &&
+          (!isStartOrListMenu(routed) || selectionLooksLikeRestart(messageBody));
+        if (acceptRouted) {
+          stepToExecute = routed;
+          activeFlow = findFlowForStep(routed);
+          isButtonRedirect = true;
+          nextStepId = null;
+        }
+      }
+
       if (nextStepId === "-999") {
         const updateData = {
           current_step_id: null,
@@ -637,10 +841,6 @@ export async function processBotFlow(
     // IDs de botões/listas configurados como gatilho também podem vir puros
     // da API da Meta (sem o prefixo interno "step:").
     if (!isButtonRedirect && buttonPayload) {
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        buttonPayload,
-      );
-
       // Caso 1: botão configurado como gatilho (trigger_type = button + trigger_value match)
       // ou o próprio id do step foi colocado como buttonPayload (legado sem prefixo step:)
       const buttonStep = allSteps.find(
@@ -652,16 +852,31 @@ export async function processBotFlow(
         stepToExecute = buttonStep;
         activeFlow = findFlowForStep(buttonStep);
         isButtonRedirect = true;
-      } else if (isUUID) {
-        // Caso 2: buttonPayload é um UUID puro → é o ID do step destino
-        // (item de lista/botão salvo antes da migração para o prefixo "step:")
-        const targetStep = allSteps.find((s: any) => s.id === buttonPayload);
-        if (targetStep) {
+      } else {
+        const targetStep = resolveDestinationStep(allSteps, buttonPayload);
+        const acceptTarget =
+          targetStep &&
+          (!isStartOrListMenu(targetStep) || selectionLooksLikeRestart(messageBody));
+        if (acceptTarget) {
           stepToExecute = targetStep;
           activeFlow = findFlowForStep(targetStep);
           isButtonRedirect = true;
-          logInfo("[BOTFLOW] Roteamento por UUID puro (sem prefixo step:)", { buttonPayload, stepId: targetStep.id });
+          logInfo("[BOTFLOW] Roteamento por id/gatilho da lista", { buttonPayload, stepId: targetStep.id });
         }
+      }
+    }
+
+    if (!isButtonRedirect) {
+      const selectedFromList = findStepByInteractiveSelection(allSteps, messageBody, buttonPayload);
+      if (selectedFromList && selectedFromList.trigger_type !== "start") {
+        stepToExecute = selectedFromList;
+        activeFlow = findFlowForStep(selectedFromList);
+        isButtonRedirect = true;
+        logInfo("[BOTFLOW] Resposta da lista roteada por titulo/id", {
+          stepId: selectedFromList.id,
+          messageBody,
+          buttonPayload,
+        });
       }
     }
 
@@ -669,7 +884,35 @@ export async function processBotFlow(
       // Regra 1: Se existe sessão ativa para a conversa (e não é comando global de interrupção nem está expirada), continuar o fluxo atual
       if (state && state.current_step_id && !isSessionExpired && !isInterruption) {
         const queuedStep = allSteps?.find((s: any) => s.id === state.current_step_id);
-        if (queuedStep) {
+        if (queuedStep && INTERACTIVE_WAIT_TYPES.has(String(queuedStep.message_type || ""))) {
+          const choices = collectInteractiveChoices(queuedStep);
+          const normalizedBody = normalizeTriggerValue(messageBody);
+          const selected =
+            choices.find((choice, index) => {
+              const id = String(choice.id || "");
+              const title = normalizeTriggerValue(choice.title);
+              const description = normalizeTriggerValue(choice.description);
+              return (
+                (buttonPayload && (id === buttonPayload || id === `step:${buttonPayload}`)) ||
+                normalizedBody === title ||
+                (description && normalizedBody === description) ||
+                normalizedBody === String(index + 1) ||
+                (title && normalizedBody.startsWith(`${title} `))
+              );
+            }) || null;
+          if (selected) {
+            const targetStep = resolveDestinationStep(allSteps, selected.id);
+            const acceptQueued =
+              targetStep &&
+              (!isStartOrListMenu(targetStep) || selectionLooksLikeRestart(messageBody));
+            if (acceptQueued) {
+              stepToExecute = targetStep;
+              activeFlow = findFlowForStep(targetStep);
+              isButtonRedirect = true;
+              logInfo("[BOTFLOW] Resposta da lista/botões roteada", { fromStepId: queuedStep.id, toStepId: targetStep.id });
+            }
+          }
+        } else if (queuedStep) {
           stepToExecute = queuedStep;
           activeFlow = findFlowForStep(queuedStep);
           logInfo("[BOTFLOW] Continuando fluxo na etapa seguinte", { stepId: queuedStep.id });
@@ -998,8 +1241,9 @@ export async function processBotFlow(
         // Política padrão de 24h permanece quando a configuração estiver inválida.
       }
     }
+    const waitsForReply = INTERACTIVE_WAIT_TYPES.has(String(stepToExecute.message_type || ""));
     const updateData = {
-      current_step_id: isHandoff ? null : stepToExecute.next_step_id || null,
+      current_step_id: isHandoff ? null : waitsForReply ? stepToExecute.id : stepToExecute.next_step_id || null,
       last_interaction: new Date().toISOString(),
       ...(isHandoff
         ? {
@@ -1124,91 +1368,155 @@ export async function processBotFlow(
     let messageBuildMeta: Record<string, unknown> | null = null;
 
     if (channel === "whatsapp" || channel === "whatsapp_group") {
+      const channelAuth = await resolveBotSendAuth(tenantId, "whatsapp", phoneNumberId);
       const { data: p } = await dbAdmin
         .from("profiles")
         .select("whatsapp_access_token, meta_graph_version")
         .eq("id", tenantId)
         .maybeSingle();
 
-      const accessToken = p?.whatsapp_access_token || process.env.META_ACCESS_TOKEN;
+      const accessToken =
+        channelAuth?.accessToken || p?.whatsapp_access_token || process.env.META_ACCESS_TOKEN;
       if (!accessToken) {
-        logError("Token de acesso do WhatsApp (whatsapp_access_token) não encontrado no perfil ou env", { tenantId });
+        logError("Token de acesso do WhatsApp não encontrado em channel_connection nem no perfil", { tenantId });
         return;
       }
 
-      const apiVersion = p?.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
+      const apiVersion =
+        channelAuth?.apiVersion || p?.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
+      const sendPhoneNumberId = channelAuth?.sendResourceId || phoneNumberId;
       const preparedMedia = await prepareStepMediaForMeta(
         stepToExecute,
-        phoneNumberId,
+        sendPhoneNumberId,
         accessToken,
         apiVersion,
       );
 
+      let stepForSend = preparedMedia.ok
+        ? preparedMedia.step
+        : { ...stepToExecute, media_url: null };
       if (!preparedMedia.ok) {
-        logError("BOTFLOW_MEDIA_PREPARATION_FAILED", { flowId: stepToExecute.flow_id, stepId: stepToExecute.id, reason: preparedMedia.message });
-        return;
+        logError("BOTFLOW_MEDIA_PREPARATION_FAILED", {
+          flowId: stepToExecute.flow_id,
+          stepId: stepToExecute.id,
+          reason: preparedMedia.message,
+        });
       }
-      const build = buildWhatsAppBotMessage(
-        phoneDigits,
-        preparedMedia.step,
-        channel === "whatsapp" ? incomingMessageId : null,
-      );
-      if (!build.ok) {
-        logError(build.code, { flowId: stepToExecute.flow_id, stepId: stepToExecute.id, messageType: stepToExecute.message_type, reason: build.message });
-        return;
+
+      const hasChoices = collectInteractiveChoices(stepForSend).length > 0;
+      const rawMedia = String(stepForSend.media_url || stepToExecute.media_url || "");
+      const looksPdf = /\.pdf(\?|$)/i.test(rawMedia) || String(stepToExecute.message_type) === "document";
+      const splitMediaType = looksPdf ? "document" : String(stepToExecute.message_type) === "audio" ? "audio" : String(stepToExecute.message_type) === "video" ? "video" : "image";
+      const sendAttempts: Array<{ label: string; step: any; stopOnSuccess?: boolean }> = [
+        { label: "combined", step: stepForSend, stopOnSuccess: true },
+      ];
+      if (rawMedia && hasChoices) {
+        sendAttempts.push({
+          label: "media",
+          step: {
+            ...stepForSend,
+            message_type: splitMediaType,
+            buttons_config: null,
+            message_content: stepForSend.media_caption || stepForSend.message_content,
+            filename: stepForSend.filename || stepForSend.original_filename || (looksPdf ? "documento.pdf" : undefined),
+          },
+        });
+        sendAttempts.push({
+          label: "buttons",
+          step: { ...stepForSend, message_type: "buttons", media_url: null },
+          stopOnSuccess: true,
+        });
       }
-      const { payload } = build;
-      sentPayload = payload;
-      messageBuildMeta = build.meta;
-      if (channel === "whatsapp_group") payload.recipient_type = "group";
-      logInfo("Enviando mensagem WhatsApp do fluxo", { flowId: stepToExecute.flow_id, stepId: stepToExecute.id, botflowType: build.meta.botflowType, metaType: build.meta.metaType, interactiveType: build.meta.interactiveType, recipient: `${phoneDigits.slice(0, 4)}***${phoneDigits.slice(-2)}` });
+      if (hasChoices) {
+        sendAttempts.push({
+          label: "buttons-only",
+          step: { ...stepForSend, message_type: "buttons", media_url: null },
+          stopOnSuccess: true,
+        });
+      }
+      const caption = String(stepToExecute.message_content || stepToExecute.media_caption || "").trim();
+      if (caption) {
+        sendAttempts.push({
+          label: "text",
+          step: { ...stepForSend, message_type: "text", message_content: caption, media_url: null, buttons_config: {} },
+          stopOnSuccess: true,
+        });
+      }
 
-      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (r.ok) {
-        isSuccess = true;
-        const resJson = await r.json();
-        providerMsgId = normalizeWaMessageId(resJson?.messages?.[0]?.id) || null;
-      } else {
+      const contextId = null;
+      for (const attempt of sendAttempts) {
+        const build = buildWhatsAppBotMessage(phoneDigits, attempt.step, contextId);
+        if (!build.ok) {
+          logInfo("Tentativa de montagem WhatsApp ignorada", {
+            stepId: stepToExecute.id,
+            attempt: attempt.label,
+            reason: build.message,
+          });
+          continue;
+        }
+        const payload = build.payload;
+        if (channel === "whatsapp_group") payload.recipient_type = "group";
+        logInfo("Enviando mensagem WhatsApp do fluxo", {
+          flowId: stepToExecute.flow_id,
+          stepId: stepToExecute.id,
+          attempt: attempt.label,
+          botflowType: build.meta.botflowType,
+          metaType: build.meta.metaType,
+          interactiveType: build.meta.interactiveType,
+        });
+        const r = await fetch(`https://graph.facebook.com/${apiVersion}/${sendPhoneNumberId}/messages`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+        if (r.ok) {
+          isSuccess = true;
+          sentPayload = payload;
+          messageBuildMeta = build.meta;
+          const resJson = await r.json();
+          providerMsgId = normalizeWaMessageId(resJson?.messages?.[0]?.id) || providerMsgId;
+          if (attempt.stopOnSuccess || attempt.label === "combined") break;
+          continue;
+        }
         const errorText = await r.text();
         logError("Meta recusou a mensagem do fluxo", {
           status: r.status,
           stepId: stepToExecute.id,
+          attempt: attempt.label,
           messageType: stepToExecute.message_type,
           response: errorText.slice(0, 1000),
         });
       }
     } else if (channel === "instagram") {
+      const channelAuth = await resolveBotSendAuth(tenantId, "instagram", phoneNumberId);
       const { data: igAcc } = await dbAdmin
         .from("instagram_accounts")
         .select("access_token")
         .eq("instagram_business_account_id", phoneNumberId)
         .maybeSingle();
 
-      if (!igAcc || !igAcc.access_token) {
+      const igToken = channelAuth?.accessToken || igAcc?.access_token;
+      if (!igToken) {
         logError("Acesso ao Instagram não configurado ou token expirado");
         return;
       }
 
       const igRecipientId = phoneDigits.startsWith("ig_") ? phoneDigits.slice(3) : phoneDigits;
-      const apiVersion = process.env.META_GRAPH_VERSION || "v26.0";
+      const apiVersion = channelAuth?.apiVersion || process.env.META_GRAPH_VERSION || "v26.0";
+      const igResourceId = channelAuth?.sendResourceId || phoneNumberId;
 
       const payload = {
         recipient: { id: igRecipientId },
         message: { text: stepToExecute.message_content || "" },
       };
 
-      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
+      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${igResourceId}/messages`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${igAcc.access_token}`,
+          Authorization: `Bearer ${igToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
@@ -1223,29 +1531,32 @@ export async function processBotFlow(
         logError("Erro ao enviar mensagem no Instagram", errText);
       }
     } else if (channel === "messenger") {
+      const channelAuth = await resolveBotSendAuth(tenantId, "messenger", phoneNumberId);
       const { data: page } = await dbAdmin
         .from("facebook_pages")
         .select("page_access_token")
         .eq("page_id", phoneNumberId)
         .maybeSingle();
 
-      if (!page || !page.page_access_token) {
+      const pageToken = channelAuth?.accessToken || page?.page_access_token;
+      if (!pageToken) {
         logError("Acesso ao Facebook Messenger não configurado ou token expirado");
         return;
       }
 
       const fbRecipientId = phoneDigits.startsWith("fb_") ? phoneDigits.slice(3) : phoneDigits;
-      const apiVersion = process.env.META_GRAPH_API_VERSION || "v26.0";
+      const apiVersion = channelAuth?.apiVersion || process.env.META_GRAPH_API_VERSION || "v26.0";
+      const pageResourceId = channelAuth?.sendResourceId || phoneNumberId;
 
       const payload = {
         recipient: { id: fbRecipientId },
         message: { text: stepToExecute.message_content || "" },
       };
 
-      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
+      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${pageResourceId}/messages`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${page.page_access_token}`,
+          Authorization: `Bearer ${pageToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
@@ -1309,6 +1620,13 @@ export async function processBotFlow(
     await markBotProcessedForMessage(tenantId, channel, incomingMessageId);
   } catch (err: any) {
     logError("Exceção fatal no processBotFlow", { error: err.message });
+  } finally {
+    try {
+      const { default: dbUnlock } = await import("./db");
+      await dbUnlock.query("SELECT RELEASE_LOCK(?)", [lockName]);
+    } catch {
+      // lock some sozinho ao encerrar a conexão
+    }
   }
 }
 
@@ -1492,19 +1810,23 @@ export async function executeInactivityStep(
     let inactivityBuildMeta: Record<string, unknown> | null = null;
 
     if (channel === "whatsapp") {
+      const channelAuth = await resolveBotSendAuth(tenantId, "whatsapp", phoneNumberId);
       const { data: p } = await dbAdmin
         .from("profiles")
         .select("whatsapp_access_token, meta_graph_version")
         .eq("id", tenantId)
         .maybeSingle();
 
-      if (!p || !p.whatsapp_access_token) return;
+      const accessToken = channelAuth?.accessToken || p?.whatsapp_access_token;
+      if (!accessToken) return;
 
-      const apiVersion = p.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
+      const apiVersion =
+        channelAuth?.apiVersion || p?.meta_graph_version || process.env.META_GRAPH_VERSION || "v26.0";
+      const sendPhoneNumberId = channelAuth?.sendResourceId || phoneNumberId;
       const preparedMedia = await prepareStepMediaForMeta(
         stepToExecute,
-        phoneNumberId,
-        p.whatsapp_access_token,
+        sendPhoneNumberId,
+        accessToken,
         apiVersion,
       );
 
@@ -1521,10 +1843,10 @@ export async function executeInactivityStep(
       inactivitySentPayload = payload;
       inactivityBuildMeta = build.meta;
 
-      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
+      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${sendPhoneNumberId}/messages`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${p.whatsapp_access_token}`,
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
@@ -1536,29 +1858,32 @@ export async function executeInactivityStep(
         providerMsgId = normalizeWaMessageId(resJson?.messages?.[0]?.id) || null;
       }
     } else if (channel === "instagram") {
+      const channelAuth = await resolveBotSendAuth(tenantId, "instagram", phoneNumberId);
       const { data: igAcc } = await dbAdmin
         .from("instagram_accounts")
         .select("access_token")
         .eq("instagram_business_account_id", phoneNumberId)
         .maybeSingle();
 
-      if (!igAcc || !igAcc.access_token) {
+      const igToken = channelAuth?.accessToken || igAcc?.access_token;
+      if (!igToken) {
         logError("Acesso ao Instagram não configurado ou token expirado");
         return;
       }
 
       const igRecipientId = phoneDigits.startsWith("ig_") ? phoneDigits.slice(3) : phoneDigits;
-      const apiVersion = process.env.META_GRAPH_VERSION || "v26.0";
+      const apiVersion = channelAuth?.apiVersion || process.env.META_GRAPH_VERSION || "v26.0";
+      const igResourceId = channelAuth?.sendResourceId || phoneNumberId;
 
       const payload = {
         recipient: { id: igRecipientId },
         message: { text: stepToExecute.message_content || "" },
       };
 
-      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
+      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${igResourceId}/messages`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${igAcc.access_token}`,
+          Authorization: `Bearer ${igToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
@@ -1573,29 +1898,32 @@ export async function executeInactivityStep(
         logError("Erro ao enviar mensagem no Instagram", errText);
       }
     } else if (channel === "messenger") {
+      const channelAuth = await resolveBotSendAuth(tenantId, "messenger", phoneNumberId);
       const { data: page } = await dbAdmin
         .from("facebook_pages")
         .select("page_access_token")
         .eq("page_id", phoneNumberId)
         .maybeSingle();
 
-      if (!page || !page.page_access_token) {
+      const pageToken = channelAuth?.accessToken || page?.page_access_token;
+      if (!pageToken) {
         logError("Acesso ao Facebook Messenger não configurado ou token expirado");
         return;
       }
 
       const fbRecipientId = phoneDigits.startsWith("fb_") ? phoneDigits.slice(3) : phoneDigits;
-      const apiVersion = process.env.META_GRAPH_API_VERSION || "v26.0";
+      const apiVersion = channelAuth?.apiVersion || process.env.META_GRAPH_API_VERSION || "v26.0";
+      const pageResourceId = channelAuth?.sendResourceId || phoneNumberId;
 
       const payload = {
         recipient: { id: fbRecipientId },
         message: { text: stepToExecute.message_content || "" },
       };
 
-      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
+      const r = await fetch(`https://graph.facebook.com/${apiVersion}/${pageResourceId}/messages`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${page.page_access_token}`,
+          Authorization: `Bearer ${pageToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
