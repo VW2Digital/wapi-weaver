@@ -4373,15 +4373,15 @@ function ChatPage() {
           )}
         >
           {/* Divisão Principal: Conversas vs Grupos */}
-          <div className="flex border-b border-border bg-card shrink-0 select-none order-1">
+          <div className="chat-thread-header h-[59px] px-3 sm:px-4 flex items-stretch gap-1 shrink-0 select-none">
             <button
               type="button"
               onClick={() => setMainTab("conversas")}
               className={cn(
-                "flex-1 py-3 text-xs font-extrabold transition-all border-b-2 flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider",
+                "flex-1 h-full text-xs font-extrabold transition-all border-b-2 flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider",
                 mainTab === "conversas"
-                  ? "border-primary text-primary bg-muted/10"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30",
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
               <MessageCircle className="h-4 w-4" />
@@ -4396,10 +4396,10 @@ function ChatPage() {
               type="button"
               onClick={() => setMainTab("grupos")}
               className={cn(
-                "flex-1 py-3 text-xs font-extrabold transition-all border-b-2 flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider",
+                "flex-1 h-full text-xs font-extrabold transition-all border-b-2 flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider",
                 mainTab === "grupos"
-                  ? "border-primary text-primary bg-muted/10"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30",
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
               <Users className="h-4 w-4" />
@@ -4413,14 +4413,17 @@ function ChatPage() {
           </div>
 
           {/* Filtro de canais acima das abas */}
-          <div className="p-3 border-b bg-card shrink-0 order-3">
-            <div className="flex items-center gap-2 overflow-x-auto">
+          <div className="p-3 border-b bg-card shrink-0">
+            <div
+              className="grid gap-3 place-items-center"
+              style={{ gridTemplateColumns: `repeat(${configuredChannels.length}, minmax(0, 1fr))` }}
+            >
               {configuredChannels.includes("all") && (
                 <button
                   type="button"
                   onClick={() => setFilterView("all")}
                   className={cn(
-                    "flex shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-all",
+                    "flex items-center justify-center rounded-full text-xs font-semibold transition-all",
                     filterView === "all"
                       ? "h-10 px-4 gap-2 bg-primary text-primary-foreground shadow-sm"
                       : "h-10 w-10 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60",
@@ -4435,7 +4438,7 @@ function ChatPage() {
                   type="button"
                   onClick={() => setFilterView("whatsapp")}
                   className={cn(
-                    "flex shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-all",
+                    "flex items-center justify-center rounded-full text-xs font-semibold transition-all",
                     filterView === "whatsapp"
                       ? "h-10 px-4 gap-2 bg-[#25D366] text-white shadow-sm"
                       : "h-10 w-10 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60",
@@ -4450,7 +4453,7 @@ function ChatPage() {
                   type="button"
                   onClick={() => setFilterView("instagram")}
                   className={cn(
-                    "flex shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-all",
+                    "flex items-center justify-center rounded-full text-xs font-semibold transition-all",
                     filterView === "instagram"
                       ? "h-10 px-4 gap-2 bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white shadow-sm"
                       : "h-10 w-10 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60",
@@ -4465,7 +4468,7 @@ function ChatPage() {
                   type="button"
                   onClick={() => setFilterView("messenger")}
                   className={cn(
-                    "flex shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-all",
+                    "flex items-center justify-center rounded-full text-xs font-semibold transition-all",
                     filterView === "messenger"
                       ? "h-10 px-4 gap-2 bg-[#0078FF] text-white shadow-sm"
                       : "h-10 w-10 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60",
@@ -4480,7 +4483,7 @@ function ChatPage() {
                   type="button"
                   onClick={() => setFilterView("webchat")}
                   className={cn(
-                    "flex shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-all",
+                    "flex items-center justify-center rounded-full text-xs font-semibold transition-all",
                     filterView === "webchat"
                       ? "h-10 px-4 gap-2 bg-sky-500 text-white shadow-sm"
                       : "h-10 w-10 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60",
@@ -4494,7 +4497,7 @@ function ChatPage() {
           </div>
 
           {/* Abas Superiores com contadores e botões de ação */}
-          <div className="flex items-center justify-between p-3 border-b bg-muted/30 shrink-0 order-4">
+          <div className="flex items-center justify-between p-3 border-b bg-muted/30 shrink-0">
             <div className="flex items-center gap-1.5 flex-1 overflow-x-auto">
               <button
                 type="button"
@@ -5496,27 +5499,55 @@ function ChatPage() {
                               <ChevronDown className="h-3.5 w-3.5 opacity-80 shrink-0" />
                             </button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-52">
-                            {headerTags.length === 0 && selectionCount === 0 ? (
+                          <DropdownMenuContent align="end" className="w-56 max-h-[320px] overflow-y-auto">
+                            {(tagsQuery.data as ChatTagRecord[] | undefined)?.length ? (
+                              (tagsQuery.data as ChatTagRecord[]).map((tag) => {
+                                const tagId = tag.id;
+                                const contactPhone = selectedContact.phone_e164;
+                                if (!tagId || !contactPhone) return null;
+                                const isTagged = headerTags.some(
+                                  (conversationTag) => conversationTag.tag_id === tagId,
+                                );
+                                return (
+                                  <DropdownMenuItem
+                                    key={tagId}
+                                    className="text-xs cursor-pointer"
+                                    onSelect={(event) => {
+                                      event.preventDefault();
+                                      handleToggleConversationTag(contactPhone, tagId, isTagged);
+                                    }}
+                                  >
+                                    {isTagged ? (
+                                      <Check className="mr-2 h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                    ) : (
+                                      <div className="mr-2 h-3.5 w-3.5 shrink-0" />
+                                    )}
+                                    <span
+                                      className="h-2 w-2 rounded-full mr-2 shrink-0"
+                                      style={{ backgroundColor: tag.color || "#6366f1" }}
+                                    />
+                                    <span className="truncate">{tag.name}</span>
+                                  </DropdownMenuItem>
+                                );
+                              })
+                            ) : (
                               <DropdownMenuItem disabled className="text-xs">
-                                Nenhuma etiqueta
+                                Nenhuma etiqueta cadastrada
                               </DropdownMenuItem>
-                            ) : null}
-                            {headerTags.map((ct) => (
-                              <DropdownMenuItem key={ct.tag_id} className="text-xs" disabled>
-                                {ct.tags?.name || "Etiqueta"}
-                              </DropdownMenuItem>
-                            ))}
+                            )}
                             {selectionCount > 0 ? (
-                              <DropdownMenuItem
-                                className="text-xs cursor-pointer"
-                                onClick={() => {
-                                  setIsSelectionMode(false);
-                                  setSelectedContactIds([]);
-                                }}
-                              >
-                                Limpar seleção
-                              </DropdownMenuItem>
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-xs cursor-pointer"
+                                  onClick={() => {
+                                    setIsSelectionMode(false);
+                                    setSelectedContactIds([]);
+                                  }}
+                                >
+                                  Limpar seleção em massa
+                                </DropdownMenuItem>
+                              </>
                             ) : null}
                           </DropdownMenuContent>
                         </DropdownMenu>
