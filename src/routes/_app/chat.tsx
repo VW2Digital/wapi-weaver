@@ -4344,12 +4344,12 @@ function ChatPage() {
         {/* Sidebar de Contatos */}
         <div
           className={cn(
-            "w-full md:w-80 lg:w-96 border-r flex flex-col h-full bg-muted/20 shrink-0",
+            "w-full md:w-[360px] lg:w-[400px] border-r flex flex-col h-full bg-muted/20 shrink-0",
             selectedContact ? "hidden md:flex" : "flex",
           )}
         >
           {/* Divisão Principal: Conversas vs Grupos */}
-          <div className="flex border-b border-border bg-card shrink-0 select-none">
+          <div className="flex border-b border-border bg-card shrink-0 select-none order-1">
             <button
               type="button"
               onClick={() => setMainTab("conversas")}
@@ -4389,17 +4389,14 @@ function ChatPage() {
           </div>
 
           {/* Filtro de canais acima das abas */}
-          <div className="p-3 border-b bg-card shrink-0">
-            <div
-              className="grid gap-3 place-items-center"
-              style={{ gridTemplateColumns: `repeat(${configuredChannels.length}, minmax(0, 1fr))` }}
-            >
+          <div className="p-3 border-b bg-card shrink-0 order-3">
+            <div className="flex items-center gap-2 overflow-x-auto">
               {configuredChannels.includes("all") && (
                 <button
                   type="button"
                   onClick={() => setFilterView("all")}
                   className={cn(
-                    "flex items-center justify-center rounded-full text-xs font-semibold transition-all",
+                    "flex shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-all",
                     filterView === "all"
                       ? "h-10 px-4 gap-2 bg-primary text-primary-foreground shadow-sm"
                       : "h-10 w-10 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60",
@@ -4414,7 +4411,7 @@ function ChatPage() {
                   type="button"
                   onClick={() => setFilterView("whatsapp")}
                   className={cn(
-                    "flex items-center justify-center rounded-full text-xs font-semibold transition-all",
+                    "flex shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-all",
                     filterView === "whatsapp"
                       ? "h-10 px-4 gap-2 bg-[#25D366] text-white shadow-sm"
                       : "h-10 w-10 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60",
@@ -4429,7 +4426,7 @@ function ChatPage() {
                   type="button"
                   onClick={() => setFilterView("instagram")}
                   className={cn(
-                    "flex items-center justify-center rounded-full text-xs font-semibold transition-all",
+                    "flex shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-all",
                     filterView === "instagram"
                       ? "h-10 px-4 gap-2 bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white shadow-sm"
                       : "h-10 w-10 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60",
@@ -4444,7 +4441,7 @@ function ChatPage() {
                   type="button"
                   onClick={() => setFilterView("messenger")}
                   className={cn(
-                    "flex items-center justify-center rounded-full text-xs font-semibold transition-all",
+                    "flex shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-all",
                     filterView === "messenger"
                       ? "h-10 px-4 gap-2 bg-[#0078FF] text-white shadow-sm"
                       : "h-10 w-10 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60",
@@ -4459,7 +4456,7 @@ function ChatPage() {
                   type="button"
                   onClick={() => setFilterView("webchat")}
                   className={cn(
-                    "flex items-center justify-center rounded-full text-xs font-semibold transition-all",
+                    "flex shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-all",
                     filterView === "webchat"
                       ? "h-10 px-4 gap-2 bg-sky-500 text-white shadow-sm"
                       : "h-10 w-10 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60",
@@ -4473,13 +4470,13 @@ function ChatPage() {
           </div>
 
           {/* Abas Superiores com contadores e botões de ação */}
-          <div className="flex items-center justify-between p-3 border-b bg-muted/30 shrink-0">
-            <div className="flex items-center gap-1.5 flex-1">
+          <div className="flex items-center justify-between p-3 border-b bg-muted/30 shrink-0 order-4">
+            <div className="flex items-center gap-1.5 flex-1 overflow-x-auto">
               <button
                 type="button"
                 onClick={() => setActiveTab("novos")}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
+                  "flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
                   activeTab === "novos"
                     ? "bg-background text-foreground shadow-sm border"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
@@ -4495,7 +4492,7 @@ function ChatPage() {
                 type="button"
                 onClick={() => setActiveTab("meus")}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
+                  "flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
                   activeTab === "meus"
                     ? "bg-background text-foreground shadow-sm border"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
@@ -4511,7 +4508,7 @@ function ChatPage() {
                 type="button"
                 onClick={() => setActiveTab("outros")}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
+                  "flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
                   activeTab === "outros"
                     ? "bg-background text-foreground shadow-sm border"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
@@ -4670,7 +4667,7 @@ function ChatPage() {
           </div>
 
           {/* Barra de Busca e botões de filtro */}
-          <div className="p-3 border-b flex flex-col gap-2 bg-background shrink-0">
+          <div className="p-3 border-b flex flex-col gap-2 bg-background shrink-0 order-2">
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -4818,7 +4815,7 @@ function ChatPage() {
           </div>
 
           {/* Lista de Contatos */}
-          <div className="flex-1 overflow-y-auto divide-y bg-background">
+          <div className="flex-1 min-h-0 overflow-y-auto divide-y bg-background order-5">
             {contactsQuery.isLoading ? (
               <div className="p-4 text-center text-muted-foreground flex flex-col items-center gap-2">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -5315,7 +5312,7 @@ function ChatPage() {
           </div>
 
           {/* Rodapé: Seletor de DDI + Telefone + Botão Conversar */}
-          <div className="p-3 border-t flex items-center gap-2 shrink-0 bg-muted/30">
+          <div className="p-3 border-t flex items-center gap-2 shrink-0 bg-muted/30 order-6">
             <div className="relative shrink-0">
               <select
                 value={countryCode}
@@ -5370,7 +5367,7 @@ function ChatPage() {
         {/* Janela de Mensagens + Painel de Info */}
         <div
           className={cn(
-            "flex-1 flex h-full bg-background relative overflow-hidden",
+            "flex-1 min-w-0 flex h-full bg-background relative overflow-hidden",
             selectedContact ? "flex" : "hidden md:flex",
           )}
         >
