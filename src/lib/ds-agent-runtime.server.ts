@@ -510,13 +510,14 @@ function buildOpenAiToolsFromEnabled(
     {
       key: "google_calendar",
       name: "calendar_create_event",
-      description: "Cria um compromisso na agenda interna do tenant.",
+      description:
+        "Cria um compromisso na agenda interna do tenant. Use SEMPRE o ano atual em start_at/end_at (formato YYYY-MM-DD HH:mm:ss). Só confirme ao cliente após sucesso.",
       parameters: {
         type: "object",
         properties: {
           title: { type: "string" },
-          start_at: { type: "string", description: "ISO datetime" },
-          end_at: { type: "string", description: "ISO datetime" },
+          start_at: { type: "string", description: "YYYY-MM-DD HH:mm:ss (ano atual)" },
+          end_at: { type: "string", description: "YYYY-MM-DD HH:mm:ss (ano atual)" },
           description: { type: "string" },
           location: { type: "string" },
         },
@@ -677,7 +678,7 @@ async function buildDsAgentSystemPrompt(params: {
   }
 
   systemPrompt +=
-    "\n\nRegras adicionais:\n- Nunca escreva placeholders como {{nome_lead}} na resposta.\n- Responda sempre a mensagem mais recente do cliente de forma útil e objetiva.\n";
+    "\n\nRegras adicionais:\n- Nunca escreva placeholders como {{nome_lead}} na resposta.\n- Responda sempre a mensagem mais recente do cliente de forma útil e objetiva.\n- Data/hora de referência (America/Sao_Paulo): use SEMPRE o ano atual ao agendar; nunca anos passados (ex.: 2023).\n- Só confirme que um compromisso foi agendado DEPOIS de chamar a ferramenta calendar_create_event com sucesso. Se a ferramenta falhar, diga que não conseguiu agendar.\n- Ao chamar calendar_create_event, use start_at/end_at no formato YYYY-MM-DD HH:mm:ss com o ano corrente.\n";
 
   systemPrompt += await loadAgentKnowledgeBlock(db, agentId, tenantId);
   return systemPrompt;

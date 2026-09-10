@@ -9,6 +9,74 @@ import {
 } from "./services/calendar.service.js";
 import db from "./db.js";
 
+/**
+ * O LLM costuma inventar anos antigos (ex: 2023). Corrige para o ano atual
+ * (America/Sao_Paulo) e, se ainda ficar no passado, empurra +1 ano.
+ */
+export function normalizeCalendarDateTime(raw: string): string {
+  const input = String(raw || "").trim();
+  if (!input) return input;
+
+  const spNow = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }),
+  );
+  const currentYear = spNow.getFullYear();
+
+  // Aceita "YYYY-MM-DD", "YYYY-MM-DD HH:mm:ss", "YYYY-MM-DDTHH:mm:ss", ISO com Z
+  let normalized = input.includes("T") ? input : input.replace(" ", "T");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    normalized = `${normalized}T09:00:00`;
+  }
+  if (!/[zZ]|[+-]\d{2}:?\d{2}$/.test(normalized)) {
+    // Trata como horário local BR sem timezone
+    normalized = normalized.replace(/\.\d+$/, "");
+  }
+
+  let d = new Date(normalized.includes("Z") || /[+-]\d{2}:?\d{2}$/.test(normalized)
+    ? normalized
+    : normalized + "-03:00");
+
+  if (Number.isNaN(d.getTime())) {
+    // Fallback parse manual YYYY-MM-DD HH:mm
+    const m = input.match(
+      /^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?/,
+    );
+    if (!m) return input;
+    d = new Date(
+      Number(m[1]),
+      Number(m[2]) - 1,
+      Number(m[3]),
+      Number(m[4] || 9),
+      Number(m[5] || 0),
+      Number(m[6] || 0),
+    );
+  }
+
+  if (d.getFullYear() < currentYear) {
+    d.setFullYear(currentYear);
+  }
+
+  // Ainda no passado (ex.: mês já passou neste ano) → próximo ano
+  if (d.getTime() < spNow.getTime() - 5 * 60 * 1000) {
+    const bumped = new Date(d);
+    bumped.setFullYear(currentYear + 1);
+    // Se só estava "hoje" com ano errado, preferir ano atual; se mês já passou, +1
+    if (d.getMonth() < spNow.getMonth() || (d.getMonth() === spNow.getMonth() && d.getDate() < spNow.getDate())) {
+      d = bumped;
+    }
+  }
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+  // Persistir como datetime local (sem Z) — padrão do calendar.service
+  const local = new Date(d.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+  return `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())} ${pad(local.getHours())}:${pad(local.getMinutes())}:${pad(local.getSeconds())}`;
+}
+
+export function normalizeCalendarDateOnly(raw: string): string {
+  const full = normalizeCalendarDateTime(raw.includes("T") || raw.includes(" ") ? raw : `${raw}T12:00:00`);
+  return full.slice(0, 10);
+}
+
 export async function executeDsAgentCalendarTool(
   agentId: string,
   tenantId: string,
@@ -25,7 +93,9 @@ export async function executeDsAgentCalendarTool(
 
   switch (toolKey) {
     case "calendar_check_availability": {
-      const dateStr = payload.date || new Date().toISOString().split("T")[0];
+      const dateStr = normalizeCalendarDateOnly(
+        payload.date || new Date().toISOString().split("T")[0],
+      );
       const startTime = payload.start_time || "09:00";
       const endTime = payload.end_time || "10:00";
 
@@ -43,6 +113,7 @@ export async function executeDsAgentCalendarTool(
         available: result.available,
         conflicts: result.conflicts,
         alternatives: result.alternatives,
+        date: dateStr,
       };
     }
 
@@ -51,11 +122,22 @@ export async function executeDsAgentCalendarTool(
         throw new Error("calendar_create_event: 'title', 'start_at' e 'end_at' são obrigatórios");
       }
 
+      const startAt = normalizeCalendarDateTime(String(payload.start_at));
+      let endAt = normalizeCalendarDateTime(String(payload.end_at));
+      // Se end ficou antes/igual start após normalizar, +30min
+      if (new Date(endAt.replace(" ", "T") + "-03:00").getTime() <= new Date(startAt.replace(" ", "T") + "-03:00").getTime()) {
+        const end = new Date(startAt.replace(" ", "T") + "-03:00");
+        end.setMinutes(end.getMinutes() + 30);
+        const pad = (n: number) => String(n).padStart(2, "0");
+        const local = new Date(end.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+        endAt = `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())} ${pad(local.getHours())}:${pad(local.getMinutes())}:${pad(local.getSeconds())}`;
+      }
+
       const result = await createCalendarEventForUser(safeTenantId, {
         title: payload.title,
         description: payload.description || null,
-        start_at: payload.start_at,
-        end_at: payload.end_at,
+        start_at: startAt,
+        end_at: endAt,
         event_type: payload.event_type || "reuniao",
         status: payload.status || "agendado",
         contact_id: payload.contact_id || null,
@@ -73,6 +155,8 @@ export async function executeDsAgentCalendarTool(
         ok: true,
         event: result.event,
         conflictWarning: result.conflictWarning,
+        normalized_start_at: startAt,
+        normalized_end_at: endAt,
       };
     }
 
@@ -84,8 +168,8 @@ export async function executeDsAgentCalendarTool(
       const result = await updateCalendarEventForUser(safeTenantId, payload.event_id, {
         title: payload.title,
         description: payload.description,
-        start_at: payload.start_at,
-        end_at: payload.end_at,
+        start_at: payload.start_at ? normalizeCalendarDateTime(String(payload.start_at)) : payload.start_at,
+        end_at: payload.end_at ? normalizeCalendarDateTime(String(payload.end_at)) : payload.end_at,
         status: payload.status,
         event_type: payload.event_type,
         location: payload.location,
@@ -122,6 +206,9 @@ export async function executeDsAgentCalendarTool(
         const future = new Date(today);
         future.setDate(future.getDate() + 7);
         endDate = future.toISOString().split("T")[0] + " 23:59:59";
+      } else {
+        startDate = `${normalizeCalendarDateOnly(String(startDate))} 00:00:00`;
+        endDate = `${normalizeCalendarDateOnly(String(endDate || startDate))} 23:59:59`;
       }
 
       const events = await getCalendarEventsByRangeForUser(safeTenantId, startDate, endDate, {
