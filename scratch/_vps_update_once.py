@@ -25,63 +25,74 @@ def main() -> int:
         code = stdout.channel.recv_exit_status()
         return code, out, err
 
+    def is_update_running() -> bool:
+        # Match real install.sh process, ignore pgrep itself
+        _, out, _ = run("pgrep -f '/bin/bash .*install.sh --update' || true")
+        lines = [ln for ln in out.splitlines() if ln.strip()]
+        return len(lines) > 0
+
     code, out, err = run(
-        f"cd {APP} && echo '=== BEFORE ===' && git rev-parse --short HEAD && cat .deploy-version 2>/dev/null || true"
+        f"cd {APP} && echo '=== BEFORE ===' && git fetch origin main && "
+        f"git rev-parse --short HEAD && git rev-parse --short origin/main && "
+        f"cat .deploy-version 2>/dev/null || true"
     )
     print(out)
     if err.strip():
-        print("STDERR:", err)
+        print("FETCH_ERR:", err[-500:])
 
-    # Avoid overlapping updates
-    code, out, err = run("pgrep -af 'install.sh --update' || true")
-    print("RUNNING:", out.strip() or "(none)")
-    if "install.sh --update" in out and "pgrep" not in out.splitlines()[0] if out.strip() else False:
-        pass
-    if out.strip() and "install.sh --update" in out:
-        print("Update already running; waiting...")
+    if is_update_running():
+        print("Update already in progress; waiting for it to finish...")
     else:
-        print("Starting install.sh --update ...")
-        # Detach long update
+        print("Starting fresh install.sh --update ...")
+        run("rm -f /tmp/wapi-update.log /tmp/wapi-update.exit")
         start_cmd = (
-            f"cd {APP} && nohup bash install.sh --update > /tmp/wapi-update.log 2>&1 & echo PID:$!"
+            f"cd {APP} && "
+            f"(nohup bash -lc 'bash install.sh --update; echo EXIT:$? > /tmp/wapi-update.exit' "
+            f"> /tmp/wapi-update.log 2>&1 & echo STARTED:$!)"
         )
         code, out, err = run(start_cmd, timeout=30)
         print(out)
         if err.strip():
-            print("STDERR:", err)
+            print("START_ERR:", err)
 
-    # Poll until done
-    deadline = time.time() + 900
+    deadline = time.time() + 1200
     last_tail = ""
     while time.time() < deadline:
-        code, out, err = run("pgrep -af 'install.sh --update' || true")
-        running = bool(out.strip()) and "install.sh --update" in out
-        code2, tail, _ = run("tail -n 25 /tmp/wapi-update.log 2>/dev/null || true")
+        running = is_update_running()
+        _, exit_file, _ = run("cat /tmp/wapi-update.exit 2>/dev/null || true")
+        _, tail, _ = run("tail -n 20 /tmp/wapi-update.log 2>/dev/null || true")
         if tail != last_tail:
             print("--- log ---")
             print(tail)
             last_tail = tail
-        if not running:
+        if (not running) and exit_file.strip():
+            print("EXIT_FILE:", exit_file.strip())
             break
-        time.sleep(15)
+        if (not running) and EXPECTED in tail and "HEALTHY" in tail.upper():
+            break
+        time.sleep(20)
+    else:
+        print("TIMEOUT waiting for update")
 
     code, out, err = run(
         f"cd {APP} && echo '=== AFTER ===' && "
         f"echo SHA=$(git rev-parse --short HEAD) && "
+        f"echo REMOTE=$(git rev-parse --short origin/main) && "
         f"cat .deploy-version 2>/dev/null || true; "
-        f"docker ps --format 'table {{{{.Names}}}}\\t{{{{.Status}}}}' | head -20; "
-        f"tail -n 40 /tmp/wapi-update.log 2>/dev/null || true"
+        f"docker ps --format 'table {{{{.Names}}}}\\t{{{{.Status}}}}' | head -10; "
+        f"tail -n 35 /tmp/wapi-update.log 2>/dev/null || true; "
+        f"echo EXIT_FILE=$(cat /tmp/wapi-update.exit 2>/dev/null || echo missing)"
     )
     print(out)
     if err.strip():
-        print("STDERR:", err)
+        print("STDERR:", err[-500:])
 
-    ok = EXPECTED in out and ("HEALTHY" in out.upper() or "healthy" in out)
-    # Also accept if SHA matches even if health wording differs
-    sha_ok = EXPECTED in out
+    sha_ok = EXPECTED in out and f"SHA={EXPECTED}" in out.replace(" ", "")
+    # softer check
+    soft_ok = EXPECTED in out and ("healthy" in out.lower() or "HEALTHY" in out)
     client.close()
-    print("RESULT:", "OK" if sha_ok else "CHECK_MANUAL", "sha_expected=", EXPECTED)
-    return 0 if sha_ok else 1
+    print("RESULT:", "OK" if soft_ok else "FAIL", "expected=", EXPECTED)
+    return 0 if soft_ok else 1
 
 
 if __name__ == "__main__":
