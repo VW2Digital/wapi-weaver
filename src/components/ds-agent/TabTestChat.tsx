@@ -86,7 +86,7 @@ export function TabTestChat({ agentName, agentId, onSendTestMessage }: TabTestCh
                 Ambiente de Teste
               </Badge>
             </h3>
-            <p className="text-xs text-muted-foreground">Respostas simuladas e fictícias (sem custo de tokens)</p>
+            <p className="text-xs text-muted-foreground">Respostas reais do modelo (consome tokens e aparece no relatório de uso)</p>
           </div>
         </div>
 

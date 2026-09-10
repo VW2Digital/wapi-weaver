@@ -23,7 +23,13 @@ interface KnowledgeLink {
 interface TabKnowledgeProps {
   files: KnowledgeFile[];
   links: KnowledgeLink[];
-  onUploadFile: (fileName: string, fileSizeKb: number, pageCount: number) => void;
+  onUploadFile: (payload: {
+    fileName: string;
+    fileSizeKb: number;
+    pageCount: number;
+    contentBase64?: string;
+    contentText?: string;
+  }) => void | Promise<void>;
   onDeleteFile: (id: string) => void;
   onAddLink: (url: string) => void;
   onDeleteLink: (id: string) => void;
@@ -39,7 +45,7 @@ export function TabKnowledge({
 }: TabKnowledgeProps) {
   const [newUrl, setNewUrl] = useState("");
 
-  const handleSimulatedFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -48,12 +54,49 @@ export function TabKnowledge({
 
     if (!allowedTypes.includes(ext)) {
       alert("Formato não suportado. Por favor, envie apenas arquivos PDF, DOCX, TXT ou CSV.");
+      e.target.value = "";
+      return;
+    }
+
+    if (ext === ".docx") {
+      alert("DOCX ainda não é suportado para indexação. Converta para TXT, CSV ou PDF com texto.");
+      e.target.value = "";
       return;
     }
 
     const sizeKb = Math.round(file.size / 1024);
-    const pages = Math.floor(Math.random() * 8) + 1;
-    onUploadFile(file.name, sizeKb, pages);
+    if (sizeKb > 5120) {
+      alert("Arquivo muito grande (máx. 5 MB).");
+      e.target.value = "";
+      return;
+    }
+
+    try {
+      if (ext === ".txt" || ext === ".csv") {
+        const contentText = await file.text();
+        await onUploadFile({
+          fileName: file.name,
+          fileSizeKb: sizeKb,
+          pageCount: Math.max(1, Math.ceil(contentText.length / 1800)),
+          contentText,
+        });
+      } else {
+        const buffer = await file.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        let binary = "";
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        const contentBase64 = btoa(binary);
+        await onUploadFile({
+          fileName: file.name,
+          fileSizeKb: sizeKb,
+          pageCount: 1,
+          contentBase64,
+        });
+      }
+    } catch (err: any) {
+      alert(err?.message || "Falha ao ler o arquivo.");
+    }
+
     e.target.value = "";
   };
 
@@ -85,7 +128,7 @@ export function TabKnowledge({
             <input
               type="file"
               accept=".pdf,.docx,.txt,.csv"
-              onChange={handleSimulatedFileUpload}
+              onChange={handleFileUpload}
               className="hidden"
             />
           </label>
@@ -185,8 +228,20 @@ export function TabKnowledge({
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px]">
-                    Indexado
+                  <Badge
+                    className={
+                      link.status === "erro"
+                        ? "bg-destructive/10 text-destructive border-destructive/20 text-[10px]"
+                        : link.status === "pendente"
+                          ? "bg-muted text-muted-foreground border-border text-[10px]"
+                          : "bg-primary/10 text-primary border-primary/20 text-[10px]"
+                    }
+                  >
+                    {link.status === "erro"
+                      ? "Erro"
+                      : link.status === "pendente"
+                        ? "Pendente"
+                        : "Indexado"}
                   </Badge>
                   <button
                     onClick={() => onDeleteLink(link.id)}

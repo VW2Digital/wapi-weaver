@@ -113,6 +113,36 @@ function startQueueProcessor() {
 
 startQueueProcessor();
 
+// --- DS Agente Follow-up Processor ---
+function startDsAgentFollowupProcessor() {
+  if (_g.__dsFollowupIntervalStarted) return;
+  _g.__dsFollowupIntervalStarted = true;
+  console.log("[DS Follow-up] Starting background processor (every 60s)...");
+
+  const run = async () => {
+    try {
+      const { processDsAgentFollowupsOnce } = await import("./lib/ds-agent-followup.server");
+      const result = await processDsAgentFollowupsOnce();
+      if (result.sent > 0 || result.errors > 0) {
+        console.log("[DS Follow-up]", JSON.stringify(result));
+      }
+    } catch (e) {
+      console.error("[DS Follow-up] Error:", e);
+    }
+  };
+
+  setTimeout(() => {
+    run().catch(() => undefined);
+  }, 20000);
+
+  setInterval(() => {
+    run().catch(() => undefined);
+  }, 60000);
+}
+
+startDsAgentFollowupProcessor();
+// ----------------------------------
+
 // --- Background License Validator ---
 function startLicenseChecker() {
   if (_g.__licenseCheckStarted) return;

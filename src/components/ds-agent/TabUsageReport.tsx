@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { BarChart2, DollarSign, Cpu, Zap, RefreshCw, PieChart, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,11 +45,12 @@ interface UsageData {
 
 interface TabUsageReportProps {
   usageData?: UsageData;
+  range: string;
+  onRangeChange: (range: string) => void;
   onRefresh: () => void;
 }
 
-export function TabUsageReport({ usageData, onRefresh }: TabUsageReportProps) {
-  const [range, setRange] = useState("30d");
+export function TabUsageReport({ usageData, range, onRangeChange, onRefresh }: TabUsageReportProps) {
 
   const defaultData: UsageData = {
     ok: true,
@@ -98,7 +99,7 @@ export function TabUsageReport({ usageData, onRefresh }: TabUsageReportProps) {
         </div>
 
         <div className="flex items-center gap-3">
-          <Select value={range} onValueChange={setRange}>
+          <Select value={range} onValueChange={onRangeChange}>
             <SelectTrigger className="w-40 bg-background border-border text-xs text-foreground">
               <SelectValue />
             </SelectTrigger>

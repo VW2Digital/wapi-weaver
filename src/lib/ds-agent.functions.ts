@@ -519,6 +519,8 @@ export const addDsKnowledgeFile = createServerFn({ method: "POST" })
           file_size_kb: z.number().default(0),
           page_count: z.number().default(1),
           storage_path: z.string().optional(),
+          content_base64: z.string().optional(),
+          content_text: z.string().optional(),
         })
         .parse(d)
   )
@@ -526,24 +528,69 @@ export const addDsKnowledgeFile = createServerFn({ method: "POST" })
     try {
       const { resolveEffectiveUserId } = await import("./chat-helpers");
       const { default: db } = await import("./db");
+      const {
+        extractTextFromUpload,
+        upsertKnowledgeDocument,
+      } = await import("./ds-agent-knowledge.server");
       const userId = context.userId || "test-user-id";
       const tenantId = await resolveEffectiveUserId(userId);
 
       const fileId = crypto.randomUUID();
       const storagePath = data.storage_path || `/uploads/ds-agent/${fileId}_${data.file_name}`;
 
+      let extractedText = String(data.content_text || "").trim();
+      let pageCount = Number(data.page_count) || 1;
+      let knowledgeType: "text" | "pdf" = "text";
+      let knowledgeStatus: "indexed" | "error" | "pending" = "pending";
+
+      if (!extractedText && data.content_base64) {
+        const buffer = Buffer.from(String(data.content_base64), "base64");
+        const extracted = extractTextFromUpload(data.file_name, buffer);
+        if (!extracted.ok) {
+          throw new Error(extracted.error || "Falha ao extrair texto do arquivo");
+        }
+        extractedText = extracted.text;
+        pageCount = extracted.pageCount;
+        knowledgeType = extracted.type === "pdf" ? "pdf" : "text";
+      }
+
+      if (extractedText) {
+        knowledgeStatus = "indexed";
+        await upsertKnowledgeDocument({
+          id: fileId,
+          tenantId,
+          agentId: data.agent_id,
+          title: data.file_name,
+          type: knowledgeType,
+          content: extractedText,
+          status: "indexed",
+        });
+      } else {
+        throw new Error(
+          "Envie o conteúdo do arquivo (TXT/CSV/PDF com texto). Sem conteúdo a IA não consegue usar o documento.",
+        );
+      }
+
       await db.query(
         `INSERT INTO ds_agent_knowledge_files (id, agent_id, tenant_id, file_name, file_size_kb, page_count, status, storage_path)
          VALUES (?, ?, ?, ?, ?, ?, 'ativo', ?)`,
-        [fileId, data.agent_id, tenantId, data.file_name, data.file_size_kb, data.page_count, storagePath]
+        [
+          fileId,
+          data.agent_id,
+          tenantId,
+          data.file_name,
+          data.file_size_kb,
+          pageCount,
+          storagePath,
+        ],
       );
 
       const [file] = (await db.query(
         `SELECT * FROM ds_agent_knowledge_files WHERE id = ? AND tenant_id = ?`,
-        [fileId, tenantId]
+        [fileId, tenantId],
       )) as any[];
 
-      return { ok: true, file };
+      return { ok: true, file, indexed: knowledgeStatus === "indexed" };
     } catch (err: any) {
       console.error("[DS Agente] Erro ao adicionar arquivo:", err);
       throw new Error(err?.message || "Falha ao adicionar arquivo.");
@@ -564,6 +611,8 @@ export const deleteDsKnowledgeFile = createServerFn({ method: "POST" })
         `DELETE FROM ds_agent_knowledge_files WHERE id = ? AND tenant_id = ?`,
         [data.id, tenantId]
       );
+      const { deleteKnowledgeDocument } = await import("./ds-agent-knowledge.server");
+      await deleteKnowledgeDocument(data.id, tenantId);
       return { ok: true };
     } catch (err: any) {
       console.error("[DS Agente] Erro ao deletar arquivo:", err);
@@ -578,20 +627,53 @@ export const addDsKnowledgeLink = createServerFn({ method: "POST" })
     try {
       const { resolveEffectiveUserId } = await import("./chat-helpers");
       const { default: db } = await import("./db");
+      const {
+        fetchUrlAsKnowledgeText,
+        upsertKnowledgeDocument,
+      } = await import("./ds-agent-knowledge.server");
       const userId = context.userId || "test-user-id";
       const tenantId = await resolveEffectiveUserId(userId);
 
       const linkId = crypto.randomUUID();
+      const fetched = await fetchUrlAsKnowledgeText(data.url);
+      const status = fetched.ok ? "indexado" : "erro";
+
       await db.query(
         `INSERT INTO ds_agent_knowledge_links (id, agent_id, tenant_id, url, status)
-         VALUES (?, ?, ?, ?, 'indexado')`,
-        [linkId, data.agent_id, tenantId, data.url]
+         VALUES (?, ?, ?, ?, ?)`,
+        [linkId, data.agent_id, tenantId, data.url, status]
       );
+
+      if (fetched.ok) {
+        await upsertKnowledgeDocument({
+          id: linkId,
+          tenantId,
+          agentId: data.agent_id,
+          title: data.url.slice(0, 250),
+          type: "url",
+          content: fetched.text,
+          status: "indexed",
+        });
+      } else {
+        await upsertKnowledgeDocument({
+          id: linkId,
+          tenantId,
+          agentId: data.agent_id,
+          title: data.url.slice(0, 250),
+          type: "url",
+          content: "",
+          status: "error",
+        });
+      }
 
       const [link] = (await db.query(
         `SELECT * FROM ds_agent_knowledge_links WHERE id = ? AND tenant_id = ?`,
         [linkId, tenantId]
       )) as any[];
+
+      if (!fetched.ok) {
+        throw new Error(fetched.error || "Falha ao indexar URL");
+      }
 
       return { ok: true, link };
     } catch (err: any) {
@@ -614,6 +696,8 @@ export const deleteDsKnowledgeLink = createServerFn({ method: "POST" })
         `DELETE FROM ds_agent_knowledge_links WHERE id = ? AND tenant_id = ?`,
         [data.id, tenantId]
       );
+      const { deleteKnowledgeDocument } = await import("./ds-agent-knowledge.server");
+      await deleteKnowledgeDocument(data.id, tenantId);
       return { ok: true };
     } catch (err: any) {
       console.error("[DS Agente] Erro ao deletar link:", err);
@@ -795,32 +879,53 @@ export const deleteDsFollowup = createServerFn({ method: "POST" })
 
 export const testDsAgentChat = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((d: any) => z.object({ agent_id: z.string(), message: z.string() }).parse(d))
-  .handler(async ({ data, context }: { data: { agent_id: string; message: string }; context: any }) => {
+  .validator(
+    (d: any) =>
+      z
+        .object({
+          agent_id: z.string(),
+          message: z.string().min(1),
+          history: z
+            .array(z.object({ sender: z.enum(["user", "agent"]), text: z.string() }))
+            .optional(),
+        })
+        .parse(d)
+  )
+  .handler(async ({ data, context }: { data: any; context: any }) => {
     try {
       const { resolveEffectiveUserId } = await import("./chat-helpers");
-      const { default: db } = await import("./db");
+      const { runDsAgentCompletion } = await import("./ds-agent-runtime.server");
       const userId = context.userId || "test-user-id";
       const tenantId = await resolveEffectiveUserId(userId);
 
-      const [agent] = (await db.query(
-        `SELECT name, model, mode FROM ds_agents WHERE id = ? AND tenant_id = ?`,
-        [data.agent_id, tenantId]
-      )) as any[];
+      const historyText = Array.isArray(data.history)
+        ? data.history
+            .map((m: any) => `${m.sender === "user" ? "Cliente" : "Agente"}: ${m.text}`)
+            .join("\n")
+        : "";
 
-      const simulatedResponses = [
-        `Olá! Sou o agente simulado **${agent?.name || "DS Agente"}**. Recebi sua mensagem: "${data.message}". Como posso ajudar?`,
-        `Entendi perfeitamente sua solicitação sobre "${data.message}". No ambiente de teste, simulo as respostas do modelo ${agent?.model || "gpt-4o-mini"} sem consumir tokens reais!`,
-        `Excelente pergunta! Com base nos dados do treinamento (${agent?.mode || "basico"}), posso confirmar que a integração simulada respondeu em menos de 100ms.`,
-      ];
+      const result = await runDsAgentCompletion({
+        agentId: data.agent_id,
+        tenantId,
+        userMessage: data.message,
+        historyText,
+        enableTools: true,
+      });
 
-      const reply = simulatedResponses[Math.floor(Math.random() * simulatedResponses.length)];
+      if (!result.ok || !result.reply) {
+        return {
+          ok: false,
+          simulated: false,
+          reply: result.error || "Não foi possível gerar resposta real do agente.",
+          timestamp: new Date().toISOString(),
+        };
+      }
 
       return {
         ok: true,
-        simulated: true,
-        reply,
-        agent_name: agent?.name || "DS Agente",
+        simulated: false,
+        reply: result.reply,
+        tokens: result.tokens || 0,
         timestamp: new Date().toISOString(),
       };
     } catch (err: any) {
@@ -846,9 +951,15 @@ export const getDsAgentUsageReport = createServerFn({ method: "GET" })
       const userId = context.userId || "test-user-id";
       const tenantId = await resolveEffectiveUserId(userId);
 
+      const range = String(data.range || "30d");
+      const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
+
       const logs = (await db.query(
-        `SELECT * FROM ds_agent_usage_logs WHERE agent_id = ? AND tenant_id = ? ORDER BY created_at ASC`,
-        [data.agentId, tenantId]
+        `SELECT * FROM ds_agent_usage_logs
+         WHERE agent_id = ? AND tenant_id = ?
+           AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+         ORDER BY created_at ASC`,
+        [data.agentId, tenantId, days]
       )) as any[];
 
       if (!logs || logs.length === 0) {
@@ -903,6 +1014,35 @@ export const getDsAgentUsageReport = createServerFn({ method: "GET" })
       });
       const detalhamento_por_modelo = Object.values(modelMap);
 
+      const catTokens: Record<string, number> = {
+        action_analysis: 0,
+        completion: 0,
+        embedding: 0,
+        query_rewriting: 0,
+        transcription: 0,
+      };
+      logs.forEach((l) => {
+        const cat = String(l.category || "completion");
+        if (cat in catTokens) catTokens[cat] += l.tokens || 0;
+        else catTokens.completion += l.tokens || 0;
+      });
+      const por_categoria =
+        total_tokens > 0
+          ? {
+              action_analysis: Math.round((catTokens.action_analysis / total_tokens) * 100),
+              completion: Math.round((catTokens.completion / total_tokens) * 100),
+              embedding: Math.round((catTokens.embedding / total_tokens) * 100),
+              query_rewriting: Math.round((catTokens.query_rewriting / total_tokens) * 100),
+              transcription: Math.round((catTokens.transcription / total_tokens) * 100),
+            }
+          : {
+              action_analysis: 0,
+              completion: 0,
+              embedding: 0,
+              query_rewriting: 0,
+              transcription: 0,
+            };
+
       return {
         ok: true,
         summary: {
@@ -912,13 +1052,7 @@ export const getDsAgentUsageReport = createServerFn({ method: "GET" })
           media_por_req,
         },
         tokens_por_dia,
-        por_categoria: {
-          action_analysis: 20,
-          completion: 60,
-          embedding: 10,
-          query_rewriting: 10,
-          transcription: 0,
-        },
+        por_categoria,
         detalhamento_por_modelo,
       };
     } catch (err: any) {

@@ -916,132 +916,29 @@ export async function processDsAgent(params: {
       return true;
     }
 
-    const mode = String(agent.mode || "basico");
-    const instructions =
-      mode === "avancado"
-        ? String(agent.instructions_advanced || agent.system_prompt || agent.prompt || "").trim()
-        : String(agent.instructions_basic || agent.system_prompt || agent.prompt || "").trim();
-
-    let systemPrompt = instructions || `Você é ${agent.name || "um assistente virtual"} útil e profissional.`;
-
-    try {
-      const contactRows = (await db.query(
-        `SELECT name, phone_e164, email FROM contacts
-         WHERE (tenant_id = ? OR user_id = ?)
-           AND (phone_e164 = ? OR whatsapp_number = ?)
-         LIMIT 1`,
-        [tenantId, tenantId, phoneDigits, phoneDigits],
-      )) as Array<{ name?: string; phone_e164?: string; email?: string }>;
-      const contactName = String(contactRows?.[0]?.name || "").trim() || "cliente";
-      const contactEmail = String(contactRows?.[0]?.email || "").trim();
-      systemPrompt = systemPrompt
-        .replace(/\{\{\s*nome_lead\s*\}\}/gi, contactName)
-        .replace(/\{\{\s*nome\s*\}\}/gi, contactName)
-        .replace(/\{\{\s*contact\.name\s*\}\}/gi, contactName)
-        .replace(/\{\{\s*telefone\s*\}\}/gi, phoneDigits)
-        .replace(/\{\{\s*contact\.phone\s*\}\}/gi, phoneDigits)
-        .replace(/\{\{\s*email\s*\}\}/gi, contactEmail || "")
-        .replace(
-          /\{\{\s*data_atual\s*\}\}/gi,
-          new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }),
-        );
-    } catch {
-      // Mantém o prompt original se a resolução do contato falhar.
-    }
-
-    if (replyWithAssigned) {
-      const assigned = await findAssignedResponsible(tenantId, phoneDigits);
-      if (assigned?.agentName) {
-        systemPrompt += `\n\nO responsável humano atual desta conversa é: ${assigned.agentName}. Alinhe o tom como suporte a esse responsável.`;
-      } else {
-        systemPrompt +=
-          "\n\nNão há responsável humano atribuído no momento. Atenda com autonomia e ofereça transferir a um humano se necessário.";
-      }
-    }
-
-    if (processImages) {
-      systemPrompt +=
-        "\n\nVocê pode interpretar descrições de imagens enviadas pelo cliente quando disponíveis no histórico.";
-    } else {
-      systemPrompt += "\n\nSe o cliente enviar imagens, peça para descrever em texto.";
-    }
-
-    systemPrompt +=
-      "\n\nRegras adicionais:\n- Nunca escreva placeholders como {{nome_lead}} na resposta.\n- Responda sempre a mensagem mais recente do cliente de forma útil e objetiva.\n";
-
-    let knowledgeRows: Array<{ title?: string; content?: string }> = [];
-    try {
-      knowledgeRows = (await db.query(
-        `SELECT title, content FROM ds_agent_knowledge
-         WHERE agent_id = ? AND tenant_id = ? AND content IS NOT NULL AND content != ''
-         ORDER BY updated_at DESC
-         LIMIT 20`,
-        [agentId, tenantId],
-      )) as Array<{ title?: string; content?: string }>;
-    } catch {
-      knowledgeRows = [];
-    }
-
-    if (knowledgeRows?.length) {
-      systemPrompt += "\n\n--- BASE DE CONHECIMENTO ---\nUse as informações abaixo quando forem relevantes:\n";
-      for (const doc of knowledgeRows) {
-        systemPrompt += `\n[${doc.title || "Documento"}]\n${doc.content}\n`;
-      }
-      systemPrompt += "----------------------------\n";
-    }
-
-    const provider = String(agent.provider || "OpenAI Padrão");
-    const model = String(agent.model || "gpt-4o-mini");
-    const apiKey =
-      String(agent.api_key_encrypted || "").trim() ||
-      (isGeminiModel(model, provider) ? process.env.GEMINI_API_KEY : process.env.OPENAI_API_KEY) ||
-      "";
-
-    if (!apiKey) {
-      logError("DS Agente sem API key configurada", { agentId, provider, model });
-      return false;
-    }
-
-    const { data: recentMsgs } = await dbAdmin
-      .from("direct_messages")
-      .select("direction, body, created_at, type")
-      .eq("user_id", tenantId)
-      .eq("contact_phone", phoneDigits)
-      .order("created_at", { ascending: false })
-      .limit(10);
-
-    let historyText = "";
-    if (recentMsgs && recentMsgs.length > 0) {
-      historyText = [...recentMsgs]
-        .reverse()
-        .map((m: any) => {
-          const who = m.direction === "incoming" ? "Cliente" : "Agente";
-          const body = m.type && m.type !== "text" && !m.body ? `[${m.type}]` : m.body || "";
-          return `${who}: ${body}`;
-        })
-        .join("\n");
-    }
-
     logInfo("Gerando resposta DS Agente", {
       agentId,
-      model,
-      provider,
+      model: agent.model,
+      provider: agent.provider,
       phoneDigits,
       flags: { replyWithAssigned, splitBlocks, processImages, disableOutsidePlatform },
     });
-    const replyText = await generateDsAgentReply({
-      provider,
-      model,
-      apiKey,
-      systemPrompt,
-      historyText,
+
+    const completion = await runDsAgentCompletion({
+      agentId,
+      tenantId,
       userMessage: messageBody,
+      phoneDigits,
+      enableTools: true,
     });
 
-    if (!replyText) {
-      logError("DS Agente retornou texto vazio", { agentId });
+    if (!completion.ok || !completion.reply) {
+      logError("DS Agente retornou texto vazio", { agentId, error: completion.error });
       return false;
     }
+
+    const replyText = completion.reply;
+    const model = String(agent.model || "gpt-4o-mini");
 
     const auth = await resolveWhatsAppSendAuth(tenantId, phoneNumberId);
     if (!auth?.accessToken) {

@@ -55,9 +55,11 @@ function DsAgentEditorPage() {
     queryFn: () => getDetailFn({ data: { id: agentId } }),
   });
 
+  const [usageRange, setUsageRange] = useState("30d");
+
   const usageQuery = useQuery({
-    queryKey: ["dsAgentUsage", agentId],
-    queryFn: () => getUsageFn({ data: { agentId, range: "30d" } }),
+    queryKey: ["dsAgentUsage", agentId, usageRange],
+    queryFn: () => getUsageFn({ data: { agentId, range: usageRange } }),
     enabled: activeTab === "uso",
   });
 
@@ -79,12 +81,18 @@ function DsAgentEditorPage() {
   });
 
   const addFileMut = useMutation({
-    mutationFn: (data: { file_name: string; file_size_kb: number; page_count: number }) =>
-      addFileFn({ data: { agent_id: agentId, ...data } }),
+    mutationFn: (data: {
+      file_name: string;
+      file_size_kb: number;
+      page_count: number;
+      content_base64?: string;
+      content_text?: string;
+    }) => addFileFn({ data: { agent_id: agentId, ...data } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dsAgentDetail", agentId] });
-      toast.success("Documento adicionado.");
+      toast.success("Documento indexado na base de conhecimento.");
     },
+    onError: (err: any) => toast.error(err?.message || "Erro ao indexar documento"),
   });
 
   const deleteFileMut = useMutation({
@@ -99,8 +107,9 @@ function DsAgentEditorPage() {
     mutationFn: (url: string) => addLinkFn({ data: { agent_id: agentId, url } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dsAgentDetail", agentId] });
-      toast.success("Link adicionado.");
+      toast.success("Link indexado.");
     },
+    onError: (err: any) => toast.error(err?.message || "Erro ao indexar link"),
   });
 
   const deleteLinkMut = useMutation({
@@ -266,8 +275,14 @@ function DsAgentEditorPage() {
         <TabKnowledge
           files={agentDetail.knowledge?.files || []}
           links={agentDetail.knowledge?.links || []}
-          onUploadFile={(fileName, fileSizeKb, pageCount) =>
-            addFileMut.mutate({ file_name: fileName, file_size_kb: fileSizeKb, page_count: pageCount })
+          onUploadFile={(payload) =>
+            addFileMut.mutate({
+              file_name: payload.fileName,
+              file_size_kb: payload.fileSizeKb,
+              page_count: payload.pageCount,
+              content_base64: payload.contentBase64,
+              content_text: payload.contentText,
+            })
           }
           onDeleteFile={(id) => deleteFileMut.mutate(id)}
           onAddLink={(url) => addLinkMut.mutate(url)}
@@ -290,6 +305,7 @@ function DsAgentEditorPage() {
           agentId={agentId}
           onSendTestMessage={async (msg) => {
             const res = await testChatFn({ data: { agent_id: agentId, message: msg } });
+            if (!res.ok) throw new Error(res.reply || "Falha no chat de teste");
             return { reply: res.reply };
           }}
         />
@@ -298,6 +314,8 @@ function DsAgentEditorPage() {
       {activeTab === "uso" && (
         <TabUsageReport
           usageData={usageQuery.data}
+          range={usageRange}
+          onRangeChange={setUsageRange}
           onRefresh={() => usageQuery.refetch()}
         />
       )}
