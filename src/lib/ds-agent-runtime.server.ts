@@ -382,8 +382,14 @@ async function generateDsAgentReply(params: {
   systemPrompt: string;
   historyText: string;
   userMessage: string;
-}): Promise<string | null> {
-  const { provider, model, apiKey, systemPrompt, historyText, userMessage } = params;
+  tools?: Array<{
+    type: "function";
+    function: { name: string; description: string; parameters: Record<string, unknown> };
+  }>;
+  onToolCall?: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+}): Promise<{ text: string | null; tokens: number }> {
+  const { provider, model, apiKey, systemPrompt, historyText, userMessage, tools, onToolCall } =
+    params;
 
   if (isGeminiModel(model, provider)) {
     const ai = new GoogleGenAI({ apiKey });
@@ -392,38 +398,439 @@ async function generateDsAgentReply(params: {
       model: model || "gemini-2.5-flash",
       contents: prompt,
     });
-    return String(response.text || "").trim() || null;
+    const text = String(response.text || "").trim() || null;
+    const approxTokens = Math.ceil((prompt.length + String(text || "").length) / 4);
+    return { text, tokens: approxTokens };
   }
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
+  const messages: Array<Record<string, unknown>> = [
+    { role: "system", content: systemPrompt },
+    {
+      role: "user",
+      content: historyText
+        ? `Histórico recente:\n${historyText}\n\nMensagem atual do cliente:\n${userMessage}`
+        : userMessage,
     },
-    body: JSON.stringify({
-      model: model || "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        {
-          role: "user",
-          content: historyText
-            ? `Histórico recente:\n${historyText}\n\nMensagem atual do cliente:\n${userMessage}`
-            : userMessage,
-        },
-      ],
-      temperature: 0.7,
-    }),
-  });
+  ];
 
-  if (!response.ok) {
-    const errBody = await response.text();
-    logError("OpenAI retornou erro", { status: response.status, errBody: errBody.slice(0, 500) });
-    return null;
+  let totalTokens = 0;
+  const maxRounds = tools?.length && onToolCall ? 4 : 1;
+
+  for (let round = 0; round < maxRounds; round++) {
+    const body: Record<string, unknown> = {
+      model: model || "gpt-4o-mini",
+      messages,
+      temperature: 0.7,
+    };
+    if (tools?.length) {
+      body.tools = tools;
+      body.tool_choice = "auto";
+    }
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text();
+      logError("OpenAI retornou erro", { status: response.status, errBody: errBody.slice(0, 500) });
+      return { text: null, tokens: totalTokens };
+    }
+
+    const json = (await response.json().catch(() => null)) as any;
+    totalTokens += Number(json?.usage?.total_tokens || 0);
+
+    const choice = json?.choices?.[0]?.message;
+    const toolCalls = choice?.tool_calls;
+    if (Array.isArray(toolCalls) && toolCalls.length > 0 && onToolCall) {
+      messages.push(choice);
+      for (const call of toolCalls) {
+        const name = String(call?.function?.name || "");
+        let args: Record<string, unknown> = {};
+        try {
+          args = JSON.parse(String(call?.function?.arguments || "{}"));
+        } catch {
+          args = {};
+        }
+        let result: unknown;
+        try {
+          result = await onToolCall(name, args);
+        } catch (err: any) {
+          result = { ok: false, error: err?.message || String(err) };
+        }
+        messages.push({
+          role: "tool",
+          tool_call_id: call.id,
+          content: JSON.stringify(result ?? {}),
+        });
+      }
+      continue;
+    }
+
+    const text = String(choice?.content || "").trim() || null;
+    if (!totalTokens && text) {
+      totalTokens = Math.ceil((systemPrompt.length + userMessage.length + text.length) / 4);
+    }
+    return { text, tokens: totalTokens };
   }
 
-  const body = (await response.json().catch(() => null)) as any;
-  return String(body?.choices?.[0]?.message?.content || "").trim() || null;
+  return { text: null, tokens: totalTokens };
+}
+
+function buildOpenAiToolsFromEnabled(
+  enabledKeys: Set<string>,
+): Array<{
+  type: "function";
+  function: { name: string; description: string; parameters: Record<string, unknown> };
+}> {
+  const defs: Array<{
+    key: string;
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  }> = [
+    {
+      key: "google_calendar",
+      name: "calendar_check_availability",
+      description: "Verifica disponibilidade de agenda em uma data/horário.",
+      parameters: {
+        type: "object",
+        properties: {
+          date: { type: "string", description: "YYYY-MM-DD" },
+          start_time: { type: "string", description: "HH:mm" },
+          end_time: { type: "string", description: "HH:mm" },
+        },
+      },
+    },
+    {
+      key: "google_calendar",
+      name: "calendar_create_event",
+      description: "Cria um compromisso na agenda interna do tenant.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          start_at: { type: "string", description: "ISO datetime" },
+          end_at: { type: "string", description: "ISO datetime" },
+          description: { type: "string" },
+          location: { type: "string" },
+        },
+        required: ["title", "start_at", "end_at"],
+      },
+    },
+    {
+      key: "google_calendar",
+      name: "calendar_list_events",
+      description: "Lista compromissos em um intervalo de datas.",
+      parameters: {
+        type: "object",
+        properties: {
+          start_date: { type: "string" },
+          end_date: { type: "string" },
+        },
+      },
+    },
+    {
+      key: "consulta_crm",
+      name: "consulta_crm",
+      description: "Busca dados do contato no CRM (nome, email, campos customizados).",
+      parameters: {
+        type: "object",
+        properties: {
+          phone: { type: "string" },
+          contact_id: { type: "string" },
+        },
+      },
+    },
+    {
+      key: "gerenciar_tags",
+      name: "gerenciar_tags",
+      description: "Adiciona ou remove uma tag do contato.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["add", "remove"] },
+          tag_name: { type: "string" },
+          phone: { type: "string" },
+          contact_id: { type: "string" },
+        },
+        required: ["tag_name"],
+      },
+    },
+    {
+      key: "webhook_customizado",
+      name: "webhook_customizado",
+      description: "Dispara o webhook customizado configurado no agente com um payload JSON.",
+      parameters: {
+        type: "object",
+        properties: {
+          body: { type: "object" },
+        },
+      },
+    },
+  ];
+
+  return defs
+    .filter((d) => enabledKeys.has(d.key))
+    .map((d) => ({
+      type: "function" as const,
+      function: { name: d.name, description: d.description, parameters: d.parameters },
+    }));
+}
+
+async function loadAgentKnowledgeBlock(
+  db: any,
+  agentId: string,
+  tenantId: string,
+): Promise<string> {
+  let knowledgeRows: Array<{ title?: string; content?: string }> = [];
+  try {
+    knowledgeRows = (await db.query(
+      `SELECT title, content FROM ds_agent_knowledge
+       WHERE agent_id = ? AND tenant_id = ?
+         AND status IN ('indexed', 'pending')
+         AND content IS NOT NULL AND content != ''
+       ORDER BY updated_at DESC
+       LIMIT 20`,
+      [agentId, tenantId],
+    )) as Array<{ title?: string; content?: string }>;
+  } catch {
+    knowledgeRows = [];
+  }
+
+  if (!knowledgeRows?.length) return "";
+
+  let block = "\n\n--- BASE DE CONHECIMENTO ---\nUse as informações abaixo quando forem relevantes:\n";
+  for (const doc of knowledgeRows) {
+    const content = String(doc.content || "").slice(0, 6000);
+    block += `\n[${doc.title || "Documento"}]\n${content}\n`;
+  }
+  block += "----------------------------\n";
+  return block;
+}
+
+async function buildDsAgentSystemPrompt(params: {
+  db: any;
+  agent: any;
+  tenantId: string;
+  agentId: string;
+  phoneDigits?: string;
+  replyWithAssigned: boolean;
+  processImages: boolean;
+}): Promise<string> {
+  const { db, agent, tenantId, agentId, phoneDigits, replyWithAssigned, processImages } = params;
+  const mode = String(agent.mode || "basico");
+  const instructions =
+    mode === "avancado"
+      ? String(agent.instructions_advanced || agent.system_prompt || agent.prompt || "").trim()
+      : String(agent.instructions_basic || agent.system_prompt || agent.prompt || "").trim();
+
+  let systemPrompt = instructions || `Você é ${agent.name || "um assistente virtual"} útil e profissional.`;
+
+  if (phoneDigits) {
+    try {
+      const contactRows = (await db.query(
+        `SELECT name, phone_e164, email FROM contacts
+         WHERE (tenant_id = ? OR user_id = ?)
+           AND (phone_e164 = ? OR whatsapp_number = ?)
+         LIMIT 1`,
+        [tenantId, tenantId, phoneDigits, phoneDigits],
+      )) as Array<{ name?: string; phone_e164?: string; email?: string }>;
+      const contactName = String(contactRows?.[0]?.name || "").trim() || "cliente";
+      const contactEmail = String(contactRows?.[0]?.email || "").trim();
+      systemPrompt = systemPrompt
+        .replace(/\{\{\s*nome_lead\s*\}\}/gi, contactName)
+        .replace(/\{\{\s*nome\s*\}\}/gi, contactName)
+        .replace(/\{\{\s*contact\.name\s*\}\}/gi, contactName)
+        .replace(/\{\{\s*telefone\s*\}\}/gi, phoneDigits)
+        .replace(/\{\{\s*contact\.phone\s*\}\}/gi, phoneDigits)
+        .replace(/\{\{\s*email\s*\}\}/gi, contactEmail || "")
+        .replace(
+          /\{\{\s*data_atual\s*\}\}/gi,
+          new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }),
+        );
+    } catch {
+      // Mantém o prompt original se a resolução do contato falhar.
+    }
+
+    if (replyWithAssigned) {
+      const assigned = await findAssignedResponsible(tenantId, phoneDigits);
+      if (assigned?.agentName) {
+        systemPrompt += `\n\nO responsável humano atual desta conversa é: ${assigned.agentName}. Alinhe o tom como suporte a esse responsável.`;
+      } else {
+        systemPrompt +=
+          "\n\nNão há responsável humano atribuído no momento. Atenda com autonomia e ofereça transferir a um humano se necessário.";
+      }
+    }
+  }
+
+  if (processImages) {
+    systemPrompt +=
+      "\n\nVocê pode interpretar descrições de imagens enviadas pelo cliente quando disponíveis no histórico.";
+  } else {
+    systemPrompt += "\n\nSe o cliente enviar imagens, peça para descrever em texto.";
+  }
+
+  systemPrompt +=
+    "\n\nRegras adicionais:\n- Nunca escreva placeholders como {{nome_lead}} na resposta.\n- Responda sempre a mensagem mais recente do cliente de forma útil e objetiva.\n";
+
+  systemPrompt += await loadAgentKnowledgeBlock(db, agentId, tenantId);
+  return systemPrompt;
+}
+
+/**
+ * Completion reutilizável (WhatsApp + chat de teste).
+ * Grava usage em ds_agent_usage_logs. Não envia mensagem no canal.
+ */
+export async function runDsAgentCompletion(params: {
+  agentId: string;
+  tenantId: string;
+  userMessage: string;
+  phoneDigits?: string;
+  historyText?: string;
+  enableTools?: boolean;
+}): Promise<{ ok: boolean; reply: string | null; error?: string; tokens?: number }> {
+  const { agentId, tenantId, userMessage } = params;
+  const phoneDigits = String(params.phoneDigits || "").replace(/\D/g, "");
+
+  try {
+    const { default: db } = await import("./db");
+    const { logDsAgentUsage } = await import("./ds-agent-usage.server");
+    const { executeDsAgentTool } = await import("./ds-agent-tools.server");
+
+    const agents = (await db.query(
+      `SELECT * FROM ds_agents WHERE id = ? AND tenant_id = ? LIMIT 1`,
+      [agentId, tenantId],
+    )) as any[];
+    const agent = agents?.[0];
+    if (!agent) return { ok: false, reply: null, error: "Agente não encontrado" };
+
+    const replyWithAssigned = isTruthyFlag(agent.reply_with_assigned_agent);
+    const processImages = isTruthyFlag(agent.process_images);
+
+    const systemPrompt = await buildDsAgentSystemPrompt({
+      db,
+      agent,
+      tenantId,
+      agentId,
+      phoneDigits: phoneDigits || undefined,
+      replyWithAssigned,
+      processImages,
+    });
+
+    const provider = String(agent.provider || "OpenAI Padrão");
+    const model = String(agent.model || "gpt-4o-mini");
+    const apiKey =
+      String(agent.api_key_encrypted || "").trim() ||
+      (isGeminiModel(model, provider) ? process.env.GEMINI_API_KEY : process.env.OPENAI_API_KEY) ||
+      "";
+
+    if (!apiKey) {
+      return { ok: false, reply: null, error: "API key não configurada para este agente" };
+    }
+
+    let historyText = String(params.historyText || "");
+    if (!historyText && phoneDigits) {
+      const { data: recentMsgs } = await dbAdmin
+        .from("direct_messages")
+        .select("direction, body, created_at, type")
+        .eq("user_id", tenantId)
+        .eq("contact_phone", phoneDigits)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      if (recentMsgs && recentMsgs.length > 0) {
+        historyText = [...recentMsgs]
+          .reverse()
+          .map((m: any) => {
+            const who = m.direction === "incoming" ? "Cliente" : "Agente";
+            const body = m.type && m.type !== "text" && !m.body ? `[${m.type}]` : m.body || "";
+            return `${who}: ${body}`;
+          })
+          .join("\n");
+      }
+    }
+
+    let enabledKeys = new Set<string>();
+    const toolConfigByKey: Record<string, any> = {};
+    if (params.enableTools !== false) {
+      try {
+        const toolRows = (await db.query(
+          `SELECT tool_key, enabled, config FROM ds_agent_tools
+           WHERE agent_id = ? AND tenant_id = ? AND enabled = 1`,
+          [agentId, tenantId],
+        )) as Array<{ tool_key: string; enabled: any; config: any }>;
+        for (const row of toolRows || []) {
+          enabledKeys.add(String(row.tool_key));
+          let cfg = row.config;
+          if (typeof cfg === "string") {
+            try {
+              cfg = JSON.parse(cfg);
+            } catch {
+              cfg = {};
+            }
+          }
+          toolConfigByKey[String(row.tool_key)] = cfg || {};
+        }
+      } catch {
+        enabledKeys = new Set();
+      }
+    }
+
+    const openAiTools = isGeminiModel(model, provider)
+      ? []
+      : buildOpenAiToolsFromEnabled(enabledKeys);
+
+    const contactId = phoneDigits ? await resolveContactId(tenantId, phoneDigits) : null;
+
+    const { text, tokens } = await generateDsAgentReply({
+      provider,
+      model,
+      apiKey,
+      systemPrompt,
+      historyText,
+      userMessage,
+      tools: openAiTools,
+      onToolCall: async (name, args) => {
+        const payload = {
+          ...args,
+          phone: phoneDigits || args.phone,
+          phone_digits: phoneDigits || args.phone_digits,
+          contact_id: contactId || args.contact_id,
+        };
+        const parentKey = name.startsWith("calendar_") ? "google_calendar" : name;
+        return executeDsAgentTool({
+          agentId,
+          tenantId,
+          toolKey: name.startsWith("calendar_") ? name : parentKey,
+          payload,
+          toolConfig: toolConfigByKey[parentKey],
+        });
+      },
+    });
+
+    if (tokens > 0) {
+      await logDsAgentUsage({
+        agentId,
+        tenantId,
+        model,
+        provider,
+        category: "completion",
+        tokens,
+      });
+    }
+
+    if (!text) return { ok: false, reply: null, error: "Modelo retornou resposta vazia", tokens };
+    return { ok: true, reply: text, tokens };
+  } catch (err: any) {
+    logError("runDsAgentCompletion falhou", { error: err?.message || String(err), agentId });
+    return { ok: false, reply: null, error: err?.message || "Falha na completion" };
+  }
 }
 
 export async function processDsAgent(params: {

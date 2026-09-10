@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import {
   createCalendarEventForUser,
   getCalendarEventsByRangeForUser,
@@ -179,4 +180,156 @@ export async function executeDsAgentCalendarTool(
     default:
       throw new Error(`Ferramenta de calendário não reconhecida: ${toolKey}`);
   }
+}
+
+async function executeCrmLookup(
+  tenantId: string,
+  payload: any,
+): Promise<{ ok: boolean; contact?: any; message?: string }> {
+  const phone = String(payload.phone || payload.phone_digits || "").replace(/\D/g, "");
+  const contactId = String(payload.contact_id || "").trim();
+  if (!phone && !contactId) {
+    return { ok: false, message: "Informe contact_id ou phone" };
+  }
+
+  const rows = contactId
+    ? ((await db.query(
+        `SELECT id, name, phone_e164, whatsapp_number, email, custom_fields, kanban_stage_id
+         FROM contacts
+         WHERE id = ? AND (tenant_id = ? OR user_id = ?)
+         LIMIT 1`,
+        [contactId, tenantId, tenantId],
+      )) as any[])
+    : ((await db.query(
+        `SELECT id, name, phone_e164, whatsapp_number, email, custom_fields, kanban_stage_id
+         FROM contacts
+         WHERE (tenant_id = ? OR user_id = ?)
+           AND (phone_e164 = ? OR whatsapp_number = ? OR REPLACE(REPLACE(phone_e164, '+', ''), ' ', '') = ?)
+         LIMIT 1`,
+        [tenantId, tenantId, phone, phone, phone],
+      )) as any[]);
+
+  if (!rows?.[0]) return { ok: false, message: "Contato não encontrado no CRM" };
+  return { ok: true, contact: rows[0] };
+}
+
+async function executeManageTags(
+  tenantId: string,
+  payload: any,
+): Promise<{ ok: boolean; message: string }> {
+  const action = String(payload.action || "add").toLowerCase();
+  const tagName = String(payload.tag_name || payload.tag || "").trim();
+  const contactId = String(payload.contact_id || "").trim();
+  const phone = String(payload.phone || payload.phone_digits || "").replace(/\D/g, "");
+
+  if (!tagName) return { ok: false, message: "tag_name é obrigatório" };
+
+  let resolvedContactId = contactId;
+  if (!resolvedContactId && phone) {
+    const rows = (await db.query(
+      `SELECT id FROM contacts
+       WHERE (tenant_id = ? OR user_id = ?)
+         AND (phone_e164 = ? OR whatsapp_number = ?)
+       LIMIT 1`,
+      [tenantId, tenantId, phone, phone],
+    )) as Array<{ id: string }>;
+    resolvedContactId = rows?.[0]?.id || "";
+  }
+  if (!resolvedContactId) return { ok: false, message: "Contato não encontrado" };
+
+  let tagRows = (await db.query(
+    `SELECT id FROM tags WHERE tenant_id = ? AND name = ? LIMIT 1`,
+    [tenantId, tagName],
+  )) as Array<{ id: string }>;
+
+  let tagId = tagRows?.[0]?.id;
+  if (!tagId) {
+    tagId = crypto.randomUUID();
+    await db.query(
+      `INSERT INTO tags (id, tenant_id, user_id, name, color) VALUES (?, ?, ?, ?, '#8B5CF6')`,
+      [tagId, tenantId, tenantId, tagName],
+    );
+  }
+
+  if (action === "remove") {
+    await db.query(
+      `DELETE FROM contact_tags WHERE contact_id = ? AND tag_id = ? AND tenant_id = ?`,
+      [resolvedContactId, tagId, tenantId],
+    );
+    return { ok: true, message: `Tag "${tagName}" removida do contato` };
+  }
+
+  await db.query(
+    `INSERT IGNORE INTO contact_tags (contact_id, tag_id, user_id, tenant_id)
+     VALUES (?, ?, ?, ?)`,
+    [resolvedContactId, tagId, tenantId, tenantId],
+  );
+  return { ok: true, message: `Tag "${tagName}" adicionada ao contato` };
+}
+
+async function executeCustomWebhook(
+  config: any,
+  payload: any,
+): Promise<{ ok: boolean; status?: number; body?: string; message?: string }> {
+  const url = String(config?.url || payload?.url || "").trim();
+  if (!url) return { ok: false, message: "Webhook sem URL configurada" };
+
+  const method = String(config?.method || payload?.method || "POST").toUpperCase();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(config?.headers && typeof config.headers === "object" ? config.headers : {}),
+  };
+
+  const res = await fetch(url, {
+    method,
+    headers,
+    body: method === "GET" ? undefined : JSON.stringify(payload?.body || payload || {}),
+  });
+  const body = await res.text().catch(() => "");
+  return { ok: res.ok, status: res.status, body: body.slice(0, 2000) };
+}
+
+/**
+ * Dispatcher de ferramentas do DS Agente (calendário local, CRM, tags, webhook).
+ * Nunca confiar em tenant_id/agent_id vindos do payload do LLM.
+ */
+export async function executeDsAgentTool(params: {
+  agentId: string;
+  tenantId: string;
+  toolKey: string;
+  payload?: any;
+  toolConfig?: any;
+}): Promise<any> {
+  const { agentId, tenantId, toolKey, payload = {}, toolConfig } = params;
+  const key = String(toolKey || "").trim();
+
+  if (key.startsWith("calendar_") || key === "google_calendar") {
+    const mapped =
+      key === "google_calendar" ? String(payload.action || "calendar_list_events") : key;
+    return executeDsAgentCalendarTool(agentId, tenantId, mapped, {
+      ...payload,
+      contact_id: payload.contact_id || undefined,
+    });
+  }
+
+  if (key === "consulta_crm") {
+    return executeCrmLookup(tenantId, payload);
+  }
+
+  if (key === "gerenciar_tags") {
+    return executeManageTags(tenantId, payload);
+  }
+
+  if (key === "webhook_customizado") {
+    return executeCustomWebhook(toolConfig || {}, payload);
+  }
+
+  if (key === "enviar_proposta") {
+    return {
+      ok: false,
+      message: "Ferramenta enviar_proposta ainda não gera PDF automaticamente. Informe o operador humano.",
+    };
+  }
+
+  throw new Error(`Ferramenta não reconhecida: ${key}`);
 }
