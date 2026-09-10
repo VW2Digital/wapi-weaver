@@ -73,59 +73,84 @@ export async function releaseAiConversationLock(params: {
 /**
  * true = já existe resposta de IA após a última msg do cliente (janela 15s) → descartar.
  * Respostas humanas (outgoing sem metadata de IA) não contam.
+ * Fail-open: erro de DB NÃO deve silenciar a IA.
  */
 export async function hasRecentAiReplyAfterLastCustomer(params: {
   tenantId: string;
   contactPhone: string;
 }): Promise<boolean> {
-  const { default: db } = await import("./db");
-  const msgs = (await db.query(
-    `SELECT direction, created_at, metadata
-     FROM direct_messages
-     WHERE tenant_id = ? AND contact_phone = ?
-     ORDER BY created_at DESC
-     LIMIT 20`,
-    [params.tenantId, params.contactPhone],
-  )) as Array<{ direction: string; created_at: string | Date; metadata: any }>;
+  try {
+    const { default: db } = await import("./db");
 
-  if (!msgs?.length) return false;
+    // Queries leves (LIMIT 1 / 10) para evitar filesort grande em direct_messages.
+    const lastIn = (await db.query(
+      `SELECT created_at
+       FROM direct_messages
+       WHERE (tenant_id = ? OR user_id = ?)
+         AND contact_phone = ?
+         AND direction = 'incoming'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [params.tenantId, params.tenantId, params.contactPhone],
+    )) as Array<{ created_at: string | Date }>;
 
-  let lastCustomerAt: Date | null = null;
-  for (const m of msgs) {
-    if (m.direction === "incoming") {
+    if (!lastIn?.[0]?.created_at) return false;
+
+    const lastRaw = lastIn[0].created_at;
+    const lastStr =
+      typeof lastRaw === "string" ? lastRaw : new Date(lastRaw).toISOString();
+    const lastCustomerAt = new Date(
+      lastStr.includes("Z") || lastStr.includes("+") ? lastStr : lastStr.replace(" ", "T") + "Z",
+    );
+
+    const outs = (await db.query(
+      `SELECT created_at, metadata
+       FROM direct_messages
+       WHERE (tenant_id = ? OR user_id = ?)
+         AND contact_phone = ?
+         AND direction = 'outgoing'
+         AND created_at >= ?
+       ORDER BY created_at DESC
+       LIMIT 10`,
+      [
+        params.tenantId,
+        params.tenantId,
+        params.contactPhone,
+        lastCustomerAt.toISOString().slice(0, 19).replace("T", " "),
+      ],
+    )) as Array<{ created_at: string | Date; metadata: any }>;
+
+    for (const m of outs || []) {
+      let meta = m.metadata;
+      if (typeof meta === "string") {
+        try {
+          meta = JSON.parse(meta);
+        } catch {
+          meta = {};
+        }
+      }
+      const isAi =
+        Boolean(meta?.ds_agent) ||
+        Boolean(meta?.ai_agent) ||
+        Boolean(meta?.ds_agent_id) ||
+        meta?.source === "ai_agent";
+      if (!isAi) continue;
+
       const str =
         typeof m.created_at === "string" ? m.created_at : new Date(m.created_at).toISOString();
-      lastCustomerAt = new Date(str.includes("Z") || str.includes("+") ? str : str.replace(" ", "T") + "Z");
-      break;
-    }
-  }
-  if (!lastCustomerAt) return false;
-
-  for (const m of msgs) {
-    if (m.direction !== "outgoing") continue;
-    let meta = m.metadata;
-    if (typeof meta === "string") {
-      try {
-        meta = JSON.parse(meta);
-      } catch {
-        meta = {};
+      const at = new Date(str.includes("Z") || str.includes("+") ? str : str.replace(" ", "T") + "Z");
+      if (at.getTime() >= lastCustomerAt.getTime() && Date.now() - at.getTime() <= ANTI_DUP_MS) {
+        return true;
       }
     }
-    const isAi =
-      Boolean(meta?.ds_agent) ||
-      Boolean(meta?.ai_agent) ||
-      Boolean(meta?.ds_agent_id) ||
-      meta?.source === "ai_agent";
-    if (!isAi) continue; // humano não conta
-
-    const str =
-      typeof m.created_at === "string" ? m.created_at : new Date(m.created_at).toISOString();
-    const at = new Date(str.includes("Z") || str.includes("+") ? str : str.replace(" ", "T") + "Z");
-    if (at.getTime() >= lastCustomerAt.getTime() && Date.now() - at.getTime() <= ANTI_DUP_MS) {
-      return true;
-    }
+    return false;
+  } catch (err: any) {
+    console.warn(
+      "[bot-ai-rhythm] hasRecentAiReplyAfterLastCustomer falhou (fail-open):",
+      err?.message || err,
+    );
+    return false;
   }
-  return false;
 }
 
 export async function waitAiDebounce(ms?: number): Promise<void> {
@@ -138,11 +163,16 @@ export async function shouldSkipAiCall(params: {
   contactPhone: string;
   proactiveGreeting?: boolean;
 }): Promise<{ skip: boolean; reason: string }> {
-  if (params.proactiveGreeting) {
-    return { skip: false, reason: "PROACTIVE_BYPASS" };
+  try {
+    if (params.proactiveGreeting) {
+      return { skip: false, reason: "PROACTIVE_BYPASS" };
+    }
+    if (await hasRecentAiReplyAfterLastCustomer(params)) {
+      return { skip: true, reason: "ANTI_DUPLICITY" };
+    }
+    return { skip: false, reason: "OK" };
+  } catch (err: any) {
+    console.warn("[bot-ai-rhythm] shouldSkipAiCall falhou (fail-open):", err?.message || err);
+    return { skip: false, reason: "RHYTHM_ERROR_FAIL_OPEN" };
   }
-  if (await hasRecentAiReplyAfterLastCustomer(params)) {
-    return { skip: true, reason: "ANTI_DUPLICITY" };
-  }
-  return { skip: false, reason: "OK" };
 }
