@@ -39,12 +39,69 @@ describe("bot-conversation-orchestration gate", () => {
         instanceBotActive: true,
       }).action,
     ).toBe("skip_bot_run_ai");
-  });
 
-  it("reactivates after timeout and auto-recovers empty step", () => {
+    // AI mode even when bot_active=1 (activateAi sets both)
     expect(
       evaluateInboundBotGate({
-        state: { bot_active: 0, current_step_id: null },
+        state: { bot_active: 1, ai_agent_active: 1 },
+        pauseTimeoutMinutes: 30,
+        instanceBotActive: true,
+      }).action,
+    ).toBe("skip_bot_run_ai");
+  });
+
+  it("end-flow / handoff is_paused without until does NOT auto-recover immediately", () => {
+    // -997 END_FLOW / -998 / -996 leave is_paused=1, bot_active=0, step empty
+    const decision = evaluateInboundBotGate({
+      state: {
+        bot_active: 0,
+        is_paused: 1,
+        current_step_id: null,
+        ai_agent_active: 0,
+        last_interaction: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+      },
+      pauseTimeoutMinutes: 30,
+      instanceBotActive: true,
+    });
+    expect(decision.action).toBe("silence");
+    expect(decision.reason).toBe("HANDOFF_OR_END_WITHIN_TIMEOUT");
+  });
+
+  it("end-flow / handoff reactivates only after timeout", () => {
+    const decision = evaluateInboundBotGate({
+      state: {
+        bot_active: 0,
+        is_paused: 1,
+        current_step_id: null,
+        ai_agent_active: 0,
+        last_interaction: new Date(Date.now() - 65 * 60 * 1000).toISOString(),
+      },
+      pauseTimeoutMinutes: 30,
+      instanceBotActive: true,
+    });
+    expect(decision.action).toBe("reactivate");
+    expect(decision.reason).toBe("TIMEOUT_ELAPSED");
+  });
+
+  it("is_paused with future paused_until silences (CRM pause)", () => {
+    const decision = evaluateInboundBotGate({
+      state: {
+        bot_active: 1,
+        is_paused: 1,
+        paused_until: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        ai_agent_active: 0,
+      },
+      pauseTimeoutMinutes: 30,
+      instanceBotActive: true,
+    });
+    expect(decision.action).toBe("silence");
+    expect(decision.reason).toBe("LEGACY_CRM_PAUSE");
+  });
+
+  it("reactivates after timeout and auto-recovers empty step only when NOT paused", () => {
+    expect(
+      evaluateInboundBotGate({
+        state: { bot_active: 0, current_step_id: null, is_paused: 0 },
         pauseTimeoutMinutes: 30,
         instanceBotActive: true,
       }).action,
@@ -55,6 +112,7 @@ describe("bot-conversation-orchestration gate", () => {
         state: {
           bot_active: 0,
           current_step_id: "step-1",
+          is_paused: 0,
           last_interaction: new Date(Date.now() - 65 * 60 * 1000).toISOString(),
         },
         pauseTimeoutMinutes: 30,
@@ -67,12 +125,23 @@ describe("bot-conversation-orchestration gate", () => {
         state: {
           bot_active: 0,
           current_step_id: "step-1",
+          is_paused: 0,
           last_interaction: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
         },
         pauseTimeoutMinutes: 30,
         instanceBotActive: true,
       }).action,
     ).toBe("silence");
+  });
+
+  it("continues bot when active and not paused", () => {
+    expect(
+      evaluateInboundBotGate({
+        state: { bot_active: 1, is_paused: 0, ai_agent_active: 0 },
+        pauseTimeoutMinutes: 30,
+        instanceBotActive: true,
+      }).action,
+    ).toBe("continue_bot");
   });
 
   it("toBool handles mysql-ish values", () => {

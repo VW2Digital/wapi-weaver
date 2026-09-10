@@ -80,27 +80,15 @@ export async function ensureBotConversationStateColumns(db?: any): Promise<void>
   columnsEnsured = true;
 }
 
-/** Migra sentinels legados: -999 (handoff humano) → -998. */
-export async function migrateLegacyBotSentinels(db?: any): Promise<void> {
-  const database = db || (await import("./db")).default;
-  try {
-    await database.query(
-      `UPDATE bot_steps SET next_step_id = '-998' WHERE next_step_id = '-999'`,
-    );
-  } catch (err: any) {
-    console.warn("[bot-orch] Migração next_step_id -999→-998:", err?.message);
-  }
-  try {
-    // Destinos em buttons_config / listas (texto JSON)
-    await database.query(
-      `UPDATE bot_steps
-       SET buttons_config = REPLACE(REPLACE(buttons_config, '"-999"', '"-998"'), ':-999', ':-998')
-       WHERE buttons_config IS NOT NULL
-         AND (buttons_config LIKE '%-999%' )`,
-    );
-  } catch (err: any) {
-    console.warn("[bot-orch] Migração buttons_config -999→-998:", err?.message);
-  }
+/**
+ * @deprecated NÃO executar automaticamente.
+ * Historicamente -999 era handoff humano; agora -999 = Go to AI (BOT_SENTINELS.GO_TO_AI).
+ * Rodar esta migração destrói destinos "Ir para IA".
+ */
+export async function migrateLegacyBotSentinels(_db?: any): Promise<void> {
+  console.warn(
+    "[bot-orch] migrateLegacyBotSentinels está desabilitada: -999 é Go to AI, não handoff humano.",
+  );
 }
 
 export function clampPauseTimeoutMinutes(raw: unknown): number {
@@ -180,34 +168,53 @@ export function evaluateInboundBotGate(params: {
     return { action: "silence", reason: "MANUAL_PAUSE" };
   }
 
-  // Compat: pausa legada do CRM (is_paused + paused_until) — humano manda, IA off
-  if (toBool(state.is_paused) && state.paused_until) {
-    const str =
-      typeof state.paused_until === "string"
-        ? state.paused_until
-        : new Date(state.paused_until).toISOString();
-    const until = new Date(str.includes("Z") || str.includes("+") ? str : str.replace(" ", "T") + "Z");
-    if (Date.now() < until.getTime()) {
-      return { action: "silence", reason: "LEGACY_CRM_PAUSE" };
-    }
-  }
-
   if (toBool(state.ai_agent_active)) {
     return { action: "skip_bot_run_ai", reason: "AI_AGENT_ACTIVE" };
+  }
+
+  // Handoff/CRM/sentinels (-998/-997/-996): is_paused com ou sem paused_until.
+  // Nunca AUTO_RECOVERY imediato — só silêncio ou reativação por timeout.
+  if (toBool(state.is_paused)) {
+    if (state.paused_until) {
+      const str =
+        typeof state.paused_until === "string"
+          ? state.paused_until
+          : new Date(state.paused_until).toISOString();
+      const until = new Date(str.includes("Z") || str.includes("+") ? str : str.replace(" ", "T") + "Z");
+      if (Date.now() < until.getTime()) {
+        return { action: "silence", reason: "LEGACY_CRM_PAUSE" };
+      }
+      // until expirado: cai no timeout path abaixo (reativa se elapsed ok)
+    }
+
+    const lastRaw = state.last_interaction;
+    let elapsedMs = Number.POSITIVE_INFINITY;
+    if (lastRaw) {
+      const str = typeof lastRaw === "string" ? lastRaw : new Date(lastRaw).toISOString();
+      const last = new Date(str.includes("Z") || str.includes("+") ? str : str.replace(" ", "T") + "Z");
+      elapsedMs = Date.now() - last.getTime();
+    }
+    const limitMs = clampPauseTimeoutMinutes(pauseTimeoutMinutes) * 60 * 1000;
+
+    if (elapsedMs >= limitMs) {
+      return { action: "reactivate", reason: "TIMEOUT_ELAPSED" };
+    }
+    return { action: "silence", reason: "HANDOFF_OR_END_WITHIN_TIMEOUT" };
   }
 
   const botActive = state.bot_active == null ? true : toBool(state.bot_active);
   const stepEmpty = !state.current_step_id;
 
+  // AUTO_RECOVERY só quando bot off + step vazio + NÃO paused/manual
   if (!botActive && stepEmpty) {
     return { action: "reactivate", reason: "AUTO_RECOVERY_EMPTY_STEP" };
   }
 
-  if (botActive && !toBool(state.is_paused)) {
+  if (botActive) {
     return { action: "continue_bot", reason: "BOT_ACTIVE" };
   }
 
-  // bot_active=false (ou is_paused sem until): religa após pause_timeout desde last_interaction
+  // bot_active=false com step ainda presente: religa após pause_timeout
   const lastRaw = state.last_interaction;
   let elapsedMs = Number.POSITIVE_INFINITY;
   if (lastRaw) {

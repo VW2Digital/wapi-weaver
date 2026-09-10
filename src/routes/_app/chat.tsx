@@ -5519,8 +5519,15 @@ function ChatPage() {
                       const botOn = isFlagEnabled(selectedContact.bot_active);
                       const manual = isFlagEnabled(selectedContact.manual_pause as ContactFlagValue);
                       const aiOn = isFlagEnabled(selectedContact.ai_agent_active as ContactFlagValue);
-                      const isPaused = manual || (!botOn && !aiOn);
-                      const label = isPaused ? "Bot pausado" : aiOn && !botOn ? "IA ativa" : "Bot ativo";
+                      // Contrato UI: Pausado (manual) | IA ativa | Bot ativo | Bot pausado
+                      const isPausedUi = manual || (!botOn && !aiOn);
+                      const label = manual
+                        ? "Pausado"
+                        : aiOn
+                          ? "IA ativa"
+                          : botOn
+                            ? "Bot ativo"
+                            : "Bot pausado";
                       return (
                         <button
                           type="button"
@@ -5534,18 +5541,20 @@ function ChatPage() {
                             }
                             botActiveMutation.mutate({
                               contactPhone,
-                              botActive: isPaused || !botOn,
+                              botActive: isPausedUi,
                               channel,
                             });
                           }}
                           className={cn(
                             "h-8 inline-flex items-center gap-1.5 rounded-full border px-2.5 text-[13px] font-medium shrink-0 transition-colors disabled:opacity-60",
-                            isPaused
+                            isPausedUi
                               ? "border-amber-500/30 bg-amber-500/10 text-amber-700 hover:bg-amber-500/15 dark:text-amber-400"
-                              : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-400",
+                              : aiOn
+                                ? "border-sky-500/30 bg-sky-500/10 text-sky-700 hover:bg-sky-500/15 dark:text-sky-400"
+                                : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-400",
                           )}
                           title={
-                            isPaused
+                            isPausedUi
                               ? "Clique para reativar o bot nesta conversa"
                               : "Clique para pausar o bot nesta conversa"
                           }

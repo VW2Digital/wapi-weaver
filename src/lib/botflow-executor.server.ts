@@ -569,6 +569,8 @@ export async function processBotFlow(
       if (handledByBot) return;
 
       try {
+        // Contrato: IA só roda se ai_agent_active (ou forceAiStage desta msg).
+        // Nunca auto-ligar IA por ausência de fluxo/state.
         const { default: dbFinish } = await import("./db");
         const stateRows = (await dbFinish.query(
           `SELECT id, ai_agent_active, active_agent_id, manual_pause
@@ -580,27 +582,10 @@ export async function processBotFlow(
         const st = stateRows?.[0];
         conversationStateId = st?.id || conversationStateId;
 
-        let agentId = st?.active_agent_id ? String(st.active_agent_id) : "";
+        const agentId = st?.active_agent_id ? String(st.active_agent_id) : "";
         const aiActive = forceAiStage || toBool(st?.ai_agent_active);
 
-        if (!aiActive && !st) {
-          // Fallback sem estado: se existe agente IA ativo, cria estado e responde
-          const defaultAgent = await resolveDefaultAiAgentId(tenantId, phoneNumberId);
-          if (defaultAgent && !String(defaultAgent).startsWith("legacy:")) {
-            await activateAiAgentForConversation({
-              tenantId,
-              contactNumber: phoneDigits,
-              instanceId: phoneNumberId,
-              channel,
-              agentId: defaultAgent,
-            });
-            agentId = defaultAgent;
-          } else if (defaultAgent?.startsWith("legacy:")) {
-            forceAiStage = true;
-          } else {
-            return;
-          }
-        } else if (!aiActive) {
+        if (!aiActive) {
           return;
         }
 
@@ -1024,6 +1009,8 @@ export async function processBotFlow(
       }
 
       if (nextStepId === BOT_SENTINELS.GO_TO_AI) {
+        // -999 = Go to AI: liga ai_mode e NÃO responde nesta mensagem (IA nas próximas).
+        // Diferente de link_ai_agent, que responde nesta msg.
         const agentId = await resolveDefaultAiAgentId(tenantId, phoneNumberId);
         if (!agentId) {
           await applyTransferOrPauseSentinel({
@@ -1045,6 +1032,7 @@ export async function processBotFlow(
             });
           }
           logInfo("[BOT] -999 sem agente IA; caiu para humano");
+          handledByBot = true;
           await finishPipeline();
           return;
         }
@@ -1199,26 +1187,32 @@ export async function processBotFlow(
         if (isInterruption) {
           logInfo("[BOT] Interrupção global do bot solicitada pelo usuário", { messageBody });
 
-          // Se for comando de handoff/atendente humano, pausamos o bot
+          // Handoff por palavra-chave global → mesmo contrato do sentinel -998
           if (["atendente", "humano"].includes(messageBody.trim().toLowerCase())) {
-            const updateData = {
-              current_step_id: null,
-              last_interaction: new Date().toISOString(),
-              is_paused: true,
-              paused_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-            };
-            if (state) {
-              await dbAdmin.from("bot_conversation_state").update(updateData).eq("id", state.id);
-            } else {
-              await dbAdmin.from("bot_conversation_state").insert({
-                user_id: tenantId,
-                tenant_id: tenantId,
-                contact_number: phoneDigits,
-                instance_id: phoneNumberId,
+            await applyTransferOrPauseSentinel({
+              tenantId,
+              contactNumber: phoneDigits,
+              instanceId: phoneNumberId,
+              channel,
+              stateId: state?.id,
+              sentinel: "-998",
+              keepStepId: null,
+            });
+            // paused_until curto via update adicional (24h) para compat CRM
+            const { default: dbKw } = await import("./db");
+            await dbKw.query(
+              `UPDATE bot_conversation_state
+               SET paused_until = ?, last_interaction = CURRENT_TIMESTAMP
+               WHERE (tenant_id = ? OR user_id = ?) AND contact_number = ? AND channel = ?`,
+              [
+                new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " "),
+                tenantId,
+                tenantId,
+                phoneDigits,
                 channel,
-                ...updateData,
-              });
-            }
+              ],
+            );
+            handledByBot = true;
             logInfo("[BOT] Handoff manual acionado por palavra-chave global.");
             return;
           }
@@ -1540,8 +1534,17 @@ export async function processBotFlow(
           contact_number: phoneDigits,
           instance_id: phoneNumberId,
           channel,
-          bot_active: 1,
-          is_paused: isHandoff ? 1 : 0,
+          ...(isHandoff
+            ? {
+                bot_active: 0,
+                ai_agent_active: 0,
+                active_agent_id: null,
+                is_paused: 1,
+              }
+            : {
+                bot_active: 1,
+                is_paused: 0,
+              }),
           ...updateData,
         },
         { onConflict: "user_id,contact_number,instance_id,channel" },
@@ -1578,20 +1581,22 @@ export async function processBotFlow(
         });
       } catch (error: any) {
         logError("Falha ao atribuir conversa durante handoff", { stepId: stepToExecute.id, error: error?.message });
+        handledByBot = true;
         return;
       }
       const confirmation = String(stepToExecute.handoff_message || stepToExecute.message_content || "").trim();
       if (!confirmation) {
         await commitState();
         await markBotProcessedForMessage(tenantId, channel, incomingMessageId);
+        handledByBot = true;
         logInfo("[BOT] Handoff executado sem mensagem de confirmação", { stepId: stepToExecute.id });
         return;
       }
       stepToExecute = { ...stepToExecute, message_type: "text", message_content: confirmation };
     }
 
-    // "Vincular Agente IA" é uma ação interna do construtor, não um tipo de
-    // mensagem da Cloud API. Executamos a IA antes de montar um payload Meta.
+    // link_ai_agent = ação do canvas: responde NESTA mensagem + liga AI mode.
+    // Diferente de -999 (só liga AI mode; IA nas próximas msgs).
     if (stepToExecute.message_type === "link_ai_agent" && channel === "whatsapp") {
       const preAiDecision = await evaluateBotActivation(
         await getBotActivationContext(tenantId, channel, phoneDigits),

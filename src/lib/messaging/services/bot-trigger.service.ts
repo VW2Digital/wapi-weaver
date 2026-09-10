@@ -1,7 +1,6 @@
 "use server";
 
 import type { CanonicalMessage, MessagingProvider } from "../types";
-import { getBotActivationContext, evaluateBotActivation } from "./bot-lifecycle.service";
 
 export interface TriggerBotOptions {
   userId: string;
@@ -13,8 +12,13 @@ export interface TriggerBotOptions {
   conversationId?: string | null;
 }
 
+/**
+ * Entrada única para canais via messaging core.
+ * Não pré-filtra com evaluateBotActivation (isso engolia timeout/IA).
+ * O gate completo vive em processBotFlow → evaluateInboundBotGate.
+ */
 export async function triggerBotForMessage(options: TriggerBotOptions): Promise<void> {
-  const { userId, phoneNumberId, contactPhone, message, provider, messageId, conversationId } = options;
+  const { userId, phoneNumberId, contactPhone, message, provider, conversationId } = options;
 
   const body = message.body;
   const buttonPayload = message.buttonPayload;
@@ -23,16 +27,10 @@ export async function triggerBotForMessage(options: TriggerBotOptions): Promise<
 
   // Guard against accidental bot loops from echoes or internal messages.
   if (message.direction !== "incoming") {
-    console.info("[bot:trigger] Skipping non-incoming message", { messageId, direction: message.direction });
-    return;
-  }
-
-  const channel = provider;
-  const context = await getBotActivationContext(userId, channel, contactPhone);
-  const decision = evaluateBotActivation(context);
-
-  if (!decision.active) {
-    console.info("[bot:trigger] Skipping bot execution", { messageId, userId, channel, contactPhone, reason: decision.reason });
+    console.info("[bot:trigger] Skipping non-incoming message", {
+      messageId: options.messageId,
+      direction: message.direction,
+    });
     return;
   }
 
