@@ -516,6 +516,7 @@ export async function processBotFlow(
   const lockName = createHash("md5")
     .update(`botflow:${tenantId}:${incomingMessageId || phoneDigits}:${channel}`)
     .digest("hex");
+  let finishPipeline: (() => Promise<void>) | null = null;
   try {
     const { default: dbLock } = await import("./db");
     const lockRows = (await dbLock.query("SELECT GET_LOCK(?, 10) AS taken", [lockName])) as Array<{ taken: number }>;
@@ -531,6 +532,143 @@ export async function processBotFlow(
       logInfo("Bot flow skipped: message already processed", { incomingMessageId, channel, phoneDigits });
       return;
     }
+
+    const {
+      ensureBotConversationStateColumns,
+      evaluateInboundBotGate,
+      reactivateBotFromStart,
+      activateAiAgentForConversation,
+      applyTransferOrPauseSentinel,
+      resolveDefaultAiAgentId,
+      clampPauseTimeoutMinutes,
+      toBool,
+      logBotEvent,
+      BOT_SENTINELS,
+    } = await import("./bot-conversation-orchestration.server");
+    const { processAutoAssignOnce } = await import("./bot-auto-assign.server");
+    await ensureBotConversationStateColumns();
+
+    let handledByBot = false;
+    let forceAiStage = false;
+    let conversationStateId: string | null = null;
+    let pipelineFinished = false;
+
+    finishPipeline = async () => {
+      if (pipelineFinished) return;
+      pipelineFinished = true;
+      try {
+        await processAutoAssignOnce({
+          tenantId,
+          contactPhone: phoneDigits,
+          phoneNumberId,
+        });
+      } catch (assignErr: any) {
+        logError("[BOT] Falha no auto-assign", { error: assignErr?.message });
+      }
+
+      if (handledByBot) return;
+
+      try {
+        const { default: dbFinish } = await import("./db");
+        const stateRows = (await dbFinish.query(
+          `SELECT id, ai_agent_active, active_agent_id, manual_pause
+           FROM bot_conversation_state
+           WHERE (tenant_id = ? OR user_id = ?) AND contact_number = ? AND channel = ?
+           ORDER BY updated_at DESC LIMIT 1`,
+          [tenantId, tenantId, phoneDigits, channel],
+        )) as any[];
+        const st = stateRows?.[0];
+        conversationStateId = st?.id || conversationStateId;
+
+        let agentId = st?.active_agent_id ? String(st.active_agent_id) : "";
+        const aiActive = forceAiStage || toBool(st?.ai_agent_active);
+
+        if (!aiActive && !st) {
+          // Fallback sem estado: se existe agente IA ativo, cria estado e responde
+          const defaultAgent = await resolveDefaultAiAgentId(tenantId, phoneNumberId);
+          if (defaultAgent && !String(defaultAgent).startsWith("legacy:")) {
+            await activateAiAgentForConversation({
+              tenantId,
+              contactNumber: phoneDigits,
+              instanceId: phoneNumberId,
+              channel,
+              agentId: defaultAgent,
+            });
+            agentId = defaultAgent;
+          } else if (defaultAgent?.startsWith("legacy:")) {
+            forceAiStage = true;
+          } else {
+            return;
+          }
+        } else if (!aiActive) {
+          return;
+        }
+
+        if (toBool(st?.manual_pause) && !toBool(st?.ai_agent_active) && !forceAiStage) {
+          return;
+        }
+
+        const {
+          acquireAiConversationLock,
+          releaseAiConversationLock,
+          shouldSkipAiCall,
+        } = await import("./bot-ai-rhythm.server");
+
+        const skip = await shouldSkipAiCall({ tenantId, contactPhone: phoneDigits });
+        if (skip.skip) {
+          logInfo("[BOT] IA descartada (ritmo)", { reason: skip.reason, phoneDigits });
+          return;
+        }
+
+        const lock = await acquireAiConversationLock({
+          tenantId,
+          contactNumber: phoneDigits,
+          channel,
+          stateId: conversationStateId,
+        });
+        if (!lock.ok) {
+          logInfo("[BOT] IA bloqueada por lock", { phoneDigits });
+          return;
+        }
+
+        try {
+          // Debounce completo (8–13s) não bloqueia o lock do webhook;
+          // antiduplicidade + lock de 60s cobrem rajadas.
+          if (channel === "whatsapp" && messageBody) {
+            if (agentId && !agentId.startsWith("legacy:")) {
+              const { processDsAgent } = await import("./ds-agent-runtime.server");
+              const ok = await processDsAgent({
+                agentId,
+                messageBody,
+                phoneDigits,
+                phoneNumberId,
+                tenantId,
+              });
+              if (ok) {
+                await markBotProcessedForMessage(tenantId, channel, incomingMessageId);
+                logInfo("[BOT] Resposta gerada no estágio IA (DS)", { agentId, phoneDigits });
+                return;
+              }
+            }
+            const { processAiAgent } = await import("./ai-agent.server");
+            const okLegacy = await processAiAgent(messageBody, phoneDigits, phoneNumberId, tenantId);
+            if (okLegacy) {
+              await markBotProcessedForMessage(tenantId, channel, incomingMessageId);
+              logInfo("[BOT] Resposta gerada no estágio IA (legado)", { phoneDigits });
+            }
+          }
+        } finally {
+          await releaseAiConversationLock({
+            tenantId,
+            contactNumber: phoneDigits,
+            channel,
+            stateId: conversationStateId,
+          });
+        }
+      } catch (aiErr: any) {
+        logError("[BOT] Falha no estágio IA", { error: aiErr?.message });
+      }
+    };
 
     // 1. Localizar configurações legadas e fluxos criados pelo construtor.
     // O construtor novo tem bot_flows como fonte de verdade; não dependa de
@@ -609,7 +747,7 @@ export async function processBotFlow(
     // caso, a alteração manual mais recente é a fonte de verdade.
     const { data: controlState } = await dbAdmin
       .from("bot_conversation_state")
-      .select("id, bot_active, is_paused, paused_until")
+      .select("id, bot_active, is_paused, paused_until, ai_agent_active, active_agent_id, manual_pause, current_step_id, last_interaction")
       .eq("tenant_id", tenantId)
       .eq("contact_number", phoneDigits)
       .eq("channel", channel)
@@ -617,35 +755,117 @@ export async function processBotFlow(
       .limit(1)
       .maybeSingle();
     const effectiveControlState = controlState ?? state;
+    conversationStateId = effectiveControlState?.id || state?.id || null;
 
+    // Alinha pausa legada do CRM (is_paused sem manual_pause) à doc §4a em app-layer
+    // (triggers MySQL exigem SUPER/binlog e podem falhar no Docker local).
     if (
       effectiveControlState &&
-      (effectiveControlState.bot_active === 0 ||
-        effectiveControlState.bot_active === false ||
-        effectiveControlState.bot_active === "0")
+      toBool(effectiveControlState.is_paused) &&
+      !toBool(effectiveControlState.manual_pause) &&
+      (toBool(effectiveControlState.ai_agent_active) ||
+        toBool(effectiveControlState.bot_active) ||
+        effectiveControlState.current_step_id)
     ) {
-      logInfo("Bot desativado manualmente para este contato", { phoneDigits });
+      const { applyHumanCrmIntervention } = await import("./bot-conversation-orchestration.server");
+      await applyHumanCrmIntervention({
+        tenantId,
+        contactNumber: phoneDigits,
+        channel,
+        instanceId: phoneNumberId,
+      });
+      if (effectiveControlState) {
+        effectiveControlState.bot_active = 0;
+        effectiveControlState.ai_agent_active = 0;
+        effectiveControlState.current_step_id = null;
+        effectiveControlState.last_interaction = new Date().toISOString();
+      }
+      if (state) {
+        state.bot_active = 0;
+        state.ai_agent_active = 0;
+        state.current_step_id = null;
+      }
+    }
+
+    const pauseTimeoutMinutes = clampPauseTimeoutMinutes(
+      sortedFlows.find((f: any) => f.pause_timeout_minutes != null)?.pause_timeout_minutes ??
+        sortedFlows[0]?.pause_timeout_minutes ??
+        30,
+    );
+    const instanceBotActive = true; // fluxos já filtrados acima
+
+    // Caminho inverso: destino -999 mas ai_agent_active=false → reinicia no menu
+    if (
+      state?.current_step_id &&
+      !toBool(state.ai_agent_active) &&
+      !toBool(state.manual_pause)
+    ) {
+      // se a etapa atual aponta next -999 e IA foi desligada, trata como restart
+      try {
+        const stepRows = (await db.query(
+          `SELECT next_step_id FROM bot_steps WHERE id = ? LIMIT 1`,
+          [state.current_step_id],
+        )) as Array<{ next_step_id?: string | null }>;
+        if (stepRows?.[0]?.next_step_id === BOT_SENTINELS.GO_TO_AI) {
+          await reactivateBotFromStart({
+            stateId: state.id,
+            tenantId,
+            contactNumber: phoneDigits,
+            instanceId: phoneNumberId,
+            channel,
+            reason: "AI_DISABLED_RESTART",
+          });
+          state.current_step_id = null;
+          state.ai_agent_active = 0;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const gate = evaluateInboundBotGate({
+      state: effectiveControlState,
+      pauseTimeoutMinutes,
+      instanceBotActive,
+    });
+
+    if (gate.action === "silence") {
+      await logBotEvent({
+        tenantId,
+        contactNumber: phoneDigits,
+        instanceId: phoneNumberId,
+        channel,
+        eventType: gate.reason === "MANUAL_PAUSE" ? "ignored_manual_pause" : "ignored_within_timeout",
+        details: { reason: gate.reason },
+      });
+      logInfo("Bot em silêncio (pausa/timeout)", { phoneDigits, reason: gate.reason });
+      await finishPipeline();
       return;
     }
 
-    if (effectiveControlState && effectiveControlState.is_paused) {
-      const rawPaused = effectiveControlState.paused_until;
-      let pausedUntil = new Date(0);
-      if (rawPaused) {
-        const str = typeof rawPaused === "string" ? rawPaused : new Date(rawPaused).toISOString();
-        pausedUntil = new Date(str.includes("Z") || str.includes("+") ? str : str.replace(" ", "T") + "Z");
-      }
+    if (gate.action === "skip_bot_run_ai") {
+      forceAiStage = true;
+      logInfo("Bot pulado; estágio IA", { phoneDigits, reason: gate.reason });
+      await finishPipeline();
+      return;
+    }
 
-      if (Date.now() < pausedUntil.getTime()) {
-        logInfo("Bot pausado para este contato", { phoneDigits, pausedUntil });
-        return;
-      } else {
-        logInfo("Pausa do bot expirou, retomando...", { phoneDigits });
-        await dbAdmin
-          .from("bot_conversation_state")
-          .update({ is_paused: false, paused_until: null })
-          .eq("id", effectiveControlState.id);
+    if (gate.action === "reactivate" && effectiveControlState?.id) {
+      await reactivateBotFromStart({
+        stateId: effectiveControlState.id,
+        tenantId,
+        contactNumber: phoneDigits,
+        instanceId: phoneNumberId,
+        channel,
+        reason: gate.reason,
+      });
+      if (state) {
+        state.bot_active = 1;
+        state.ai_agent_active = 0;
+        state.current_step_id = null;
+        state.is_paused = 0;
       }
+      logInfo("Bot reativado por inatividade/auto-recovery", { phoneDigits, reason: gate.reason });
     }
 
     // 3. Escolher o fluxo correto com base na nova regra de precedência
@@ -790,7 +1010,7 @@ export async function processBotFlow(
         }
       }
 
-      if (nextStepId && nextStepId !== "-999" && nextStepId !== "-997") {
+      if (nextStepId && nextStepId !== "-999" && nextStepId !== "-998" && nextStepId !== "-997" && nextStepId !== "-996" && nextStepId !== "-1") {
         const routed = resolveDestinationStep(allSteps, nextStepId) || resolveDestinationStep(allSteps, buttonPayload);
         const acceptRouted =
           routed &&
@@ -803,30 +1023,85 @@ export async function processBotFlow(
         }
       }
 
-      if (nextStepId === "-999") {
-        const updateData = {
-          current_step_id: null,
-          last_interaction: new Date().toISOString(),
-          is_paused: true,
-          paused_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        };
-        if (state) {
-          await dbAdmin.from("bot_conversation_state").update(updateData).eq("id", state.id);
-        } else {
-          await dbAdmin.from("bot_conversation_state").insert({
-            user_id: tenantId,
-            tenant_id: tenantId,
-            contact_number: phoneDigits,
-            instance_id: phoneNumberId,
+      if (nextStepId === BOT_SENTINELS.GO_TO_AI) {
+        const agentId = await resolveDefaultAiAgentId(tenantId, phoneNumberId);
+        if (!agentId) {
+          await applyTransferOrPauseSentinel({
+            tenantId,
+            contactNumber: phoneDigits,
+            instanceId: phoneNumberId,
             channel,
-            ...updateData,
+            stateId: state?.id,
+            sentinel: "-998",
+            keepStepId: state?.current_step_id || null,
+          });
+          if (assignTeamId || assignAgentId) {
+            await processAutoAssignOnce({
+              tenantId,
+              contactPhone: phoneDigits,
+              phoneNumberId,
+              teamId: assignTeamId,
+              agentId: assignAgentId,
+            });
+          }
+          logInfo("[BOT] -999 sem agente IA; caiu para humano");
+          await finishPipeline();
+          return;
+        }
+        const realAgentId = agentId.startsWith("legacy:") ? null : agentId;
+        await activateAiAgentForConversation({
+          tenantId,
+          contactNumber: phoneDigits,
+          instanceId: phoneNumberId,
+          channel,
+          agentId: realAgentId,
+          stateId: state?.id,
+        });
+        if (realAgentId) {
+          try {
+            const { upsertActiveDsAgentSession } = await import("./ds-agent-runtime.server");
+            await upsertActiveDsAgentSession(tenantId, realAgentId, phoneDigits);
+          } catch {
+            /* optional */
+          }
+        }
+        forceAiStage = true;
+        handledByBot = true; // seleção do menu tratada; IA nas próximas (exceto forceAiStage neste evento se quisermos)
+        // Doc: próximas mensagens vão para IA. Nesta mensagem o bot já "tratou" a escolha.
+        forceAiStage = false;
+        await finishPipeline();
+        return;
+      } else if (nextStepId === BOT_SENTINELS.TRANSFER_HUMAN || nextStepId === BOT_SENTINELS.END_FLOW || nextStepId === BOT_SENTINELS.PAUSE_BOT) {
+        await applyTransferOrPauseSentinel({
+          tenantId,
+          contactNumber: phoneDigits,
+          instanceId: phoneNumberId,
+          channel,
+          stateId: state?.id,
+          sentinel: nextStepId as "-998" | "-997" | "-996",
+          keepStepId: nextStepId === "-997" ? null : state?.current_step_id || null,
+        });
+        if (assignTeamId || assignAgentId) {
+          await processAutoAssignOnce({
+            tenantId,
+            contactPhone: phoneDigits,
+            phoneNumberId,
+            teamId: assignTeamId,
+            agentId: assignAgentId,
           });
         }
-        logInfo("[BOT] Handoff manual acionado por botão interativo.");
+        handledByBot = true;
+        await finishPipeline();
         return;
-      } else if (nextStepId === "-997") {
+      } else if (nextStepId === BOT_SENTINELS.RESTART) {
         stepToExecute = null;
         isButtonRedirect = true;
+        if (state?.id) {
+          await dbAdmin
+            .from("bot_conversation_state")
+            .update({ current_step_id: null, ai_agent_active: 0, last_interaction: new Date().toISOString() })
+            .eq("id", state.id);
+        }
       } else if (nextStepId) {
         const targetStep = allSteps?.find((s: any) => s.id === nextStepId);
         if (targetStep) {
@@ -1226,7 +1501,11 @@ export async function processBotFlow(
       messageBody,
     });
 
-    const isHandoff = stepToExecute.next_step_id === "-999" || stepToExecute.message_type === "transfer_chat";
+    const isHandoff =
+      stepToExecute.next_step_id === "-998" ||
+      stepToExecute.next_step_id === "-997" ||
+      stepToExecute.next_step_id === "-996" ||
+      stepToExecute.message_type === "transfer_chat";
     let handoffPauseMinutes = 24 * 60;
     if (stepToExecute.message_type === "transfer_chat") {
       try {
@@ -1273,6 +1552,12 @@ export async function processBotFlow(
     // ela foi configurada. Nunca envia `type=transfer_chat` para a Meta.
     if (stepToExecute.message_type === "transfer_chat") {
       try {
+        const { pauseDsAgentSessionsForContact } = await import("./ds-agent-runtime.server");
+        await pauseDsAgentSessionsForContact(tenantId, phoneDigits);
+      } catch (pauseErr: any) {
+        logError("Falha ao pausar sessão DS Agente no handoff", { error: pauseErr?.message });
+      }
+      try {
         // Reutiliza a mesma tabela de atribuição usada pelo roteamento de botões.
         await dbAdmin
           .from("conversation_assignments")
@@ -1315,33 +1600,83 @@ export async function processBotFlow(
         logInfo("[BOT] Execução abortada antes da IA", { reason: preAiDecision.reason, phoneDigits, stepId: stepToExecute.id });
         return;
       }
-      const { processAiAgent } = await import("./ai-agent.server");
-      const handledByAi = await processAiAgent(messageBody, phoneDigits, phoneNumberId, tenantId);
-      if (handledByAi) {
-        await commitState();
-        await markBotProcessedForMessage(tenantId, channel, incomingMessageId);
-        logInfo("[BOT] Resposta gerada pelo agente IA", { stepId: stepToExecute.id });
-        return;
-      }
-      let fallbackText = "";
+
+      let cfg: any = {};
       try {
-        const cfg = typeof stepToExecute.buttons_config === "string"
+        cfg = typeof stepToExecute.buttons_config === "string"
           ? JSON.parse(stepToExecute.buttons_config || "{}", (key, value) =>
               key === "__proto__" || key === "constructor" || key === "prototype" ? undefined : value
             )
           : stepToExecute.buttons_config || {};
-        fallbackText = String(cfg?.action?.fallback_text || "").trim();
       } catch {
-        fallbackText = "";
+        cfg = {};
       }
-      if (!fallbackText) {
-        logError("[BOT] Agente IA não respondeu e não há mensagem de contingência", { stepId: stepToExecute.id });
-        return;
+
+      const configuredAgentId = String(cfg?.action?.ds_agent_id || "").trim();
+      const { processDsAgent, resolveDsAgentIdForLinkStep } = await import("./ds-agent-runtime.server");
+      const dsAgentId = await resolveDsAgentIdForLinkStep({
+        tenantId,
+        configuredAgentId,
+        messageContent: stepToExecute.message_content,
+      });
+      let handledByAi = false;
+
+      if (dsAgentId) {
+        if (!configuredAgentId) {
+          logInfo("[BOT] DS Agente resolvido sem ds_agent_id no config", {
+            stepId: stepToExecute.id,
+            dsAgentId,
+            messageContent: stepToExecute.message_content,
+          });
+        }
+        handledByAi = await processDsAgent({
+          agentId: dsAgentId,
+          messageBody,
+          phoneDigits,
+          phoneNumberId,
+          tenantId,
+        });
+        if (handledByAi) {
+          await activateAiAgentForConversation({
+            tenantId,
+            contactNumber: phoneDigits,
+            instanceId: phoneNumberId,
+            channel,
+            agentId: dsAgentId,
+            stateId: state?.id,
+          });
+          try {
+            const { upsertActiveDsAgentSession } = await import("./ds-agent-runtime.server");
+            await upsertActiveDsAgentSession(tenantId, dsAgentId, phoneDigits);
+          } catch {
+            /* optional */
+          }
+          await markBotProcessedForMessage(tenantId, channel, incomingMessageId);
+          handledByBot = true; // IA tratou neste evento via passo link; não reentrar estágio
+          logInfo("[BOT] Resposta gerada pelo DS Agente", { stepId: stepToExecute.id, dsAgentId });
+          return;
+        }
+      } else {
+        const { processAiAgent } = await import("./ai-agent.server");
+        handledByAi = await processAiAgent(messageBody, phoneDigits, phoneNumberId, tenantId);
+        if (handledByAi) {
+          await commitState();
+          await markBotProcessedForMessage(tenantId, channel, incomingMessageId);
+          logInfo("[BOT] Resposta gerada pelo agente IA legado", { stepId: stepToExecute.id });
+          return;
+        }
       }
+
+      const fallbackText = String(cfg?.action?.fallback_text || "").trim()
+        || "Nosso assistente de IA está temporariamente indisponível. Em instantes um atendente continuará seu atendimento.";
       // Contingência é uma mensagem de texto válida; a ação interna nunca é
       // enviada como type=link_ai_agent para a Meta.
       stepToExecute = { ...stepToExecute, message_type: "text", message_content: fallbackText };
-      logError("[BOT] Agente IA não respondeu; enviando contingência configurada", { stepId: stepToExecute.id });
+      logError("[BOT] Agente IA não respondeu; enviando contingência", {
+        stepId: stepToExecute.id,
+        dsAgentId: dsAgentId || null,
+        configuredAgentId: configuredAgentId || null,
+      });
     }
 
     // 4. Disparar o envio da mensagem para o canal correto
@@ -1578,6 +1913,65 @@ export async function processBotFlow(
 
     if (isSuccess) {
       await commitState();
+      handledByBot = true;
+
+      // Após enviar o passo, se next_step_id for -999 ativa IA para as próximas mensagens
+      if (stepToExecute.next_step_id === BOT_SENTINELS.GO_TO_AI) {
+        const agentId = await resolveDefaultAiAgentId(tenantId, phoneNumberId);
+        if (!agentId) {
+          await applyTransferOrPauseSentinel({
+            tenantId,
+            contactNumber: phoneDigits,
+            instanceId: phoneNumberId,
+            channel,
+            stateId: state?.id,
+            sentinel: "-998",
+            keepStepId: null,
+          });
+        } else {
+          const realAgentId = agentId.startsWith("legacy:") ? null : agentId;
+          await activateAiAgentForConversation({
+            tenantId,
+            contactNumber: phoneDigits,
+            instanceId: phoneNumberId,
+            channel,
+            agentId: realAgentId,
+            stateId: state?.id,
+          });
+          if (realAgentId) {
+            try {
+              const { upsertActiveDsAgentSession } = await import("./ds-agent-runtime.server");
+              await upsertActiveDsAgentSession(tenantId, realAgentId, phoneDigits);
+            } catch {
+              /* optional */
+            }
+          }
+        }
+      } else if (
+        stepToExecute.next_step_id === BOT_SENTINELS.TRANSFER_HUMAN ||
+        stepToExecute.next_step_id === BOT_SENTINELS.END_FLOW ||
+        stepToExecute.next_step_id === BOT_SENTINELS.PAUSE_BOT
+      ) {
+        await applyTransferOrPauseSentinel({
+          tenantId,
+          contactNumber: phoneDigits,
+          instanceId: phoneNumberId,
+          channel,
+          stateId: state?.id,
+          sentinel: stepToExecute.next_step_id as "-998" | "-997" | "-996",
+          keepStepId:
+            stepToExecute.next_step_id === "-997" ? null : stepToExecute.id,
+        });
+        if (stepToExecute.assign_team_id || stepToExecute.assign_user_id) {
+          await processAutoAssignOnce({
+            tenantId,
+            contactPhone: phoneDigits,
+            phoneNumberId,
+            teamId: stepToExecute.assign_team_id || null,
+            agentId: stepToExecute.assign_user_id || null,
+          });
+        }
+      }
 
       const msgType = ["image", "video", "audio", "document", "sticker", "location"].includes(
         stepToExecute.message_type,
@@ -1621,6 +2015,13 @@ export async function processBotFlow(
   } catch (err: any) {
     logError("Exceção fatal no processBotFlow", { error: err.message });
   } finally {
+    try {
+      if (typeof finishPipeline === "function") {
+        await finishPipeline();
+      }
+    } catch (pipeErr: any) {
+      logError("[BOT] Falha no finishPipeline", { error: pipeErr?.message });
+    }
     try {
       const { default: dbUnlock } = await import("./db");
       await dbUnlock.query("SELECT RELEASE_LOCK(?)", [lockName]);

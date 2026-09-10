@@ -216,7 +216,7 @@ async function ensureBotStepsColumns(db: any) {
   }
 }
 
-const SENTINEL_IDS = new Set(["", "0", "-999", "-998", "-997", "none"]);
+const SENTINEL_IDS = new Set(["", "0", "-999", "-998", "-997", "-996", "-1", "none"]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NON_STEP_KEYS = new Set(["handleId", "sourceHandle", "sourceHandleId"]);
 
@@ -613,7 +613,7 @@ export const updateBotPauseTimeout = createServerFn({ method: "POST" })
   .validator((d: any) =>
     z
       .object({
-        minutes: z.number().int().min(1).max(7 * 24 * 60),
+        minutes: z.number().int().min(1).max(1440),
         channel: z.string().optional(),
       })
       .parse(d),

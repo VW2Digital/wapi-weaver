@@ -233,38 +233,58 @@ export function TabTraining({
 
         {/* Toggles de Configurações */}
         <div className="space-y-4 pt-3 border-t border-border">
-          <div className="flex items-center justify-between">
-            <Label className="text-xs text-foreground cursor-pointer">
-              Responder tickets com responsável
-            </Label>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <Label className="text-xs text-foreground cursor-pointer">
+                Responder tickets com responsável
+              </Label>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Inclui o atendente humano atribuído no contexto das respostas.
+              </p>
+            </div>
             <Switch
               checked={!!agentData.reply_with_assigned_agent}
               onCheckedChange={(val) => onChangeField("reply_with_assigned_agent", val)}
             />
           </div>
 
-          <div className="flex items-center justify-between">
-            <Label className="text-xs text-foreground cursor-pointer">
-              Dividir respostas em blocos
-            </Label>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <Label className="text-xs text-foreground cursor-pointer">
+                Dividir respostas em blocos
+              </Label>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Quebra respostas longas em várias mensagens no WhatsApp.
+              </p>
+            </div>
             <Switch
               checked={!!agentData.split_replies_in_blocks}
               onCheckedChange={(val) => onChangeField("split_replies_in_blocks", val)}
             />
           </div>
 
-          <div className="flex items-center justify-between">
-            <Label className="text-xs text-foreground cursor-pointer">Processar imagens</Label>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <Label className="text-xs text-foreground cursor-pointer">Processar imagens</Label>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Aceita imagens do cliente; se desligado, pede descrição em texto.
+              </p>
+            </div>
             <Switch
               checked={!!agentData.process_images}
               onCheckedChange={(val) => onChangeField("process_images", val)}
             />
           </div>
 
-          <div className="flex items-center justify-between">
-            <Label className="text-xs text-foreground cursor-pointer">
-              Desabilitar agente fora da plataforma
-            </Label>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <Label className="text-xs text-foreground cursor-pointer">
+                Desabilitar agente fora da plataforma
+              </Label>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Respeita a agenda de disponibilidade (dias/horários em Ferramentas).
+              </p>
+            </div>
             <Switch
               checked={!!agentData.disabled_outside_platform}
               onCheckedChange={(val) => onChangeField("disabled_outside_platform", val)}

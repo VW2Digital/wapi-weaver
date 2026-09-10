@@ -320,6 +320,9 @@ function BotPage() {
       initialButtonsConfig = { action: { parameters: { display_text: "", url: "" } } };
     } else if (item.type === "pix") {
       initialButtonsConfig = { action: { mode: "static", amount: "", pixKey: "", copyPaste: "", description: "" } };
+    } else if (item.type === "link_ai_agent") {
+      initialButtonsConfig = { action: { ds_agent_id: "", ds_agent_name: "", fallback_text: "" } };
+      initialMessageContent = "Vincular Agente IA";
     }
 
     const newStep = {
@@ -405,7 +408,7 @@ function BotPage() {
 
   const flowsList = flowsQuery.data?.flows || [];
   const pauseTimeoutMinutes = Number(
-    (settingsQuery.data as any)?.settings?.pause_timeout_minutes ?? 60,
+    (settingsQuery.data as any)?.settings?.pause_timeout_minutes ?? 30,
   );
 
   const filteredTemplates = BOT_TEMPLATES.filter((t) => {
@@ -432,7 +435,7 @@ function BotPage() {
 
           <div className="flex items-end gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Retomar após intervenção humana</Label>
+              <Label className="text-xs text-muted-foreground">Tempo de pausa (religamento automático)</Label>
               <Select
                 value={String(pauseTimeoutMinutes)}
                 onValueChange={(value) => updatePauseTimeout.mutate(Number(value))}
@@ -832,7 +835,7 @@ function BotSimulatorModal({
     if (startStep) {
       setMessages([{ sender: "bot", step: startStep }]);
       setCurrentStepId(startStep.next_step_id || null);
-      if (startStep.next_step_id === "-999") setIsHandoff(true);
+      if (startStep.next_step_id === "-998" || startStep.next_step_id === "-999") setIsHandoff(true);
     } else {
       setMessages([{ sender: "bot", text: "Nenhum passo de início configurado no fluxo." }]);
     }
@@ -864,16 +867,42 @@ function BotSimulatorModal({
 
     let targetStep: any = null;
 
-    if (customStepId) {
-      const cleanId = customStepId.replace("step:", "").split(":")[0];
+    const handleSentinel = (cleanId: string): boolean => {
       if (cleanId === "-999") {
         setIsHandoff(true);
         setMessages((prev) => [
           ...prev,
-          { sender: "bot", text: "Atendimento transferido para um operador humano." },
+          { sender: "bot", text: "Conversa transferida para o Agente de IA." },
         ]);
-        return;
+        return true;
       }
+      if (cleanId === "-998" || cleanId === "-997" || cleanId === "-996") {
+        setIsHandoff(true);
+        setMessages((prev) => [
+          ...prev,
+          {
+            sender: "bot",
+            text:
+              cleanId === "-996"
+                ? "Bot pausado."
+                : cleanId === "-997"
+                  ? "Fluxo encerrado. Transferindo para atendimento humano."
+                  : "Atendimento transferido para um operador humano.",
+          },
+        ]);
+        return true;
+      }
+      if (cleanId === "-1") {
+        setCurrentStepId(null);
+        setIsHandoff(false);
+        return false;
+      }
+      return false;
+    };
+
+    if (customStepId) {
+      const cleanId = customStepId.replace("step:", "").split(":")[0];
+      if (handleSentinel(cleanId)) return;
       targetStep = steps.find((s) => s.id === cleanId);
     } else {
       const normText = normalize(text);
@@ -892,14 +921,7 @@ function BotSimulatorModal({
             const id = btn.reply?.id || "";
             if (title === normText || id === text || normText.includes(title)) {
               const cleanId = id.replace("step:", "").split(":")[0];
-              if (cleanId === "-999") {
-                setIsHandoff(true);
-                setMessages((prev) => [
-                  ...prev,
-                  { sender: "bot", text: "Atendimento transferido para um operador humano." },
-                ]);
-                return;
-              }
+              if (handleSentinel(cleanId)) return;
               targetStep = steps.find((s) => s.id === cleanId);
               break;
             }
@@ -912,14 +934,7 @@ function BotSimulatorModal({
                 const id = row.id || "";
                 if (title === normText || id === text || normText.includes(title)) {
                   const cleanId = id.replace("step:", "").split(":")[0];
-                  if (cleanId === "-999") {
-                    setIsHandoff(true);
-                    setMessages((prev) => [
-                      ...prev,
-                      { sender: "bot", text: "Atendimento transferido para um operador humano." },
-                    ]);
-                    return;
-                  }
+                  if (handleSentinel(cleanId)) return;
                   targetStep = steps.find((s) => s.id === cleanId);
                   break;
                 }
@@ -933,14 +948,7 @@ function BotSimulatorModal({
 
       // 2. Check currentStepId if present
       if (!targetStep && currentStepId) {
-        if (currentStepId === "-999") {
-          setIsHandoff(true);
-          setMessages((prev) => [
-            ...prev,
-            { sender: "bot", text: "Atendimento transferido para um operador humano." },
-          ]);
-          return;
-        }
+        if (handleSentinel(currentStepId)) return;
         targetStep = steps.find((s) => s.id === currentStepId);
       }
 
@@ -969,7 +977,14 @@ function BotSimulatorModal({
         setMessages((prev) => [...prev, { sender: "bot", step: targetStep }]);
         const nextId = targetStep.next_step_id || null;
         setCurrentStepId(nextId);
-        if (nextId === "-999" || targetStep.message_type === "transfer_chat") {
+        if (
+          nextId === "-999" ||
+          nextId === "-998" ||
+          nextId === "-997" ||
+          nextId === "-996" ||
+          targetStep.message_type === "transfer_chat" ||
+          targetStep.message_type === "link_ai_agent"
+        ) {
           setIsHandoff(true);
         }
       }, 400);

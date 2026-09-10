@@ -16,6 +16,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { listWhatsAppFlows } from "@/lib/botflow.functions";
 import { listTeams, listAllAgents } from "@/lib/assignment.functions";
 import { listLeadFieldsFn } from "@/lib/custom-fields.functions";
+import { listDsAgents } from "@/lib/ds-agent.functions";
 import { toast } from "sonner";
 
 export function StepInspector({
@@ -40,6 +41,7 @@ export function StepInspector({
   const fetchTeamsFn = useServerFn(listTeams);
   const fetchAgentsFn = useServerFn(listAllAgents);
   const fetchLeadFieldsFn = useServerFn(listLeadFieldsFn);
+  const fetchDsAgentsFn = useServerFn(listDsAgents);
 
   const leadFieldsQuery = useQuery({
     queryKey: ["leadFields"],
@@ -58,6 +60,11 @@ export function StepInspector({
     queryFn: () => fetchAgentsFn(),
   });
 
+  const dsAgentsQuery = useQuery({
+    queryKey: ["dsAgentsList"],
+    queryFn: () => fetchDsAgentsFn(),
+  });
+  const dsAgents = dsAgentsQuery.data?.agents || [];
   const rebuildButtonId = (stepId: string, teamId: string, agentId: string) => {
     if (stepId === "none" || !stepId) return "";
     let newId = `step:${stepId}`;
@@ -123,6 +130,37 @@ export function StepInspector({
     }
   }, [selectedStep.id, selectedStep.buttons_config]);
 
+  // Auto-vincula DS Agente pelo nome do message_content quando o config ainda não tem ds_agent_id.
+  useEffect(() => {
+    if (selectedStep?.message_type !== "link_ai_agent") return;
+    if (!dsAgents.length) return;
+    const currentId = String(config?.action?.ds_agent_id || "").trim();
+    if (currentId && dsAgents.some((a: any) => a.id === currentId)) return;
+
+    const content = String(selectedStep.message_content || "");
+    const nameMatch = content.match(/Vincular Agente IA:\s*(.+)$/i);
+    const agentName = nameMatch?.[1]?.trim();
+    const matched = agentName
+      ? dsAgents.find((a: any) => String(a.name).trim() === agentName) ||
+        dsAgents.find((a: any) => String(a.name).toLowerCase().includes(agentName.toLowerCase()))
+      : null;
+    const fallback = matched || (dsAgents.length === 1 ? dsAgents[0] : null);
+    if (!fallback?.id) return;
+
+    const nextConfig = {
+      ...config,
+      action: {
+        ...(config?.action || {}),
+        ds_agent_id: fallback.id,
+        ds_agent_name: fallback.name || "",
+      },
+    };
+    setConfig(nextConfig);
+    handleUpdateStep("buttons_config", nextConfig);
+    if (!agentName) {
+      handleUpdateStep("message_content", `Vincular Agente IA: ${fallback.name}`);
+    }
+  }, [selectedStep?.id, selectedStep?.message_type, selectedStep?.message_content, dsAgents]);
   const updateConfig = (newConfig: any) => {
     setConfig(newConfig);
     handleUpdateStep("buttons_config", newConfig);
@@ -154,7 +192,7 @@ export function StepInspector({
                 // Suporte legado
                 const isStep = steps.some((s: any) => s.id === rawId);
                 if (isStep) targetVal = rawId;
-                else if (rawId === "-999" || rawId === "-997") targetVal = rawId;
+                else if (rawId === "-999" || rawId === "-998" || rawId === "-997" || rawId === "-996" || rawId === "-1") targetVal = rawId;
               }
 
               return (
@@ -220,13 +258,11 @@ export function StepInspector({
                         </SelectTrigger>
                         <SelectContent className="max-h-60 overflow-y-auto">
                           <SelectItem value="none">Nenhum</SelectItem>
-                          <SelectItem value="-999">
-                            <span className="flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block mr-1"></span>
-                              {agentName}
-                            </span>
-                          </SelectItem>
-                          <SelectItem value="-997">Reiniciar</SelectItem>
+                          <SelectItem value="-999">Ir para Agente de IA</SelectItem>
+                          <SelectItem value="-998">Transferir p/ Atendente</SelectItem>
+                          <SelectItem value="-997">Encerrar fluxo</SelectItem>
+                          <SelectItem value="-996">Pausar bot</SelectItem>
+                          <SelectItem value="-1">Reiniciar</SelectItem>
                           {steps
                             .filter((s: any) => s.id !== selectedStep.id)
                             .map((s: any) => (
@@ -379,7 +415,7 @@ export function StepInspector({
                     } else if (rawId) {
                       const isStep = steps.some((s: any) => s.id === rawId);
                       if (isStep) targetVal = rawId;
-                      else if (rawId === "-999" || rawId === "-997") targetVal = rawId;
+                      else if (rawId === "-999" || rawId === "-998" || rawId === "-997" || rawId === "-996" || rawId === "-1") targetVal = rawId;
                     }
 
                     return (
@@ -458,13 +494,11 @@ export function StepInspector({
                               </SelectTrigger>
                               <SelectContent className="max-h-60 overflow-y-auto">
                                 <SelectItem value="none">Nenhum</SelectItem>
-                                <SelectItem value="-999">
-                                  <span className="flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block mr-1"></span>
-                                    {agentName}
-                                  </span>
-                                </SelectItem>
-                                <SelectItem value="-997">Reiniciar</SelectItem>
+                                <SelectItem value="-999">Ir para Agente de IA</SelectItem>
+                                <SelectItem value="-998">Transferir p/ Atendente</SelectItem>
+                                <SelectItem value="-997">Encerrar fluxo</SelectItem>
+                                <SelectItem value="-996">Pausar bot</SelectItem>
+                                <SelectItem value="-1">Reiniciar</SelectItem>
                                 {steps
                                   .filter((s: any) => s.id !== selectedStep.id)
                                   .map((s: any) => (
@@ -697,16 +731,57 @@ export function StepInspector({
 
       case "link_ai_agent": {
         const ai = config?.action || {};
+        const selectedAgentId = ai.ds_agent_id || "";
         return (
           <div className="space-y-4 border rounded-md p-3 bg-muted/20 mt-2">
             <div>
               <Label className="text-sm font-semibold">Vincular Agente IA</Label>
               <p className="text-[11px] text-muted-foreground mt-1">
-                Usa o Agente IA ativo configurado para este número do WhatsApp, incluindo a base de conhecimento e o prompt já cadastrados.
+                Transfere a conversa para um DS Agente. As próximas mensagens do contato serão respondidas por esse agente até um handoff humano.
               </p>
             </div>
+            <div className="space-y-2">
+              <Label className="text-xs">DS Agente</Label>
+              <Select
+                value={selectedAgentId || "none"}
+                onValueChange={(value) => {
+                  const agent = dsAgents.find((a: any) => a.id === value);
+                  const nextAction = {
+                    ...ai,
+                    ds_agent_id: value === "none" ? "" : value,
+                    ds_agent_name: agent?.name || "",
+                  };
+                  updateConfig({ ...config, action: nextAction });
+                  handleUpdateStep(
+                    "message_content",
+                    agent?.name ? `Vincular Agente IA: ${agent.name}` : "Vincular Agente IA",
+                  );
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um agente" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Selecione um agente</SelectItem>
+                  {dsAgents.map((agent: any) => (
+                    <SelectItem key={agent.id} value={agent.id}>
+                      {agent.name}
+                      {agent.model ? ` (${agent.model})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {dsAgentsQuery.isLoading && (
+                <p className="text-[10px] text-muted-foreground">Carregando agentes...</p>
+              )}
+              {!dsAgentsQuery.isLoading && dsAgents.length === 0 && (
+                <p className="text-[10px] text-amber-600">
+                  Nenhum DS Agente cadastrado. Crie um em Automações &gt; DS Agente.
+                </p>
+              )}
+            </div>
             <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs text-muted-foreground">
-              Esta ação não envia um texto próprio: ela entrega a mensagem recebida ao Agente IA.
+              Esta ação não envia um texto próprio: ela entrega a mensagem recebida ao DS Agente selecionado.
             </div>
             <div className="space-y-2">
               <Label className="text-xs">Mensagem de contingência (opcional)</Label>
@@ -2211,8 +2286,11 @@ export function StepInspector({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Nenhum (Terminar ou aguarda resposta)</SelectItem>
-                <SelectItem value="-999">Transferir p/ Atendente</SelectItem>
-                <SelectItem value="-997">Reiniciar (Start)</SelectItem>
+                <SelectItem value="-999">Ir para Agente de IA</SelectItem>
+                <SelectItem value="-998">Transferir p/ Atendente</SelectItem>
+                <SelectItem value="-997">Encerrar fluxo</SelectItem>
+                <SelectItem value="-996">Pausar bot</SelectItem>
+                <SelectItem value="-1">Reiniciar (Start)</SelectItem>
                 {steps
                   .filter((s: any) => s.id !== selectedStep.id)
                   .map((s: any) => (

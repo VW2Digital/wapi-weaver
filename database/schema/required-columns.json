@@ -141,10 +141,25 @@
     "is_paused",
     "paused_until",
     "bot_active",
+    "ai_agent_active",
+    "active_agent_id",
+    "manual_pause",
+    "locked",
+    "locked_at",
     "created_at",
     "updated_at",
     "channel",
     "provider_account_id"
+  ],
+  "bot_event_log": [
+    "id",
+    "tenant_id",
+    "contact_number",
+    "instance_id",
+    "channel",
+    "event_type",
+    "details_json",
+    "created_at"
   ],
   "bot_flows": [
     "id",

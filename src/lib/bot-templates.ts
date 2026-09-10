@@ -83,7 +83,7 @@ export const BOT_TEMPLATES: BotTemplate[] = [
         trigger_value: "step_comercial",
         message_type: "text",
         message_content: "Nossos consultores comerciais estão prontos! Por favor, digite seu nome e o produto de interesse.",
-        next_step_id: "-999",
+        next_step_id: "-998",
         position_x: 150,
         position_y: 350,
       },
@@ -94,7 +94,7 @@ export const BOT_TEMPLATES: BotTemplate[] = [
         trigger_value: "step_suporte",
         message_type: "text",
         message_content: "Entendido! Vou transferir sua conversa para a equipe de suporte. Aguarde um instante...",
-        next_step_id: "-999",
+        next_step_id: "-998",
         position_x: 450,
         position_y: 350,
       },
@@ -148,7 +148,7 @@ export const BOT_TEMPLATES: BotTemplate[] = [
         trigger_value: "step_duvidas",
         message_type: "text",
         message_content: "Sem problemas! Um consultor irá tirar todas as suas dúvidas em instantes.",
-        next_step_id: "-999",
+        next_step_id: "-998",
         position_x: 450,
         position_y: 350,
       },
@@ -211,7 +211,7 @@ export const BOT_TEMPLATES: BotTemplate[] = [
         trigger_value: "step_nps_1",
         message_type: "text",
         message_content: "Pedimos desculpas pelo inconveniente. Um supervisor irá entrar em contato com você.",
-        next_step_id: "-999",
+        next_step_id: "-998",
         position_x: 600,
         position_y: 350,
       },
@@ -311,7 +311,7 @@ export const BOT_TEMPLATES: BotTemplate[] = [
         message_content: "Transferindo você para um atendente humano!",
         position_x: 400,
         position_y: 550,
-        next_step_id: "-999",
+        next_step_id: "-998",
       },
     ],
   },
@@ -326,6 +326,8 @@ export function mapTemplateSteps(templateSteps: any[]) {
   idMap["-999"] = "-999";
   idMap["-998"] = "-998";
   idMap["-997"] = "-997";
+  idMap["-996"] = "-996";
+  idMap["-1"] = "-1";
   idMap["0"] = "0";
 
   return templateSteps.map((step) => {

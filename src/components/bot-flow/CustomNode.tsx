@@ -145,8 +145,11 @@ export function CustomNode({ data, selected }: any) {
 
   const getTargetLabel = (rawId: string) => {
     if (!rawId) return "";
-    if (rawId === "-999") return "Atendente";
-    if (rawId === "-997") return "Reiniciar";
+    if (rawId === "-999") return "Agente IA";
+    if (rawId === "-998") return "Atendente";
+    if (rawId === "-997") return "Encerrar";
+    if (rawId === "-996") return "Pausar";
+    if (rawId === "-1") return "Reiniciar";
     if (rawId.startsWith("step:")) {
       const stepId = rawId.replace("step:", "");
       const targetStep = findTargetStep(stepId);

@@ -45,7 +45,9 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
         s.next_step_id &&
         s.next_step_id !== "-999" &&
         s.next_step_id !== "-997" &&
-        s.next_step_id !== "-998"
+        s.next_step_id !== "-998" &&
+        s.next_step_id !== "-996" &&
+        s.next_step_id !== "-1"
       ) {
         const targetExists = steps.some((step) => step.id === s.next_step_id);
         if (targetExists) {
@@ -65,7 +67,7 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
           const configObj =
             typeof s.buttons_config === "string" ? JSON.parse(s.buttons_config) : s.buttons_config;
           const targetId = configObj?.next_step_on_success;
-          if (targetId && targetId !== "-999" && targetId !== "-997" && targetId !== "-998") {
+          if (targetId && targetId !== "-999" && targetId !== "-997" && targetId !== "-998" && targetId !== "-996" && targetId !== "-1") {
             const targetExists = steps.some((step) => step.id === targetId);
             if (targetExists) {
               newEdges.push({
@@ -101,7 +103,7 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
               if (isStep) targetId = rawId;
             }
 
-            if (targetId && targetId !== "-999" && targetId !== "-997" && targetId !== "-998") {
+            if (targetId && targetId !== "-999" && targetId !== "-997" && targetId !== "-998" && targetId !== "-996" && targetId !== "-1") {
               const targetExists = steps.some((step) => step.id === targetId);
               if (targetExists) {
                 const handleId = btn.handleId || btn.reply?.id || `btn-${btnIdx}`;
@@ -143,7 +145,7 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
                 if (isStep) targetId = rawId;
               }
 
-              if (targetId && targetId !== "-999" && targetId !== "-997" && targetId !== "-998") {
+              if (targetId && targetId !== "-999" && targetId !== "-997" && targetId !== "-998" && targetId !== "-996" && targetId !== "-1") {
                 const targetExists = steps.some((step) => step.id === targetId);
                 if (targetExists) {
                   const handleId = row.handleId || row.id || `row-${itemIdx}`;
@@ -174,7 +176,7 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
           const configObj =
             typeof s.buttons_config === "string" ? JSON.parse(s.buttons_config) : s.buttons_config;
           const ctrl = configObj?.control || configObj || {};
-          if (ctrl.trueStepId && ctrl.trueStepId !== "-999" && ctrl.trueStepId !== "-997" && ctrl.trueStepId !== "-998") {
+          if (ctrl.trueStepId && ctrl.trueStepId !== "-999" && ctrl.trueStepId !== "-997" && ctrl.trueStepId !== "-998" && ctrl.trueStepId !== "-996" && ctrl.trueStepId !== "-1") {
             const targetExists = steps.some((step) => step.id === ctrl.trueStepId);
             if (targetExists) {
               newEdges.push({
@@ -190,7 +192,7 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
               });
             }
           }
-          if (ctrl.falseStepId && ctrl.falseStepId !== "-999" && ctrl.falseStepId !== "-997" && ctrl.falseStepId !== "-998") {
+          if (ctrl.falseStepId && ctrl.falseStepId !== "-999" && ctrl.falseStepId !== "-997" && ctrl.falseStepId !== "-998" && ctrl.falseStepId !== "-996" && ctrl.falseStepId !== "-1") {
             const targetExists = steps.some((step) => step.id === ctrl.falseStepId);
             if (targetExists) {
               newEdges.push({
@@ -220,7 +222,7 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
           const branches = ctrl.branches || [];
           branches.forEach((branch: any, bIdx: number) => {
             const targetId = branch.nextStepId;
-            if (targetId && targetId !== "-999" && targetId !== "-997" && targetId !== "-998") {
+            if (targetId && targetId !== "-999" && targetId !== "-997" && targetId !== "-998" && targetId !== "-996" && targetId !== "-1") {
               const targetExists = steps.some((step) => step.id === targetId);
               if (targetExists) {
                 const handleId = branch.handleId || branch.id || `branch_${bIdx}`;
@@ -249,7 +251,7 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
           const configObj =
             typeof s.buttons_config === "string" ? JSON.parse(s.buttons_config) : s.buttons_config;
           const ctrl = configObj?.control || configObj || {};
-          if (ctrl.successStepId && ctrl.successStepId !== "-999" && ctrl.successStepId !== "-997" && ctrl.successStepId !== "-998") {
+          if (ctrl.successStepId && ctrl.successStepId !== "-999" && ctrl.successStepId !== "-997" && ctrl.successStepId !== "-998" && ctrl.successStepId !== "-996" && ctrl.successStepId !== "-1") {
             const targetExists = steps.some((step) => step.id === ctrl.successStepId);
             if (targetExists) {
               newEdges.push({
@@ -265,7 +267,7 @@ export function BotFlowCanvas({ steps, onStepsChange, onNodeClick }: BotFlowCanv
               });
             }
           }
-          if (ctrl.errorStepId && ctrl.errorStepId !== "-999" && ctrl.errorStepId !== "-997" && ctrl.errorStepId !== "-998") {
+          if (ctrl.errorStepId && ctrl.errorStepId !== "-999" && ctrl.errorStepId !== "-997" && ctrl.errorStepId !== "-998" && ctrl.errorStepId !== "-996" && ctrl.errorStepId !== "-1") {
             const targetExists = steps.some((step) => step.id === ctrl.errorStepId);
             if (targetExists) {
               newEdges.push({

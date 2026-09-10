@@ -183,9 +183,17 @@ dsAgentApi.patch("/:id/tools/:toolKey", async (c) => {
   const toolKey = c.req.param("toolKey");
   const body = await c.req.json();
   await db.query(
-    `INSERT INTO ds_agent_tools (id, agent_id, tenant_id, tool_key, enabled, config) VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO ds_agent_tools (id, agent_id, tenant_id, name, tool_key, enabled, config) VALUES (?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE enabled = VALUES(enabled), config = VALUES(config)`,
-    [crypto.randomUUID(), agentId, tenantId, toolKey, body.enabled, JSON.stringify(body.config || {})]
+    [
+      crypto.randomUUID(),
+      agentId,
+      tenantId,
+      toolKey,
+      toolKey,
+      body.enabled,
+      JSON.stringify(body.config || {}),
+    ]
   );
   return c.json({ ok: true });
 });

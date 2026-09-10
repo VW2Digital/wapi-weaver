@@ -147,6 +147,22 @@ function DsAgentEditorPage() {
   const handleFieldChange = (field: string, value: any) => {
     setLocalAgentData((prev: any) => ({ ...prev, [field]: value }));
     setHasUnsavedChanges(true);
+
+    // Toggles salvam na hora para o runtime WhatsApp refletir imediatamente.
+    const instantFields = new Set([
+      "reply_with_assigned_agent",
+      "split_replies_in_blocks",
+      "process_images",
+      "disabled_outside_platform",
+    ]);
+    if (instantFields.has(field)) {
+      updateAgentFn({ data: { id: agentId, updates: { [field]: value } } })
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ["dsAgentDetail", agentId] });
+          toast.success("Configuração atualizada.");
+        })
+        .catch((err: any) => toast.error(err?.message || "Erro ao salvar configuração"));
+    }
   };
 
   usePageHeader({

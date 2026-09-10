@@ -544,50 +544,55 @@ export const toggleBotActive = createServerFn({ method: "POST" })
       );
       const instanceId = settings?.instance_id || "default";
 
-      const existingRows = (await db.query(
-        `SELECT id
-         FROM bot_conversation_state
-         WHERE user_id = ? AND contact_number = ? AND channel = ?`,
-        [effectiveUserId, digits, data.channel],
-      )) as Array<{ id: string }>;
-      const existing = existingRows?.[0];
-
-      if (existing) {
-        await db.query(
-          `UPDATE bot_conversation_state
-           SET bot_active = ?, is_paused = ?, tenant_id = COALESCE(tenant_id, ?)
-           WHERE user_id = ? AND contact_number = ? AND channel = ?`,
-          [
-            data.botActive ? 1 : 0,
-            data.botActive ? 0 : 1,
-            effectiveUserId,
-            effectiveUserId,
-            digits,
-            data.channel,
-          ],
-        );
-      } else {
-        const id = crypto.randomUUID();
-
-        await db.query(
-          `INSERT INTO bot_conversation_state
-           (id, tenant_id, user_id, contact_number, instance_id, channel, bot_active, is_paused)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            id,
-            effectiveUserId,
-            effectiveUserId,
-            digits,
-            instanceId,
-            data.channel,
-            data.botActive ? 1 : 0,
-            data.botActive ? 0 : 1,
-          ],
-        );
-      }
+      const { setManualPause } = await import("./bot-conversation-orchestration.server");
+      // botActive=false → pausa manual; botActive=true → reativa (limpa manual_pause + IA)
+      await setManualPause({
+        tenantId: effectiveUserId,
+        contactNumber: digits,
+        channel: data.channel,
+        instanceId,
+        pause: !data.botActive,
+      });
       return { ok: true };
     } catch (e: unknown) {
       console.error("Erro ao alternar bot_active:", e);
       throw new Error(getErrorMessage(e, "Erro ao atualizar status do chatbot"));
+    }
+  });
+
+/** Flags de bot/IA para badge do chat (fora de chat.functions — freeze omnichannel). */
+export const listBotConversationFlags = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    try {
+      const { resolveEffectiveUserId } = await import("./chat-helpers");
+      const tenantId = await resolveEffectiveUserId(context.userId);
+      const { ensureBotConversationStateColumns } = await import(
+        "./bot-conversation-orchestration.server"
+      );
+      await ensureBotConversationStateColumns(db);
+
+      const rows = (await db.query(
+        `SELECT contact_number, channel,
+                COALESCE(bot_active, 1) AS bot_active,
+                COALESCE(manual_pause, 0) AS manual_pause,
+                COALESCE(ai_agent_active, 0) AS ai_agent_active,
+                last_interaction AS bot_last_interaction
+         FROM bot_conversation_state
+         WHERE tenant_id = ? OR user_id = ?`,
+        [tenantId, tenantId],
+      )) as Array<{
+        contact_number: string;
+        channel: string;
+        bot_active: number | boolean;
+        manual_pause: number | boolean;
+        ai_agent_active: number | boolean;
+        bot_last_interaction: string | Date | null;
+      }>;
+
+      return { ok: true, flags: rows || [] };
+    } catch (e: unknown) {
+      console.error("Erro ao listar flags do bot:", e);
+      return { ok: false, flags: [] };
     }
   });

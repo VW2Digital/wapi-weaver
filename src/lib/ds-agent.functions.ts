@@ -31,6 +31,24 @@ async function ensureDsAgentsColumns(db: any) {
   }
 }
 
+const DS_TOOL_DISPLAY_NAMES: Record<string, string> = {
+  google_calendar: "Google Calendar",
+  calendar_check_availability: "Verificar Disponibilidade",
+  calendar_create_event: "Criar Evento",
+  calendar_update_event: "Atualizar Evento",
+  calendar_cancel_event: "Cancelar Evento",
+  calendar_list_events: "Listar Eventos",
+  calendar_get_event: "Obter Evento",
+  consulta_crm: "Consulta CRM",
+  enviar_proposta: "Enviar Proposta",
+  webhook_customizado: "Webhook Customizado",
+  gerenciar_tags: "Gerenciar Tags",
+};
+
+function dsToolDisplayName(toolKey: string): string {
+  return DS_TOOL_DISPLAY_NAMES[toolKey] || toolKey;
+}
+
 async function ensureDsAgentToolsColumns(db: any) {
   try {
     const cols: any[] = (await db.query(`SHOW COLUMNS FROM ds_agent_tools`)) as any[];
@@ -212,6 +230,32 @@ export const getDsAgentsByFolder = createServerFn({ method: "GET" })
     }
   });
 
+export const listDsAgents = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }: { context: any }) => {
+    try {
+      const { resolveEffectiveUserId } = await import("./chat-helpers");
+      const { default: db } = await import("./db");
+      const userId = context.userId || "test-user-id";
+      const tenantId = await resolveEffectiveUserId(userId);
+
+      await ensureDsAgentsColumns(db);
+
+      const agents = (await db.query(
+        `SELECT id, name, provider, model, folder_id
+         FROM ds_agents
+         WHERE tenant_id = ?
+         ORDER BY name ASC`,
+        [tenantId]
+      )) as any[];
+
+      return { ok: true, agents: agents || [] };
+    } catch (err: any) {
+      console.error("[DS Agente] Erro ao listar agentes:", err);
+      return { ok: false, agents: [], error: err?.message };
+    }
+  });
+
 export const createDsAgent = createServerFn({ method: "POST" })
   .middleware([requireSubscription])
   .validator(
@@ -242,9 +286,9 @@ export const createDsAgent = createServerFn({ method: "POST" })
 
       await db.query(
         `INSERT INTO ds_agents (
-          id, tenant_id, folder_id, name, provider, model, mode,
+          id, tenant_id, folder_id, name, provider, model, mode, status, is_active,
           reply_with_assigned_agent, split_replies_in_blocks, process_images, disabled_outside_platform
-        ) VALUES (?, ?, ?, ?, ?, ?, 'basico', false, false, false, false)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, 'basico', 'active', true, false, false, false, false)`,
         [agentId, tenantId, folderId, data.name.trim(), provider, model]
       );
 
@@ -271,9 +315,9 @@ export const createDsAgent = createServerFn({ method: "POST" })
       ];
       for (const toolKey of defaultTools) {
         await db.query(
-          `INSERT INTO ds_agent_tools (id, agent_id, tenant_id, tool_key, enabled, config)
-           VALUES (?, ?, ?, ?, false, '{}')`,
-          [crypto.randomUUID(), agentId, tenantId, toolKey]
+          `INSERT INTO ds_agent_tools (id, agent_id, tenant_id, name, tool_key, enabled, config)
+           VALUES (?, ?, ?, ?, ?, false, '{}')`,
+          [crypto.randomUUID(), agentId, tenantId, dsToolDisplayName(toolKey), toolKey]
         );
       }
 
@@ -606,10 +650,18 @@ export const updateDsTool = createServerFn({ method: "POST" })
       const configStr = JSON.stringify(data.config || {});
 
       await db.query(
-        `INSERT INTO ds_agent_tools (id, agent_id, tenant_id, tool_key, enabled, config)
-         VALUES (?, ?, ?, ?, ?, ?)
+        `INSERT INTO ds_agent_tools (id, agent_id, tenant_id, name, tool_key, enabled, config)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE enabled = VALUES(enabled), config = VALUES(config)`,
-        [crypto.randomUUID(), data.agent_id, tenantId, data.tool_key, data.enabled, configStr]
+        [
+          crypto.randomUUID(),
+          data.agent_id,
+          tenantId,
+          dsToolDisplayName(data.tool_key),
+          data.tool_key,
+          data.enabled,
+          configStr,
+        ]
       );
 
       return { ok: true };

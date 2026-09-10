@@ -35,6 +35,7 @@ import {
   setContactKanbanStage,
   quickSaveContact,
   toggleBotActive,
+  listBotConversationFlags,
 } from "@/lib/chat-actions.functions";
 import { listFunnels, listAllUserStages, createOpportunity, createActivity, bulkAssignToKanban, createNote } from "@/lib/crm.functions";
 import { uploadMetaMediaViaApi, uploadInstagramMediaViaApi } from "@/lib/meta-media-upload";
@@ -415,6 +416,9 @@ interface ChatContactRecord {
   is_unread?: ContactFlagValue;
   opted_out?: boolean;
   bot_active?: ContactFlagValue;
+  manual_pause?: ContactFlagValue;
+  ai_agent_active?: ContactFlagValue;
+  bot_last_interaction?: string | null;
   last_message_body?: string | null;
   last_message_type?: string | null;
   last_message_direction?: string | null;
@@ -839,6 +843,15 @@ function normalizeChatContactRecord(value: unknown): ChatContactRecord | null {
       typeof record.bot_active === "boolean" || typeof record.bot_active === "number" || typeof record.bot_active === "string"
         ? isFlagEnabled(record.bot_active as ContactFlagValue)
         : null,
+    manual_pause:
+      typeof record.manual_pause === "boolean" || typeof record.manual_pause === "number" || typeof record.manual_pause === "string"
+        ? isFlagEnabled(record.manual_pause as ContactFlagValue)
+        : false,
+    ai_agent_active:
+      typeof record.ai_agent_active === "boolean" || typeof record.ai_agent_active === "number" || typeof record.ai_agent_active === "string"
+        ? isFlagEnabled(record.ai_agent_active as ContactFlagValue)
+        : false,
+    bot_last_interaction: normalizeOptionalString(record.bot_last_interaction),
     last_message_body: normalizeOptionalString(record.last_message_body),
     last_message_type: normalizeOptionalString(record.last_message_type),
     last_message_direction: normalizeOptionalString(record.last_message_direction),
@@ -1433,6 +1446,7 @@ function ChatPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const fetchContacts = useServerFn(listChatContacts);
+  const fetchBotFlags = useServerFn(listBotConversationFlags);
   const hydrateInstagramInbox = useServerFn(hydrateInstagramInboxContacts);
   const fetchContactDetails = useServerFn(getChatContactDetails);
   const fetchMessages = useServerFn(getChatMessages);
@@ -2927,11 +2941,40 @@ function ChatPage() {
   const contactsQuery = useQuery<ChatContactRecord[]>({
     queryKey: ["chat-contacts"],
     queryFn: async () => {
-      const data = await fetchContacts();
+      const [data, flagsRes] = await Promise.all([fetchContacts(), fetchBotFlags()]);
       if (!Array.isArray(data)) return [];
 
+      const flagMap = new Map<string, any>();
+      for (const f of flagsRes?.flags || []) {
+        flagMap.set(`${f.channel || "whatsapp"}:${f.contact_number}`, f);
+      }
+
       return data
-        .map((contact) => normalizeChatContactRecord(contact))
+        .map((contact) => {
+          const normalized = normalizeChatContactRecord(contact);
+          if (!normalized) return null;
+          const key = `${normalized.channel || "whatsapp"}:${normalized.phone_e164 || ""}`;
+          const flags = flagMap.get(key);
+          if (!flags) return normalized;
+          return {
+            ...normalized,
+            bot_active:
+              flags.bot_active === true ||
+              flags.bot_active === 1 ||
+              flags.bot_active === "1",
+            manual_pause:
+              flags.manual_pause === true ||
+              flags.manual_pause === 1 ||
+              flags.manual_pause === "1",
+            ai_agent_active:
+              flags.ai_agent_active === true ||
+              flags.ai_agent_active === 1 ||
+              flags.ai_agent_active === "1",
+            bot_last_interaction: flags.bot_last_interaction
+              ? String(flags.bot_last_interaction)
+              : null,
+          };
+        })
         .filter((contact): contact is ChatContactRecord => contact !== null);
     },
     staleTime: 1000,
@@ -5472,6 +5515,47 @@ function ChatPage() {
 
                   {/* Ações à Direita */}
                   <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                    {(() => {
+                      const botOn = isFlagEnabled(selectedContact.bot_active);
+                      const manual = isFlagEnabled(selectedContact.manual_pause as ContactFlagValue);
+                      const aiOn = isFlagEnabled(selectedContact.ai_agent_active as ContactFlagValue);
+                      const isPaused = manual || (!botOn && !aiOn);
+                      const label = isPaused ? "Bot pausado" : aiOn && !botOn ? "IA ativa" : "Bot ativo";
+                      return (
+                        <button
+                          type="button"
+                          disabled={botActiveMutation.isPending}
+                          onClick={() => {
+                            const contactPhone = selectedContact.phone_e164;
+                            const channel = selectedContact.channel || "whatsapp";
+                            if (!contactPhone) {
+                              toast.error("Este contato não possui telefone válido para alterar o bot.");
+                              return;
+                            }
+                            botActiveMutation.mutate({
+                              contactPhone,
+                              botActive: isPaused || !botOn,
+                              channel,
+                            });
+                          }}
+                          className={cn(
+                            "h-8 inline-flex items-center gap-1.5 rounded-full border px-2.5 text-[13px] font-medium shrink-0 transition-colors disabled:opacity-60",
+                            isPaused
+                              ? "border-amber-500/30 bg-amber-500/10 text-amber-700 hover:bg-amber-500/15 dark:text-amber-400"
+                              : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-400",
+                          )}
+                          title={
+                            isPaused
+                              ? "Clique para reativar o bot nesta conversa"
+                              : "Clique para pausar o bot nesta conversa"
+                          }
+                        >
+                          <Bot className="h-3.5 w-3.5 shrink-0" />
+                          <span className="hidden sm:inline truncate max-w-[7.5rem]">{label}</span>
+                        </button>
+                      );
+                    })()}
+
                     {(() => {
                       const headerTags = cachedConvTags.filter(
                         (conversationTag) =>

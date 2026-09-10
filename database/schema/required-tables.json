@@ -7,6 +7,7 @@
   "billing_plans",
   "billing_webhook_events",
   "bot_conversation_state",
+  "bot_event_log",
   "bot_flows",
   "bot_settings",
   "bot_step_options",

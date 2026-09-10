@@ -906,7 +906,7 @@ export async function ensureDatabaseSchema() {
         user_id VARCHAR(36) NOT NULL,
         instance_id VARCHAR(50) NULL,
         is_active BOOLEAN NOT NULL DEFAULT FALSE,
-        pause_timeout_minutes INT NOT NULL DEFAULT 60,
+        pause_timeout_minutes INT NOT NULL DEFAULT 30,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         UNIQUE KEY uq_bot_settings_instance (user_id, instance_id),
@@ -1062,6 +1062,11 @@ export async function ensureDatabaseSchema() {
         is_paused BOOLEAN NOT NULL DEFAULT FALSE,
         paused_until DATETIME NULL,
         bot_active BOOLEAN NOT NULL DEFAULT TRUE,
+        ai_agent_active TINYINT(1) NOT NULL DEFAULT 0,
+        active_agent_id VARCHAR(36) NULL,
+        manual_pause TINYINT(1) NOT NULL DEFAULT 0,
+        locked TINYINT(1) NOT NULL DEFAULT 0,
+        locked_at DATETIME NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         UNIQUE KEY uq_bot_conv_state (user_id, contact_number, instance_id),
@@ -1070,6 +1075,75 @@ export async function ensureDatabaseSchema() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
       `,
     );
+
+    // Colunas de orquestração Bot/IA (doc set/2026)
+    for (const [col, def] of [
+      ["ai_agent_active", "TINYINT(1) NOT NULL DEFAULT 0"],
+      ["active_agent_id", "VARCHAR(36) NULL"],
+      ["manual_pause", "TINYINT(1) NOT NULL DEFAULT 0"],
+      ["locked", "TINYINT(1) NOT NULL DEFAULT 0"],
+      ["locked_at", "DATETIME NULL"],
+    ]) {
+      try {
+        const [cols] = await connection.query(
+          `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'bot_conversation_state' AND COLUMN_NAME = ?`,
+          [col],
+        );
+        if (!cols?.[0]?.c) {
+          await connection.query(`ALTER TABLE bot_conversation_state ADD COLUMN ${col} ${def}`);
+          logSchema(`Coluna bot_conversation_state.${col} adicionada.`);
+        }
+      } catch (err) {
+        console.warn(`[Schema] Falha ao adicionar ${col}:`, err.message);
+      }
+    }
+    try {
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS bot_event_log (
+          id VARCHAR(36) NOT NULL PRIMARY KEY,
+          tenant_id VARCHAR(36) NOT NULL,
+          contact_number VARCHAR(50) NOT NULL,
+          instance_id VARCHAR(50) NULL,
+          channel VARCHAR(50) NOT NULL DEFAULT 'whatsapp',
+          event_type VARCHAR(64) NOT NULL,
+          details_json JSON NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          KEY idx_bot_event_log_tenant_contact (tenant_id, contact_number, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+    } catch (err) {
+      console.warn("[Schema] Falha ao criar bot_event_log:", err.message);
+    }
+
+    // Migração one-shot de sentinels legados (-999 handoff humano → -998)
+    try {
+      await connection.query(
+        `CREATE TABLE IF NOT EXISTS schema_migration_flags (
+           flag_key VARCHAR(100) NOT NULL PRIMARY KEY,
+           applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+      );
+      const [flags] = await connection.query(
+        `SELECT flag_key FROM schema_migration_flags WHERE flag_key = 'bot_sentinel_999_to_998' LIMIT 1`,
+      );
+      if (!flags?.length) {
+        await connection.query(
+          `UPDATE bot_steps SET next_step_id = '-998' WHERE next_step_id = '-999'`,
+        );
+        await connection.query(
+          `UPDATE bot_steps
+           SET buttons_config = REPLACE(REPLACE(CAST(buttons_config AS CHAR), '"-999"', '"-998"'), ':-999', ':-998')
+           WHERE buttons_config IS NOT NULL AND CAST(buttons_config AS CHAR) LIKE '%-999%'`,
+        );
+        await connection.query(
+          `INSERT INTO schema_migration_flags (flag_key) VALUES ('bot_sentinel_999_to_998')`,
+        );
+        logSchema("Migração sentinels -999→-998 aplicada.");
+      }
+    } catch (err) {
+      console.warn("[Schema] Migração sentinels:", err.message);
+    }
 
     // Migração: garante que bot_conversation_state.instance_id é NULL (era NOT NULL em versões antigas)
     try {

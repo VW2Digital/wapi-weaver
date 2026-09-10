@@ -192,6 +192,11 @@ CREATE TABLE IF NOT EXISTS `bot_conversation_state` (
   `is_paused` tinyint(1) NOT NULL DEFAULT '0',
   `paused_until` datetime DEFAULT NULL,
   `bot_active` tinyint(1) NOT NULL DEFAULT '1',
+  `ai_agent_active` tinyint(1) NOT NULL DEFAULT '0',
+  `active_agent_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `manual_pause` tinyint(1) NOT NULL DEFAULT '0',
+  `locked` tinyint(1) NOT NULL DEFAULT '0',
+  `locked_at` datetime DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `channel` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'whatsapp',
@@ -204,6 +209,19 @@ CREATE TABLE IF NOT EXISTS `bot_conversation_state` (
   CONSTRAINT `bot_conversation_state_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `bot_conversation_state_ibfk_2` FOREIGN KEY (`current_step_id`) REFERENCES `bot_steps` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_bot_conversation_state_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `bot_event_log` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `contact_number` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `instance_id` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `channel` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'whatsapp',
+  `event_type` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `details_json` json DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_bot_event_log_tenant_contact` (`tenant_id`,`contact_number`,`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `bot_flows` (
@@ -227,7 +245,7 @@ CREATE TABLE IF NOT EXISTS `bot_settings` (
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `instance_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT '0',
-  `pause_timeout_minutes` int NOT NULL DEFAULT '60',
+  `pause_timeout_minutes` int NOT NULL DEFAULT '30',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
