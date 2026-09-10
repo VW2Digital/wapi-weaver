@@ -11,6 +11,9 @@ interface KnowledgeFile {
   page_count: number;
   status: "ativo" | "inativo";
   uploaded_at: string;
+  indexed?: boolean;
+  content_len?: number;
+  knowledge_status?: string | null;
 }
 
 interface KnowledgeLink {
@@ -18,6 +21,7 @@ interface KnowledgeLink {
   url: string;
   status: "pendente" | "indexado" | "erro";
   created_at: string;
+  indexed?: boolean;
 }
 
 interface TabKnowledgeProps {
@@ -117,7 +121,7 @@ export function TabKnowledge({
               <FileCheck className="h-5 w-5 text-primary" /> Base de Conhecimento (Documentos)
             </h3>
             <p className="text-xs text-muted-foreground mt-1">
-              Adicione documentos para que a IA utilize como referência nas conversas. Formatos aceitos: <strong className="text-foreground">PDF, DOCX, TXT, CSV</strong>.
+              Adicione documentos para que a IA utilize como referência nas conversas. Formatos aceitos: <strong className="text-foreground">PDF (texto selecionável), TXT, CSV</strong>. DOCX ainda não é suportado.
             </p>
           </div>
 
@@ -143,7 +147,13 @@ export function TabKnowledge({
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="space-y-3">
+            {files.some((f) => !f.indexed) && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-xs text-foreground">
+                Há documento(s) listados sem texto indexado. Remova e envie novamente (TXT/CSV ou PDF com texto selecionável) para a IA conseguir usar o conteúdo.
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {files.map((file) => (
               <div
                 key={file.id}
@@ -159,13 +169,20 @@ export function TabKnowledge({
                     </h4>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {file.file_size_kb} KB • {file.page_count} {file.page_count === 1 ? "página" : "páginas"}
+                      {file.indexed && file.content_len ? ` • ${file.content_len} chars` : ""}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px]">
-                    Ativo
+                  <Badge
+                    className={
+                      file.indexed
+                        ? "bg-primary/10 text-primary border-primary/20 text-[10px]"
+                        : "bg-destructive/10 text-destructive border-destructive/30 text-[10px]"
+                    }
+                  >
+                    {file.indexed ? "Indexado" : "Sem conteúdo"}
                   </Badge>
                   <button
                     onClick={() => onDeleteFile(file.id)}
@@ -176,6 +193,7 @@ export function TabKnowledge({
                 </div>
               </div>
             ))}
+            </div>
           </div>
         )}
       </div>

@@ -360,14 +360,51 @@ export const getDsAgentDetail = createServerFn({ method: "GET" })
       agent.disabled_outside_platform = Boolean(agent.disabled_outside_platform);
 
       const files = (await db.query(
-        `SELECT * FROM ds_agent_knowledge_files WHERE agent_id = ? AND tenant_id = ? ORDER BY uploaded_at DESC`,
+        `SELECT f.*,
+                CASE
+                  WHEN k.id IS NOT NULL
+                   AND k.content IS NOT NULL
+                   AND TRIM(k.content) != ''
+                   AND k.status IN ('indexed', 'pending')
+                  THEN 1 ELSE 0
+                END AS indexed,
+                k.status AS knowledge_status,
+                CHAR_LENGTH(IFNULL(k.content, '')) AS content_len
+         FROM ds_agent_knowledge_files f
+         LEFT JOIN ds_agent_knowledge k
+           ON k.id = f.id AND k.tenant_id = f.tenant_id AND k.agent_id = f.agent_id
+         WHERE f.agent_id = ? AND f.tenant_id = ?
+         ORDER BY f.uploaded_at DESC`,
         [data.id, tenantId]
       )) as any[];
 
       const links = (await db.query(
-        `SELECT * FROM ds_agent_knowledge_links WHERE agent_id = ? AND tenant_id = ? ORDER BY created_at DESC`,
+        `SELECT l.*,
+                CASE
+                  WHEN k.id IS NOT NULL
+                   AND k.content IS NOT NULL
+                   AND TRIM(k.content) != ''
+                   AND k.status IN ('indexed', 'pending')
+                  THEN 1 ELSE 0
+                END AS indexed,
+                k.status AS knowledge_status
+         FROM ds_agent_knowledge_links l
+         LEFT JOIN ds_agent_knowledge k
+           ON k.id = l.id AND k.tenant_id = l.tenant_id AND k.agent_id = l.agent_id
+         WHERE l.agent_id = ? AND l.tenant_id = ?
+         ORDER BY l.created_at DESC`,
         [data.id, tenantId]
       )) as any[];
+
+      const normalizedFiles = (files || []).map((f: any) => ({
+        ...f,
+        indexed: Boolean(Number(f.indexed)),
+        content_len: Number(f.content_len || 0),
+      }));
+      const normalizedLinks = (links || []).map((l: any) => ({
+        ...l,
+        indexed: Boolean(Number(l.indexed)),
+      }));
 
       const tools = (await db.query(
         `SELECT * FROM ds_agent_tools WHERE agent_id = ? AND tenant_id = ?`,
@@ -388,8 +425,9 @@ export const getDsAgentDetail = createServerFn({ method: "GET" })
         ok: true,
         agent,
         knowledge: {
-          files: files || [],
-          links: links || [],
+          files: normalizedFiles,
+          links: normalizedLinks,
+          orphan_files: normalizedFiles.filter((f: any) => !f.indexed).length,
         },
         tools: tools || [],
         availability: availability || [],
@@ -528,6 +566,8 @@ export const addDsKnowledgeFile = createServerFn({ method: "POST" })
     try {
       const { resolveEffectiveUserId } = await import("./chat-helpers");
       const { default: db } = await import("./db");
+      const fs = await import("fs");
+      const path = await import("path");
       const {
         extractTextFromUpload,
         upsertKnowledgeDocument,
@@ -536,39 +576,59 @@ export const addDsKnowledgeFile = createServerFn({ method: "POST" })
       const tenantId = await resolveEffectiveUserId(userId);
 
       const fileId = crypto.randomUUID();
-      const storagePath = data.storage_path || `/uploads/ds-agent/${fileId}_${data.file_name}`;
+      const safeName = String(data.file_name || "documento")
+        .replace(/[^\w.\- ()\u00C0-\u00FF]+/g, "_")
+        .slice(0, 180);
+      const relativeDir = path.join("public", "uploads", tenantId, "ds-agent");
+      const absoluteDir = path.resolve(process.cwd(), relativeDir);
+      const absolutePath = path.join(absoluteDir, `${fileId}_${safeName}`);
+      const storagePath = `/${relativeDir.replace(/\\/g, "/")}/${fileId}_${safeName}`;
 
       let extractedText = String(data.content_text || "").trim();
       let pageCount = Number(data.page_count) || 1;
       let knowledgeType: "text" | "pdf" = "text";
-      let knowledgeStatus: "indexed" | "error" | "pending" = "pending";
+      let fileBuffer: Buffer | null = null;
 
       if (!extractedText && data.content_base64) {
-        const buffer = Buffer.from(String(data.content_base64), "base64");
-        const extracted = extractTextFromUpload(data.file_name, buffer);
+        fileBuffer = Buffer.from(String(data.content_base64), "base64");
+        const extracted = extractTextFromUpload(data.file_name, fileBuffer);
         if (!extracted.ok) {
           throw new Error(extracted.error || "Falha ao extrair texto do arquivo");
         }
         extractedText = extracted.text;
         pageCount = extracted.pageCount;
         knowledgeType = extracted.type === "pdf" ? "pdf" : "text";
+      } else if (extractedText) {
+        fileBuffer = Buffer.from(extractedText, "utf8");
+        knowledgeType = "text";
+        pageCount = Math.max(1, Math.ceil(extractedText.length / 1800));
       }
 
-      if (extractedText) {
-        knowledgeStatus = "indexed";
-        await upsertKnowledgeDocument({
-          id: fileId,
-          tenantId,
-          agentId: data.agent_id,
-          title: data.file_name,
-          type: knowledgeType,
-          content: extractedText,
-          status: "indexed",
-        });
-      } else {
+      if (!extractedText || extractedText.trim().length < 20) {
         throw new Error(
-          "Envie o conteúdo do arquivo (TXT/CSV/PDF com texto). Sem conteúdo a IA não consegue usar o documento.",
+          "Não foi possível indexar o documento (texto insuficiente). Envie TXT/CSV ou PDF com texto selecionável.",
         );
+      }
+
+      await upsertKnowledgeDocument({
+        id: fileId,
+        tenantId,
+        agentId: data.agent_id,
+        title: data.file_name,
+        type: knowledgeType,
+        content: extractedText,
+        status: "indexed",
+      });
+
+      try {
+        if (!fs.existsSync(absoluteDir)) {
+          fs.mkdirSync(absoluteDir, { recursive: true });
+        }
+        if (fileBuffer) {
+          fs.writeFileSync(absolutePath, fileBuffer);
+        }
+      } catch (persistErr) {
+        console.warn("[DS Agente] Arquivo indexado, mas falhou persistência em disco:", persistErr);
       }
 
       await db.query(
@@ -590,7 +650,11 @@ export const addDsKnowledgeFile = createServerFn({ method: "POST" })
         [fileId, tenantId],
       )) as any[];
 
-      return { ok: true, file, indexed: knowledgeStatus === "indexed" };
+      return {
+        ok: true,
+        file: { ...file, indexed: true, content_len: extractedText.length },
+        indexed: true,
+      };
     } catch (err: any) {
       console.error("[DS Agente] Erro ao adicionar arquivo:", err);
       throw new Error(err?.message || "Falha ao adicionar arquivo.");

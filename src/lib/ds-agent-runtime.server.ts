@@ -600,15 +600,37 @@ async function loadAgentKnowledgeBlock(
        LIMIT 20`,
       [agentId, tenantId],
     )) as Array<{ title?: string; content?: string }>;
-  } catch {
+  } catch (err) {
+    console.warn("[DS Agente] Falha ao carregar base de conhecimento:", err);
     knowledgeRows = [];
   }
 
-  if (!knowledgeRows?.length) return "";
+  if (!knowledgeRows?.length) {
+    try {
+      const orphanFiles = (await db.query(
+        `SELECT COUNT(*) AS c FROM ds_agent_knowledge_files
+         WHERE agent_id = ? AND tenant_id = ? AND status = 'ativo'`,
+        [agentId, tenantId],
+      )) as Array<{ c?: number }>;
+      const orphanCount = Number(orphanFiles?.[0]?.c || 0);
+      if (orphanCount > 0) {
+        console.warn(
+          `[DS Agente] Agente ${agentId} tem ${orphanCount} arquivo(s) na UI sem texto indexado em ds_agent_knowledge.`,
+        );
+      }
+    } catch {
+      // ignore diagnostic failure
+    }
+    return "";
+  }
 
-  let block = "\n\n--- BASE DE CONHECIMENTO ---\nUse as informações abaixo quando forem relevantes:\n";
+  let block =
+    "\n\n--- BASE DE CONHECIMENTO DO AGENTE ---\n" +
+    "Priorize estas informações oficiais do negócio ao responder. " +
+    "Se a pergunta do cliente estiver coberta abaixo, use esses dados com precisão " +
+    "(não invente preços, prazos ou regras fora desta base):\n";
   for (const doc of knowledgeRows) {
-    const content = String(doc.content || "").slice(0, 6000);
+    const content = String(doc.content || "").slice(0, 12000);
     block += `\n[${doc.title || "Documento"}]\n${content}\n`;
   }
   block += "----------------------------\n";

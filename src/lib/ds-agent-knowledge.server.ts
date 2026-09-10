@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import zlib from "zlib";
 
 const MAX_CONTENT_CHARS = 80_000;
 
@@ -14,9 +15,7 @@ function truncate(text: string, max = MAX_CONTENT_CHARS): string {
   return `${normalized.slice(0, max)}\n\n[...conteúdo truncado...]`;
 }
 
-/** Extrator leve de texto de PDF (sem dependência externa). */
-function extractPdfText(buffer: Buffer): string {
-  const raw = buffer.toString("latin1");
+function collectPdfTextChunks(raw: string): string[] {
   const chunks: string[] = [];
 
   const btRe = /BT\s([\s\S]*?)\sET/g;
@@ -47,13 +46,44 @@ function extractPdfText(buffer: Buffer): string {
     }
   }
 
-  if (chunks.length === 0) {
-    // Fallback: strings imprimíveis longas
-    const printable = raw.match(/[\x20-\x7E\u00C0-\u00FF]{5,}/g) || [];
-    return truncate(printable.join(" ").replace(/\s+/g, " "));
+  return chunks;
+}
+
+/** Extrator leve de texto de PDF (sem dependência externa). */
+function extractPdfText(buffer: Buffer): string {
+  const raw = buffer.toString("latin1");
+  const chunks = collectPdfTextChunks(raw);
+
+  // Muitos PDFs guardam o conteúdo em streams FlateDecode — inflate e reextrai.
+  if (chunks.join(" ").trim().length < 40) {
+    const streamRe = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+    let sm: RegExpExecArray | null;
+    while ((sm = streamRe.exec(raw)) !== null) {
+      const payload = Buffer.from(sm[1], "latin1");
+      for (const fn of [zlib.inflateSync, zlib.inflateRawSync] as Array<(b: Buffer) => Buffer>) {
+        try {
+          const inflated = fn(payload).toString("latin1");
+          chunks.push(...collectPdfTextChunks(inflated));
+          if (inflated.length > 20) {
+            const printable = inflated.match(/[\x20-\x7E\u00C0-\u00FF]{4,}/g) || [];
+            if (printable.length) chunks.push(printable.join(" "));
+          }
+          break;
+        } catch {
+          // tenta o próximo inflater
+        }
+      }
+    }
   }
 
-  return truncate(chunks.join(" "));
+  const joined = chunks.join(" ").replace(/\s+/g, " ").trim();
+  if (joined.length >= 20) {
+    return truncate(joined);
+  }
+
+  // Fallback: strings imprimíveis longas no binário cru
+  const printable = raw.match(/[\x20-\x7E\u00C0-\u00FF]{5,}/g) || [];
+  return truncate(printable.join(" ").replace(/\s+/g, " "));
 }
 
 function estimatePages(text: string): number {
