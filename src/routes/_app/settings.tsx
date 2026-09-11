@@ -54,6 +54,7 @@ import {
   disconnectInstagramAccount,
   testInstagramConnection,
   revealInstagramAccessToken,
+  onboardInstagramFacebookLogin,
   listFacebookPages,
   connectFacebookPage,
   disconnectFacebookPage,
@@ -181,6 +182,9 @@ function SettingsLayout() {
 export const Route = createFileRoute("/_app/settings")({
   validateSearch: (search: Record<string, unknown>) => ({
     s: typeof search.s === "string" ? search.s : undefined,
+    oauth_error: typeof search.oauth_error === "string" ? search.oauth_error : undefined,
+    oauth_error_description:
+      typeof search.oauth_error_description === "string" ? search.oauth_error_description : undefined,
   }),
   component: SettingsLayout,
 });
@@ -824,9 +828,15 @@ function SettingsPage() {
     }
 
     const appId = selected?.appId || "";
-    const configId = selected?.configId || "";
+    const configId = String(selected?.configId || "").trim();
     if (!appId) {
       toast.error("A Meta App Connection selecionada não possui App ID.");
+      return;
+    }
+    if (!configId) {
+      toast.error(
+        "Falta o Embedded Signup Config ID nesta Meta App. Cadastre o ID em Configurações → Credenciais de API (ou na conexão Meta) antes de conectar o WhatsApp.",
+      );
       return;
     }
 
@@ -843,15 +853,29 @@ function SettingsPage() {
 
     (window as any).FB.login(
       (response: any) => {
-        if (response.authResponse) {
-          const code = response.authResponse.code;
+        const code = response?.authResponse?.code;
+        if (typeof code === "string" && code.trim()) {
           const waba_id = (window as any).__wa_embedded_waba_id;
           const phone_number_id = (window as any).__wa_embedded_phone_number_id;
           const is_coexistence = (window as any).__wa_embedded_is_coexistence;
-          onboardWhatsAppMut.mutate({ code, waba_id, phone_number_id, is_coexistence, meta_app_connection_id: selected?.id || "" });
-        } else {
-          toast.error("Você cancelou o login ou não autorizou.");
+          onboardWhatsAppMut.mutate({
+            code: code.trim(),
+            waba_id,
+            phone_number_id,
+            is_coexistence,
+            meta_app_connection_id: selected?.id || "",
+          });
+          return;
         }
+        const metaError =
+          response?.error_message ||
+          response?.errorCode ||
+          response?.status;
+        toast.error(
+          metaError
+            ? `Login da Meta não retornou código (${metaError}). Verifique o Config ID do Embedded Signup.`
+            : "Login da Meta não retornou código. Verifique o Config ID do Embedded Signup no App Dashboard.",
+        );
       },
       {
         config_id: configId,
@@ -1033,7 +1057,11 @@ function SettingsPage() {
       >
         <Link
           to={activeSection ? "/settings" : "/chat"}
-          search={activeSection ? { s: undefined } : undefined}
+          search={
+            activeSection
+              ? { s: undefined, oauth_error: undefined, oauth_error_description: undefined }
+              : undefined
+          }
           replace
         >
           <ArrowLeft className="h-4 w-4" />
@@ -1498,7 +1526,6 @@ function SettingsPage() {
                 {/* Campos Personalizados */}
                 <Link
                   to="/settings/custom-fields"
-                  search={{ s: undefined }}
                   className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
                 >
                   <div className="flex items-center gap-4">
@@ -8633,18 +8660,37 @@ function InstagramSettingsTab({
   const disconnectIg = useServerFn(disconnectInstagramAccount);
   const testIg = useServerFn(testInstagramConnection);
   const revealIgToken = useServerFn(revealInstagramAccessToken);
+  const onboardIgFacebook = useServerFn(onboardInstagramFacebookLogin);
+  const getEmbeddedSignupConnections = useServerFn(listMetaAppConnectionsForEmbeddedSignup);
   const qc = useQueryClient();
+
+  const { data: embeddedSignupConnections } = useQuery({
+    queryKey: ["meta-app-connection-embedded-signup"],
+    queryFn: () => getEmbeddedSignupConnections(),
+  });
 
   const [igUserId, setIgUserId] = useState("");
   const [pageName, setPageName] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [isOauthConnecting, setIsOauthConnecting] = useState(false);
 
   const { data: accounts, isLoading } = useQuery({
     queryKey: ["instagram-accounts"],
     queryFn: () => fetchIg(),
   });
+
+  const oauthSearch = Route.useSearch();
+
+  useEffect(() => {
+    if (oauthSearch.oauth_error) {
+      toast.error(
+        oauthSearch.oauth_error_description ||
+          `Login do Facebook recusado (${oauthSearch.oauth_error}).`,
+      );
+    }
+  }, [oauthSearch.oauth_error, oauthSearch.oauth_error_description]);
 
   const primaryAccount = (accounts as any[])?.[0];
 
@@ -8657,6 +8703,68 @@ function InstagramSettingsTab({
       }
     }
   }, [primaryAccount]);
+
+  const IG_OAUTH_SCOPES =
+    "instagram_basic,pages_show_list,instagram_manage_messages,pages_manage_metadata,pages_messaging";
+
+  const resolveMetaApp = () => {
+    const connections = embeddedSignupConnections || [];
+    return (
+      connections.find((c: any) => c.appId === "1783038629742610") ||
+      connections[0]
+    );
+  };
+
+  const startInstagramFacebookLogin = () => {
+    const selected = resolveMetaApp();
+    const appId = selected?.appId || "";
+    if (!appId) {
+      toast.error("Nenhuma Meta App Connection com App ID. Cadastre o app 1783038629742610 em Credenciais.");
+      return;
+    }
+    const redirectUri = `${window.location.origin}/api/public/meta/oauth/callback`;
+    const url = new URL("https://www.facebook.com/v26.0/dialog/oauth");
+    url.searchParams.set("client_id", appId);
+    url.searchParams.set("redirect_uri", redirectUri);
+    url.searchParams.set("response_type", "code");
+    url.searchParams.set("scope", IG_OAUTH_SCOPES);
+    url.searchParams.set("state", "instagram");
+    window.location.assign(url.toString());
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const code = sessionStorage.getItem("bliv_meta_oauth_code");
+    const state = sessionStorage.getItem("bliv_meta_oauth_state") || "";
+    const redirectUri = sessionStorage.getItem("bliv_meta_oauth_redirect_uri");
+    if (!code || !state.startsWith("instagram") || isOauthConnecting) return;
+    sessionStorage.removeItem("bliv_meta_oauth_code");
+    sessionStorage.removeItem("bliv_meta_oauth_state");
+    sessionStorage.removeItem("bliv_meta_oauth_redirect_uri");
+    setIsOauthConnecting(true);
+    const selected = resolveMetaApp();
+    onboardIgFacebook({
+      data: {
+        code,
+        redirect_uri: redirectUri || `${window.location.origin}/api/public/meta/oauth/callback`,
+        meta_app_connection_id: selected?.id,
+      },
+    })
+      .then((res: any) => {
+        const n = res?.connected?.length || 0;
+        toast.success(
+          n
+            ? `Instagram conectado (${n} ${n === 1 ? "conta" : "contas"}).`
+            : "Login do Facebook concluído.",
+        );
+        qc.invalidateQueries({ queryKey: ["instagram-accounts"] });
+      })
+      .catch((err: any) => {
+        toast.error(err?.message || "Falha ao conectar Instagram via Facebook Login.");
+      })
+      .finally(() => setIsOauthConnecting(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [embeddedSignupConnections]);
 
   const handleTest = async () => {
     let tokenToTest = accessToken.trim();
@@ -8754,6 +8862,27 @@ function InstagramSettingsTab({
       <Card className="p-0 overflow-hidden border-border/40">
         <form onSubmit={handleConnect}>
           <div className="p-6 space-y-8">
+            <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border p-5">
+              <p className="text-sm font-semibold text-foreground">Conexão via Facebook Login</p>
+              <p className="text-xs text-muted-foreground text-center max-w-md">
+                Autoriza Páginas com Instagram Business (instagram_basic, pages_show_list e mensagens).
+                App Meta: 1783038629742610.
+              </p>
+              <Button
+                type="button"
+                onClick={startInstagramFacebookLogin}
+                disabled={isOauthConnecting}
+                className="bg-[#1877F2] hover:bg-[#1877F2]/90 text-white font-semibold"
+              >
+                {isOauthConnecting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Facebook className="h-4 w-4" />
+                )}
+                Conectar Instagram
+              </Button>
+            </div>
+
             {/* IDENTIFICAÇÃO DA CONTA */}
             <div className="space-y-4">
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">

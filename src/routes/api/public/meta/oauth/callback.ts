@@ -25,15 +25,15 @@ function escapeHtml(value: string) {
 }
 
 function buildSettingsRedirect(requestUrl: URL) {
+  const state = requestUrl.searchParams.get("state") || "";
   const dest = new URL("/settings", requestUrl.origin);
-  dest.searchParams.set("s", "meta");
+  dest.searchParams.set("s", state.startsWith("instagram") ? "instagram" : "meta");
   dest.searchParams.set("oauth", "1");
 
   const error = requestUrl.searchParams.get("error");
   const errorReason = requestUrl.searchParams.get("error_reason");
   const errorDescription = requestUrl.searchParams.get("error_description");
   const code = requestUrl.searchParams.get("code");
-  const state = requestUrl.searchParams.get("state");
 
   if (error) {
     dest.searchParams.set("oauth_error", error);
@@ -52,7 +52,11 @@ function buildSettingsRedirect(requestUrl: URL) {
   return dest;
 }
 
-function landingHtml(redirectTo: string, kind: "success" | "error" | "empty") {
+function landingHtml(
+  redirectTo: string,
+  kind: "success" | "error" | "empty",
+  oauth?: { code?: string | null; state?: string | null },
+) {
   const title =
     kind === "error"
       ? "Autorização recusada ou falhou"
@@ -90,9 +94,19 @@ function landingHtml(redirectTo: string, kind: "success" | "error" | "empty") {
   <script>
     (function () {
       var target = ${JSON.stringify(redirectTo)};
+      var code = ${JSON.stringify(oauth?.code || "")};
+      var state = ${JSON.stringify(oauth?.state || "")};
       try {
+        if (code && state.indexOf("instagram") === 0) {
+          sessionStorage.setItem("bliv_meta_oauth_code", code);
+          sessionStorage.setItem("bliv_meta_oauth_state", state);
+          sessionStorage.setItem(
+            "bliv_meta_oauth_redirect_uri",
+            window.location.origin + "/api/public/meta/oauth/callback"
+          );
+        }
         if (window.opener && !window.opener.closed) {
-          window.opener.postMessage({ type: "BLIV_META_OAUTH", href: target }, window.location.origin);
+          window.opener.postMessage({ type: "BLIV_META_OAUTH", href: target, state: state }, window.location.origin);
         }
       } catch (e) {}
       setTimeout(function () {
@@ -125,7 +139,6 @@ export const Route = createFileRoute("/api/public/meta/oauth/callback")({
         const kind = hasError ? "error" : hasCode ? "success" : "empty";
         const accept = request.headers.get("accept") || "";
 
-        // Clientes que pedem JSON (health / debug) recebem payload sem o code.
         if (accept.includes("application/json")) {
           return Response.json({
             ok: !hasError,
@@ -137,13 +150,19 @@ export const Route = createFileRoute("/api/public/meta/oauth/callback")({
           });
         }
 
-        return new Response(landingHtml(redirectTo, kind), {
-          status: 200,
-          headers: {
-            "Content-Type": "text/html; charset=utf-8",
-            "Cache-Control": "no-store",
+        return new Response(
+          landingHtml(redirectTo, kind, {
+            code: url.searchParams.get("code"),
+            state: url.searchParams.get("state"),
+          }),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "text/html; charset=utf-8",
+              "Cache-Control": "no-store",
+            },
           },
-        });
+        );
       },
     },
   },
