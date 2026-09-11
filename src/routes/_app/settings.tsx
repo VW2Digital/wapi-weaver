@@ -160,6 +160,8 @@ import {
   BrainCircuit,
   Info,
   Megaphone,
+  LayoutGrid,
+  ArrowDownWideNarrow,
 } from "lucide-react";
 import { ResultAlert } from "@/components/result-alert";
 import { PasswordInput } from "@/components/password-input";
@@ -167,7 +169,8 @@ import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
 import { useRoles } from "@/hooks/use-roles";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { MetaIcon } from "@/components/brand-icons";
+import { WhatsAppIcon } from "@/components/brand-icons";
+import { getWebchatWidgets } from "@/lib/webchat.functions";
 
 function SettingsLayout() {
   const loc = useLocation();
@@ -709,6 +712,15 @@ function SettingsPage() {
     queryFn: () => fetchFb(),
   });
 
+  const fetchWebchatWidgets = useServerFn(getWebchatWidgets);
+  const { data: webchatWidgets } = useQuery({
+    queryKey: ["webchat-widgets"],
+    queryFn: () => fetchWebchatWidgets(),
+  });
+
+  const [appsFilter, setAppsFilter] = useState<"all" | "installed">("all");
+  const [appsSort, setAppsSort] = useState<"name" | "status">("name");
+
   const [formPin, setFormPin] = useState("");
   const [showSetupPin, setShowSetupPin] = useState(false);
   const [connectionCollapsed, setConnectionCollapsed] = useState(false);
@@ -1178,6 +1190,64 @@ function SettingsPage() {
     });
   };
 
+  const messengerApps = (() => {
+    const igCount = Array.isArray(igAccounts) ? igAccounts.length : 0;
+    const fbCount = Array.isArray(fbPages) ? fbPages.length : 0;
+    const webchatCount = Array.isArray(webchatWidgets) ? webchatWidgets.length : 0;
+    const apps = [
+      {
+        id: "whatsapp",
+        name: "WhatsApp Cloud API",
+        description: "Meta Cloud API oficial",
+        installed: Boolean(form.hasAccessToken),
+        statusLabel: form.hasAccessToken ? "Instalado" : null,
+        accentClass: "bg-[#25D366]",
+        icon: <WhatsAppIcon className="h-10 w-10 text-white" />,
+        onOpen: () => setActiveSection("meta"),
+      },
+      {
+        id: "instagram",
+        name: "Instagram",
+        description: "Direct profissional",
+        installed: igCount > 0,
+        statusLabel: igCount > 0 ? `${igCount} ${igCount === 1 ? "conta" : "contas"}` : null,
+        accentClass: "bg-gradient-to-br from-[#F58529] via-[#DD2A7B] to-[#8134AF]",
+        icon: <Instagram className="h-10 w-10 text-white" />,
+        onOpen: () => setActiveSection("instagram"),
+      },
+      {
+        id: "messenger",
+        name: "Facebook Messenger",
+        description: "Páginas do Facebook",
+        installed: fbCount > 0,
+        statusLabel: fbCount > 0 ? `${fbCount} ${fbCount === 1 ? "página" : "páginas"}` : null,
+        accentClass: "bg-[#1877F2]",
+        icon: <Facebook className="h-10 w-10 text-white" />,
+        onOpen: () => setActiveSection("facebook"),
+      },
+      {
+        id: "webchat",
+        name: "WebChat",
+        description: "Widget para o seu site",
+        installed: webchatCount > 0,
+        statusLabel: webchatCount > 0 ? `${webchatCount} ${webchatCount === 1 ? "widget" : "widgets"}` : null,
+        accentClass: "bg-slate-800",
+        icon: <MessageCircle className="h-10 w-10 text-white" />,
+        onOpen: () => navigate({ to: "/webchat" }),
+      },
+    ];
+
+    const filtered =
+      appsFilter === "installed" ? apps.filter((app) => app.installed) : apps;
+
+    return [...filtered].sort((a, b) => {
+      if (appsSort === "status") {
+        if (a.installed !== b.installed) return a.installed ? -1 : 1;
+      }
+      return a.name.localeCompare(b.name, "pt-BR");
+    });
+  })();
+
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
       {!activeSection ? (
@@ -1211,130 +1281,123 @@ function SettingsPage() {
               </div>
             </div>
 
-            {/* CONEXÕES & APIS */}
-            <div className="space-y-3">
-              <h4 className="px-3 text-xs font-bold tracking-wider text-muted-foreground/75 uppercase flex items-center gap-1.5">
-                <KeyRound className="h-3.5 w-3.5" /> Conexões & APIs
+            {/* APLICATIVOS — marketplace de canais */}
+            <div className="space-y-4">
+              <h4 className="px-1 text-xs font-bold tracking-wider text-muted-foreground/75 uppercase flex items-center gap-1.5">
+                <LayoutGrid className="h-3.5 w-3.5" /> Aplicativos
               </h4>
-              <div className="rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden divide-y divide-border">
-                {/* Conexão Meta (WhatsApp) */}
-                <button
-                  onClick={() => setActiveSection("meta")}
-                  className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 bg-[#0064E0]/10 text-[#0064E0] flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                      <MetaIcon className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h5 className="font-semibold text-sm text-foreground">Conexão Meta (WhatsApp)</h5>
-                        <Badge
-                          variant="secondary"
-                          className={cn(
-                            "text-[10px] border-none font-semibold",
-                            form.hasAccessToken
-                              ? "bg-success/15 text-success hover:bg-success/20"
-                              : "bg-muted text-muted-foreground",
-                          )}
-                        >
-                          {form.hasAccessToken ? "Configurado" : "Pendente"}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Configurações de aplicativo, credenciais e webhook da Meta Cloud API.
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
-                </button>
 
-                {/* Conexão Instagram */}
-                <button
-                  onClick={() => setActiveSection("instagram")}
-                  className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 bg-gradient-to-tr from-[#FD1D1D]/15 via-[#E1306C]/15 to-[#833AB4]/15 text-[#E1306C] flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                      <Instagram className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h5 className="font-semibold text-sm text-foreground">Instagram Direct</h5>
-                        <Badge
-                          variant="secondary"
-                          className={cn(
-                            "text-[10px] border-none font-semibold",
-                            (igAccounts as any[])?.length
-                              ? "bg-success/15 text-success hover:bg-success/20"
-                              : "bg-muted text-muted-foreground",
-                          )}
-                        >
-                          {(igAccounts as any[])?.length
-                            ? `${(igAccounts as any[]).length} ${(igAccounts as any[]).length === 1 ? "Conta" : "Contas"}`
-                            : "Pendente"}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Conecte contas profissionais do Instagram para envio e recepção de mensagens no Direct.
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
-                </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex items-center rounded-lg border bg-card p-1 gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setAppsFilter("all")}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 text-sm font-medium transition-colors cursor-pointer",
+                      appsFilter === "all"
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                    )}
+                  >
+                    Todos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAppsFilter("installed")}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 text-sm font-medium transition-colors cursor-pointer inline-flex items-center gap-1.5",
+                      appsFilter === "installed"
+                        ? "bg-emerald-600 text-white shadow-sm"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                    )}
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                    Instalado
+                  </button>
+                </div>
 
-                {/* Conexão Facebook */}
-                <button
-                  onClick={() => setActiveSection("facebook")}
-                  className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 bg-[#1877F2]/10 text-[#1877F2] flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                      <Facebook className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h5 className="font-semibold text-sm text-foreground">Facebook Messenger</h5>
-                        <Badge
-                          variant="secondary"
-                          className={cn(
-                            "text-[10px] border-none font-semibold",
-                            (fbPages as any[])?.length
-                              ? "bg-success/15 text-success hover:bg-success/20"
-                              : "bg-muted text-muted-foreground",
-                          )}
-                        >
-                          {(fbPages as any[])?.length
-                            ? `${(fbPages as any[]).length} ${(fbPages as any[]).length === 1 ? "Página" : "Páginas"}`
-                            : "Pendente"}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Conecte páginas do Facebook para atendimento automático ou manual via Messenger.
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
-                </button>
+                <div className="ml-auto">
+                  <Select
+                    value={appsSort}
+                    onValueChange={(v) => setAppsSort(v as "name" | "status")}
+                  >
+                    <SelectTrigger className="h-9 w-[150px] border-none bg-transparent shadow-none text-sm text-muted-foreground hover:text-foreground cursor-pointer">
+                      <span className="inline-flex items-center gap-1.5">
+                        <ArrowDownWideNarrow className="h-3.5 w-3.5" />
+                        <SelectValue placeholder="Ordenar" />
+                      </span>
+                    </SelectTrigger>
+                    <SelectContent align="end">
+                      <SelectItem value="name">Nome</SelectItem>
+                      <SelectItem value="status">Status</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-                {/* WebChat */}
-                <Link
-                  to="/webchat"
-                  className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                      <MessageCircle className="h-5 w-5" />
+              <div>
+                <h5 className="mb-3 px-1 text-base font-semibold text-foreground">Mensageiros</h5>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {messengerApps.map((app) => (
+                    <div
+                      key={app.id}
+                      className="group flex flex-col overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm transition-shadow hover:shadow-md"
+                    >
+                      <button
+                        type="button"
+                        onClick={app.onOpen}
+                        className={cn(
+                          "flex h-28 w-full items-center justify-center cursor-pointer transition-opacity group-hover:opacity-95",
+                          app.accentClass,
+                        )}
+                        aria-label={`Abrir ${app.name}`}
+                      >
+                        {app.icon}
+                      </button>
+                      <div className="flex flex-1 flex-col gap-3 p-4">
+                        <div>
+                          <h6 className="text-sm font-semibold text-foreground leading-tight">
+                            {app.name}
+                          </h6>
+                          <p className="mt-0.5 text-xs text-muted-foreground">{app.description}</p>
+                        </div>
+                        <div className="mt-auto">
+                          {app.installed ? (
+                            <button
+                              type="button"
+                              onClick={app.onOpen}
+                              className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-600 hover:text-emerald-700 cursor-pointer"
+                            >
+                              <Check className="h-4 w-4" />
+                              Instalado
+                              {app.statusLabel && app.statusLabel !== "Instalado" ? (
+                                <span className="text-muted-foreground font-normal">
+                                  · {app.statusLabel}
+                                </span>
+                              ) : null}
+                            </button>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 gap-1 cursor-pointer"
+                              onClick={app.onOpen}
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                              Instalar
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <h5 className="font-semibold text-sm text-foreground">WebChat</h5>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Instale o widget no site e copie o código de instalação.
-                      </p>
+                  ))}
+                  {messengerApps.length === 0 && (
+                    <div className="col-span-full rounded-xl border border-dashed bg-muted/30 p-8 text-center text-sm text-muted-foreground">
+                      Nenhum aplicativo instalado neste filtro.
                     </div>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
-                </Link>
+                  )}
+                </div>
               </div>
             </div>
 

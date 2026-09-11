@@ -90,8 +90,8 @@ import { Route as ApiWhatsappBusinessProfilePhotoRouteImport } from './routes/ap
 import { Route as ApiPublicWebhooksStripeRouteImport } from './routes/api/public/webhooks/stripe'
 import { Route as ApiPublicMetaWebhookPublicIdRouteImport } from './routes/api/public/meta-webhook.$publicId'
 import { Route as ApiPublicCronProcessSubscriptionsRouteImport } from './routes/api/public/cron/process-subscriptions'
-import { Route as ApiPublicCronProcessDsAgentFollowupsRouteImport } from './routes/api/public/cron/process-ds-agent-followups'
 import { Route as ApiPublicCronProcessQueueRouteImport } from './routes/api/public/cron/process-queue'
+import { Route as ApiPublicCronProcessDsAgentFollowupsRouteImport } from './routes/api/public/cron/process-ds-agent-followups'
 import { Route as ApiPublicContactsIngestRouteImport } from './routes/api/public/contacts/ingest'
 import { Route as ApiBillingSubscriptionRenewRouteImport } from './routes/api/billing/subscription/renew'
 import { Route as ApiBillingInvoicesIdRouteImport } from './routes/api/billing/invoices/$id'
@@ -526,16 +526,16 @@ const ApiPublicCronProcessSubscriptionsRoute =
     path: '/api/public/cron/process-subscriptions',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicCronProcessDsAgentFollowupsRoute =
-  ApiPublicCronProcessDsAgentFollowupsRouteImport.update({
-    id: '/api/public/cron/process-ds-agent-followups',
-    path: '/api/public/cron/process-ds-agent-followups',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ApiPublicCronProcessQueueRoute =
   ApiPublicCronProcessQueueRouteImport.update({
     id: '/api/public/cron/process-queue',
     path: '/api/public/cron/process-queue',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicCronProcessDsAgentFollowupsRoute =
+  ApiPublicCronProcessDsAgentFollowupsRouteImport.update({
+    id: '/api/public/cron/process-ds-agent-followups',
+    path: '/api/public/cron/process-ds-agent-followups',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicContactsIngestRoute = ApiPublicContactsIngestRouteImport.update({
@@ -714,8 +714,8 @@ export interface FileRoutesByFullPath {
   '/api/billing/invoices/$id': typeof ApiBillingInvoicesIdRoute
   '/api/billing/subscription/renew': typeof ApiBillingSubscriptionRenewRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
-  '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
   '/api/public/cron/process-ds-agent-followups': typeof ApiPublicCronProcessDsAgentFollowupsRoute
+  '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
   '/api/public/cron/process-subscriptions': typeof ApiPublicCronProcessSubscriptionsRoute
   '/api/public/meta-webhook/$publicId': typeof ApiPublicMetaWebhookPublicIdRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
@@ -814,8 +814,8 @@ export interface FileRoutesByTo {
   '/api/billing/invoices/$id': typeof ApiBillingInvoicesIdRoute
   '/api/billing/subscription/renew': typeof ApiBillingSubscriptionRenewRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
-  '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
   '/api/public/cron/process-ds-agent-followups': typeof ApiPublicCronProcessDsAgentFollowupsRoute
+  '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
   '/api/public/cron/process-subscriptions': typeof ApiPublicCronProcessSubscriptionsRoute
   '/api/public/meta-webhook/$publicId': typeof ApiPublicMetaWebhookPublicIdRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
@@ -916,8 +916,8 @@ export interface FileRoutesById {
   '/api/billing/invoices/$id': typeof ApiBillingInvoicesIdRoute
   '/api/billing/subscription/renew': typeof ApiBillingSubscriptionRenewRoute
   '/api/public/contacts/ingest': typeof ApiPublicContactsIngestRoute
-  '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
   '/api/public/cron/process-ds-agent-followups': typeof ApiPublicCronProcessDsAgentFollowupsRoute
+  '/api/public/cron/process-queue': typeof ApiPublicCronProcessQueueRoute
   '/api/public/cron/process-subscriptions': typeof ApiPublicCronProcessSubscriptionsRoute
   '/api/public/meta-webhook/$publicId': typeof ApiPublicMetaWebhookPublicIdRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
@@ -1018,8 +1018,8 @@ export interface FileRouteTypes {
     | '/api/billing/invoices/$id'
     | '/api/billing/subscription/renew'
     | '/api/public/contacts/ingest'
-    | '/api/public/cron/process-queue'
     | '/api/public/cron/process-ds-agent-followups'
+    | '/api/public/cron/process-queue'
     | '/api/public/cron/process-subscriptions'
     | '/api/public/meta-webhook/$publicId'
     | '/api/public/webhooks/stripe'
@@ -1118,8 +1118,8 @@ export interface FileRouteTypes {
     | '/api/billing/invoices/$id'
     | '/api/billing/subscription/renew'
     | '/api/public/contacts/ingest'
-    | '/api/public/cron/process-queue'
     | '/api/public/cron/process-ds-agent-followups'
+    | '/api/public/cron/process-queue'
     | '/api/public/cron/process-subscriptions'
     | '/api/public/meta-webhook/$publicId'
     | '/api/public/webhooks/stripe'
@@ -1219,8 +1219,8 @@ export interface FileRouteTypes {
     | '/api/billing/invoices/$id'
     | '/api/billing/subscription/renew'
     | '/api/public/contacts/ingest'
-    | '/api/public/cron/process-queue'
     | '/api/public/cron/process-ds-agent-followups'
+    | '/api/public/cron/process-queue'
     | '/api/public/cron/process-subscriptions'
     | '/api/public/meta-webhook/$publicId'
     | '/api/public/webhooks/stripe'
@@ -1289,8 +1289,8 @@ export interface RootRouteChildren {
   FunctionsV1MercadopagoWebhookRoute: typeof FunctionsV1MercadopagoWebhookRoute
   ApiAdminPaymentGatewaysMercadopagoRoute: typeof ApiAdminPaymentGatewaysMercadopagoRouteWithChildren
   ApiPublicContactsIngestRoute: typeof ApiPublicContactsIngestRoute
-  ApiPublicCronProcessQueueRoute: typeof ApiPublicCronProcessQueueRoute
   ApiPublicCronProcessDsAgentFollowupsRoute: typeof ApiPublicCronProcessDsAgentFollowupsRoute
+  ApiPublicCronProcessQueueRoute: typeof ApiPublicCronProcessQueueRoute
   ApiPublicCronProcessSubscriptionsRoute: typeof ApiPublicCronProcessSubscriptionsRoute
   ApiPublicMetaWebhookPublicIdRoute: typeof ApiPublicMetaWebhookPublicIdRoute
   ApiPublicWebhooksStripeRoute: typeof ApiPublicWebhooksStripeRoute
@@ -1874,18 +1874,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCronProcessSubscriptionsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/cron/process-ds-agent-followups': {
-      id: '/api/public/cron/process-ds-agent-followups'
-      path: '/api/public/cron/process-ds-agent-followups'
-      fullPath: '/api/public/cron/process-ds-agent-followups'
-      preLoaderRoute: typeof ApiPublicCronProcessDsAgentFollowupsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/public/cron/process-queue': {
       id: '/api/public/cron/process-queue'
       path: '/api/public/cron/process-queue'
       fullPath: '/api/public/cron/process-queue'
       preLoaderRoute: typeof ApiPublicCronProcessQueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/cron/process-ds-agent-followups': {
+      id: '/api/public/cron/process-ds-agent-followups'
+      path: '/api/public/cron/process-ds-agent-followups'
+      fullPath: '/api/public/cron/process-ds-agent-followups'
+      preLoaderRoute: typeof ApiPublicCronProcessDsAgentFollowupsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/contacts/ingest': {
@@ -2197,9 +2197,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminPaymentGatewaysMercadopagoRoute:
     ApiAdminPaymentGatewaysMercadopagoRouteWithChildren,
   ApiPublicContactsIngestRoute: ApiPublicContactsIngestRoute,
-  ApiPublicCronProcessQueueRoute: ApiPublicCronProcessQueueRoute,
   ApiPublicCronProcessDsAgentFollowupsRoute:
     ApiPublicCronProcessDsAgentFollowupsRoute,
+  ApiPublicCronProcessQueueRoute: ApiPublicCronProcessQueueRoute,
   ApiPublicCronProcessSubscriptionsRoute:
     ApiPublicCronProcessSubscriptionsRoute,
   ApiPublicMetaWebhookPublicIdRoute: ApiPublicMetaWebhookPublicIdRoute,
