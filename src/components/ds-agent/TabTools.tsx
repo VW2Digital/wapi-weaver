@@ -24,6 +24,44 @@ interface AvailabilityItem {
   active: boolean;
 }
 
+/** Normaliza TIME do MySQL / ISO / "HH:MM:SS" para "HH:MM" (input type=time). */
+function toTimeInputValue(raw: unknown): string {
+  if (raw == null) return "08:00";
+  if (typeof raw === "string") {
+    const match = raw.match(/(\d{1,2}):(\d{2})/);
+    if (match && !raw.includes("T")) {
+      return `${match[1].padStart(2, "0")}:${match[2]}`;
+    }
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      const hh = String(parsed.getUTCHours()).padStart(2, "0");
+      const mm = String(parsed.getUTCMinutes()).padStart(2, "0");
+      return `${hh}:${mm}`;
+    }
+  }
+  if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
+    const hh = String(raw.getUTCHours()).padStart(2, "0");
+    const mm = String(raw.getUTCMinutes()).padStart(2, "0");
+    return `${hh}:${mm}`;
+  }
+  return "08:00";
+}
+
+function toMysqlTime(raw: unknown): string {
+  const hhmm = toTimeInputValue(raw);
+  return `${hhmm}:00`;
+}
+
+function normalizeAvailabilityRow(item: any): AvailabilityItem {
+  return {
+    weekday: Number(item.weekday),
+    start_time: toMysqlTime(item.start_time),
+    end_time: toMysqlTime(item.end_time),
+    // MySQL tinyint chega como 0/1 — precisa ser boolean no estado e no Zod
+    active: Boolean(Number(item.active)),
+  };
+}
+
 interface TabToolsProps {
   tools: ToolItem[];
   availability: AvailabilityItem[];
@@ -79,7 +117,7 @@ export function TabTools({
 
   const [localAvail, setLocalAvail] = useState<AvailabilityItem[]>(
     availability.length > 0
-      ? availability
+      ? availability.map(normalizeAvailabilityRow)
       : [
           { weekday: 1, start_time: "08:00:00", end_time: "18:00:00", active: true },
           { weekday: 2, start_time: "08:00:00", end_time: "18:00:00", active: true },
@@ -93,7 +131,7 @@ export function TabTools({
 
   useEffect(() => {
     if (availability && availability.length > 0) {
-      setLocalAvail(availability);
+      setLocalAvail(availability.map(normalizeAvailabilityRow));
     }
   }, [availability]);
 
@@ -107,21 +145,25 @@ export function TabTools({
     7: "Domingo",
   };
 
+  const persistAvailability = (updated: AvailabilityItem[]) => {
+    const payload = updated.map(normalizeAvailabilityRow);
+    setLocalAvail(payload);
+    onSaveAvailability(payload);
+  };
+
   const handleToggleDay = (weekday: number, active: boolean) => {
     const updated = localAvail.map((item) =>
       item.weekday === weekday ? { ...item, active } : item
     );
-    setLocalAvail(updated);
-    onSaveAvailability(updated);
+    persistAvailability(updated);
   };
 
   const handleTimeChange = (weekday: number, field: "start_time" | "end_time", value: string) => {
-    const formattedVal = value.length === 5 ? `${value}:00` : value;
+    if (!value) return;
     const updated = localAvail.map((item) =>
-      item.weekday === weekday ? { ...item, [field]: formattedVal } : item
+      item.weekday === weekday ? { ...item, [field]: toMysqlTime(value) } : item
     );
-    setLocalAvail(updated);
-    onSaveAvailability(updated);
+    persistAvailability(updated);
   };
 
   const otherTools = [
@@ -295,16 +337,18 @@ export function TabTools({
                         <span>Das</span>
                         <input
                           type="time"
-                          value={item.start_time.slice(0, 5)}
+                          step={60}
+                          value={toTimeInputValue(item.start_time)}
                           onChange={(e) => handleTimeChange(item.weekday, "start_time", e.target.value)}
-                          className="bg-background border border-border rounded px-2 py-1 text-foreground focus:border-primary"
+                          className="bg-background border border-border rounded px-2 py-1 text-foreground focus:border-primary [color-scheme:dark] cursor-pointer"
                         />
                         <span>até</span>
                         <input
                           type="time"
-                          value={item.end_time.slice(0, 5)}
+                          step={60}
+                          value={toTimeInputValue(item.end_time)}
                           onChange={(e) => handleTimeChange(item.weekday, "end_time", e.target.value)}
-                          className="bg-background border border-border rounded px-2 py-1 text-foreground focus:border-primary"
+                          className="bg-background border border-border rounded px-2 py-1 text-foreground focus:border-primary [color-scheme:dark] cursor-pointer"
                         />
                       </div>
                     ) : (

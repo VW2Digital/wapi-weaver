@@ -411,10 +411,26 @@ export const getDsAgentDetail = createServerFn({ method: "GET" })
         [data.id, tenantId]
       )) as any[];
 
-      const availability = (await db.query(
+      const availability = ((await db.query(
         `SELECT * FROM ds_agent_calendar_availability WHERE agent_id = ? AND tenant_id = ? ORDER BY weekday ASC`,
         [data.id, tenantId]
-      )) as any[];
+      )) as any[]).map((row: any) => ({
+        ...row,
+        weekday: Number(row.weekday),
+        active: Boolean(Number(row.active)),
+        start_time:
+          typeof row.start_time === "string"
+            ? row.start_time
+            : row.start_time instanceof Date
+              ? `${String(row.start_time.getUTCHours()).padStart(2, "0")}:${String(row.start_time.getUTCMinutes()).padStart(2, "0")}:00`
+              : String(row.start_time ?? "08:00:00"),
+        end_time:
+          typeof row.end_time === "string"
+            ? row.end_time
+            : row.end_time instanceof Date
+              ? `${String(row.end_time.getUTCHours()).padStart(2, "0")}:${String(row.end_time.getUTCMinutes()).padStart(2, "0")}:00`
+              : String(row.end_time ?? "18:00:00"),
+      }));
 
       const followups = (await db.query(
         `SELECT * FROM ds_agent_followups WHERE agent_id = ? AND tenant_id = ? ORDER BY created_at DESC`,
@@ -828,10 +844,11 @@ export const saveDsCalendarAvailability = createServerFn({ method: "POST" })
           agent_id: z.string(),
           availability: z.array(
             z.object({
-              weekday: z.number(),
-              start_time: z.string(),
-              end_time: z.string(),
-              active: z.boolean(),
+              weekday: z.coerce.number().int().min(1).max(7),
+              start_time: z.string().min(4),
+              end_time: z.string().min(4),
+              // MySQL tinyint e JSON às vezes mandam 0/1 em vez de boolean
+              active: z.union([z.boolean(), z.number(), z.string()]).transform((v) => Boolean(Number(v))),
             })
           ),
         })
@@ -845,11 +862,21 @@ export const saveDsCalendarAvailability = createServerFn({ method: "POST" })
       const tenantId = await resolveEffectiveUserId(userId);
 
       for (const item of data.availability) {
+        const startTime = item.start_time.length === 5 ? `${item.start_time}:00` : item.start_time;
+        const endTime = item.end_time.length === 5 ? `${item.end_time}:00` : item.end_time;
         await db.query(
           `INSERT INTO ds_agent_calendar_availability (id, agent_id, tenant_id, weekday, start_time, end_time, active)
            VALUES (?, ?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE start_time = VALUES(start_time), end_time = VALUES(end_time), active = VALUES(active)`,
-          [crypto.randomUUID(), data.agent_id, tenantId, item.weekday, item.start_time, item.end_time, item.active]
+          [
+            crypto.randomUUID(),
+            data.agent_id,
+            tenantId,
+            item.weekday,
+            startTime,
+            endTime,
+            item.active ? 1 : 0,
+          ]
         );
       }
 

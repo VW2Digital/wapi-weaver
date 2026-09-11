@@ -135,6 +135,9 @@ function DsAgentEditorPage() {
       queryClient.invalidateQueries({ queryKey: ["dsAgentDetail", agentId] });
       toast.success("Disponibilidade salva.");
     },
+    onError: (error: any) => {
+      toast.error(error?.message || "Falha ao salvar disponibilidade.");
+    },
   });
 
   const createFollowupMut = useMutation({
