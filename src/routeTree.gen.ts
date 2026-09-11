@@ -105,6 +105,7 @@ import { Route as ApiPublicWebchatPublicIdMessagesRouteImport } from './routes/a
 import { Route as ApiPublicWebchatPublicIdIframeRouteImport } from './routes/api/public/webchat.$publicId.iframe'
 import { Route as ApiPublicWebchatPublicIdHistoryRouteImport } from './routes/api/public/webchat.$publicId.history'
 import { Route as ApiPublicWebchatPublicIdConfigRouteImport } from './routes/api/public/webchat.$publicId.config'
+import { Route as ApiPublicMetaOauthCallbackRouteImport } from './routes/api/public/meta/oauth/callback'
 import { Route as ApiBillingPaymentsIdStatusRouteImport } from './routes/api/billing/payments/$id/status'
 import { Route as ApiAdminPaymentGatewaysMercadopagoTestRouteImport } from './routes/api/admin/payment-gateways/mercadopago/test'
 import { Route as ApiPublicWebchatPublicIdWidgetJsRouteImport } from './routes/api/public/webchat.$publicId.widget.js'
@@ -612,6 +613,12 @@ const ApiPublicWebchatPublicIdConfigRoute =
     path: '/api/public/webchat/$publicId/config',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicMetaOauthCallbackRoute =
+  ApiPublicMetaOauthCallbackRouteImport.update({
+    id: '/api/public/meta/oauth/callback',
+    path: '/api/public/meta/oauth/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiBillingPaymentsIdStatusRoute =
   ApiBillingPaymentsIdStatusRouteImport.update({
     id: '/api/billing/payments/$id/status',
@@ -722,6 +729,7 @@ export interface FileRoutesByFullPath {
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
   '/api/admin/payment-gateways/mercadopago/test': typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
   '/api/billing/payments/$id/status': typeof ApiBillingPaymentsIdStatusRoute
+  '/api/public/meta/oauth/callback': typeof ApiPublicMetaOauthCallbackRoute
   '/api/public/webchat/$publicId/config': typeof ApiPublicWebchatPublicIdConfigRoute
   '/api/public/webchat/$publicId/history': typeof ApiPublicWebchatPublicIdHistoryRoute
   '/api/public/webchat/$publicId/iframe': typeof ApiPublicWebchatPublicIdIframeRoute
@@ -822,6 +830,7 @@ export interface FileRoutesByTo {
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
   '/api/admin/payment-gateways/mercadopago/test': typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
   '/api/billing/payments/$id/status': typeof ApiBillingPaymentsIdStatusRoute
+  '/api/public/meta/oauth/callback': typeof ApiPublicMetaOauthCallbackRoute
   '/api/public/webchat/$publicId/config': typeof ApiPublicWebchatPublicIdConfigRoute
   '/api/public/webchat/$publicId/history': typeof ApiPublicWebchatPublicIdHistoryRoute
   '/api/public/webchat/$publicId/iframe': typeof ApiPublicWebchatPublicIdIframeRoute
@@ -924,6 +933,7 @@ export interface FileRoutesById {
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
   '/api/admin/payment-gateways/mercadopago/test': typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
   '/api/billing/payments/$id/status': typeof ApiBillingPaymentsIdStatusRoute
+  '/api/public/meta/oauth/callback': typeof ApiPublicMetaOauthCallbackRoute
   '/api/public/webchat/$publicId/config': typeof ApiPublicWebchatPublicIdConfigRoute
   '/api/public/webchat/$publicId/history': typeof ApiPublicWebchatPublicIdHistoryRoute
   '/api/public/webchat/$publicId/iframe': typeof ApiPublicWebchatPublicIdIframeRoute
@@ -1026,6 +1036,7 @@ export interface FileRouteTypes {
     | '/api/whatsapp/business-profile/photo'
     | '/api/admin/payment-gateways/mercadopago/test'
     | '/api/billing/payments/$id/status'
+    | '/api/public/meta/oauth/callback'
     | '/api/public/webchat/$publicId/config'
     | '/api/public/webchat/$publicId/history'
     | '/api/public/webchat/$publicId/iframe'
@@ -1126,6 +1137,7 @@ export interface FileRouteTypes {
     | '/api/whatsapp/business-profile/photo'
     | '/api/admin/payment-gateways/mercadopago/test'
     | '/api/billing/payments/$id/status'
+    | '/api/public/meta/oauth/callback'
     | '/api/public/webchat/$publicId/config'
     | '/api/public/webchat/$publicId/history'
     | '/api/public/webchat/$publicId/iframe'
@@ -1227,6 +1239,7 @@ export interface FileRouteTypes {
     | '/api/whatsapp/business-profile/photo'
     | '/api/admin/payment-gateways/mercadopago/test'
     | '/api/billing/payments/$id/status'
+    | '/api/public/meta/oauth/callback'
     | '/api/public/webchat/$publicId/config'
     | '/api/public/webchat/$publicId/history'
     | '/api/public/webchat/$publicId/iframe'
@@ -1295,6 +1308,7 @@ export interface RootRouteChildren {
   ApiPublicMetaWebhookPublicIdRoute: typeof ApiPublicMetaWebhookPublicIdRoute
   ApiPublicWebhooksStripeRoute: typeof ApiPublicWebhooksStripeRoute
   ApiBillingPaymentsIdStatusRoute: typeof ApiBillingPaymentsIdStatusRoute
+  ApiPublicMetaOauthCallbackRoute: typeof ApiPublicMetaOauthCallbackRoute
   ApiPublicWebchatPublicIdConfigRoute: typeof ApiPublicWebchatPublicIdConfigRoute
   ApiPublicWebchatPublicIdHistoryRoute: typeof ApiPublicWebchatPublicIdHistoryRoute
   ApiPublicWebchatPublicIdIframeRoute: typeof ApiPublicWebchatPublicIdIframeRoute
@@ -1979,6 +1993,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWebchatPublicIdConfigRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/meta/oauth/callback': {
+      id: '/api/public/meta/oauth/callback'
+      path: '/api/public/meta/oauth/callback'
+      fullPath: '/api/public/meta/oauth/callback'
+      preLoaderRoute: typeof ApiPublicMetaOauthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/billing/payments/$id/status': {
       id: '/api/billing/payments/$id/status'
       path: '/api/billing/payments/$id/status'
@@ -2205,6 +2226,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicMetaWebhookPublicIdRoute: ApiPublicMetaWebhookPublicIdRoute,
   ApiPublicWebhooksStripeRoute: ApiPublicWebhooksStripeRoute,
   ApiBillingPaymentsIdStatusRoute: ApiBillingPaymentsIdStatusRoute,
+  ApiPublicMetaOauthCallbackRoute: ApiPublicMetaOauthCallbackRoute,
   ApiPublicWebchatPublicIdConfigRoute: ApiPublicWebchatPublicIdConfigRoute,
   ApiPublicWebchatPublicIdHistoryRoute: ApiPublicWebchatPublicIdHistoryRoute,
   ApiPublicWebchatPublicIdIframeRoute: ApiPublicWebchatPublicIdIframeRoute,
