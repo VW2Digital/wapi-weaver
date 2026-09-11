@@ -5,6 +5,7 @@ import {
   listChannelConnectionsForTenant,
   resolveChannelAccessToken,
 } from "@/lib/messaging/channel-connection.service";
+import { getAmericaSaoPauloNow } from "@/lib/ds-agent-tools.server";
 
 function logInfo(message: string, data?: any) {
   console.log(`[ds-agent-runtime] ${message}`, data ? JSON.stringify(data) : "");
@@ -488,6 +489,7 @@ function buildOpenAiToolsFromEnabled(
   type: "function";
   function: { name: string; description: string; parameters: Record<string, unknown> };
 }> {
+  const clock = getAmericaSaoPauloNow();
   const defs: Array<{
     key: string;
     name: string;
@@ -497,11 +499,11 @@ function buildOpenAiToolsFromEnabled(
     {
       key: "google_calendar",
       name: "calendar_check_availability",
-      description: "Verifica disponibilidade de agenda em uma data/horário.",
+      description: `Verifica disponibilidade de agenda em uma data/horário. Hoje é ${clock.isoDate}; use o ano ${clock.year}.`,
       parameters: {
         type: "object",
         properties: {
-          date: { type: "string", description: "YYYY-MM-DD" },
+          date: { type: "string", description: `YYYY-MM-DD (ano ${clock.year})` },
           start_time: { type: "string", description: "HH:mm" },
           end_time: { type: "string", description: "HH:mm" },
         },
@@ -511,13 +513,13 @@ function buildOpenAiToolsFromEnabled(
       key: "google_calendar",
       name: "calendar_create_event",
       description:
-        "Cria um compromisso na agenda interna do tenant. Use SEMPRE o ano atual em start_at/end_at (formato YYYY-MM-DD HH:mm:ss). Só confirme ao cliente após sucesso.",
+        `Cria um compromisso na agenda interna do tenant. Hoje é ${clock.isoDate}. Use o ano ${clock.year} em start_at/end_at (YYYY-MM-DD HH:mm:ss). Nunca use 2023. Só confirme ao cliente após sucesso.`,
       parameters: {
         type: "object",
         properties: {
           title: { type: "string" },
-          start_at: { type: "string", description: "YYYY-MM-DD HH:mm:ss (ano atual)" },
-          end_at: { type: "string", description: "YYYY-MM-DD HH:mm:ss (ano atual)" },
+          start_at: { type: "string", description: `YYYY-MM-DD HH:mm:ss (ano ${clock.year})` },
+          end_at: { type: "string", description: `YYYY-MM-DD HH:mm:ss (ano ${clock.year})` },
           description: { type: "string" },
           location: { type: "string" },
         },
@@ -653,7 +655,9 @@ async function buildDsAgentSystemPrompt(params: {
       ? String(agent.instructions_advanced || agent.system_prompt || agent.prompt || "").trim()
       : String(agent.instructions_basic || agent.system_prompt || agent.prompt || "").trim();
 
+  const clock = getAmericaSaoPauloNow();
   let systemPrompt = instructions || `Você é ${agent.name || "um assistente virtual"} útil e profissional.`;
+  systemPrompt = systemPrompt.replace(/\{\{\s*data_atual\s*\}\}/gi, clock.datePtBr);
 
   if (phoneDigits) {
     try {
@@ -673,10 +677,7 @@ async function buildDsAgentSystemPrompt(params: {
         .replace(/\{\{\s*telefone\s*\}\}/gi, phoneDigits)
         .replace(/\{\{\s*contact\.phone\s*\}\}/gi, phoneDigits)
         .replace(/\{\{\s*email\s*\}\}/gi, contactEmail || "")
-        .replace(
-          /\{\{\s*data_atual\s*\}\}/gi,
-          new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }),
-        );
+        .replace(/\{\{\s*data_atual\s*\}\}/gi, clock.datePtBr);
     } catch {
       // Mantém o prompt original se a resolução do contato falhar.
     }
@@ -700,7 +701,12 @@ async function buildDsAgentSystemPrompt(params: {
   }
 
   systemPrompt +=
-    "\n\nRegras adicionais:\n- Nunca escreva placeholders como {{nome_lead}} na resposta.\n- Responda sempre a mensagem mais recente do cliente de forma útil e objetiva.\n- Data/hora de referência (America/Sao_Paulo): use SEMPRE o ano atual ao agendar; nunca anos passados (ex.: 2023).\n- Só confirme que um compromisso foi agendado DEPOIS de chamar a ferramenta calendar_create_event com sucesso. Se a ferramenta falhar, diga que não conseguiu agendar.\n- Ao chamar calendar_create_event, use start_at/end_at no formato YYYY-MM-DD HH:mm:ss com o ano corrente.\n";
+    `\n\nRelógio do sistema (obrigatório):\n- ${clock.clockLine}\n` +
+    `- Se o cliente perguntar o ano/data, use SOMENTE este relógio. Nunca afirme que estamos em 2023 ou em qualquer ano diferente de ${clock.year}.\n` +
+    `- Ao agendar, use o ano ${clock.year} em start_at/end_at (YYYY-MM-DD HH:mm:ss).\n` +
+    "- Nunca escreva placeholders como {{nome_lead}} na resposta.\n" +
+    "- Responda sempre a mensagem mais recente do cliente de forma útil e objetiva.\n" +
+    "- Só confirme que um compromisso foi agendado DEPOIS de chamar a ferramenta calendar_create_event com sucesso. Se a ferramenta falhar, diga que não conseguiu agendar.\n";
 
   systemPrompt += await loadAgentKnowledgeBlock(db, agentId, tenantId);
   return systemPrompt;

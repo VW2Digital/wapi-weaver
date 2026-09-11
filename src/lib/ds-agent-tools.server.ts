@@ -9,6 +9,45 @@ import {
 } from "./services/calendar.service.js";
 import db from "./db.js";
 
+const SAO_PAULO_TZ = "America/Sao_Paulo";
+
+export function getAmericaSaoPauloNow(now: Date = new Date()): {
+  year: number;
+  isoDate: string;
+  datePtBr: string;
+  weekdayPtBr: string;
+  timePtBr: string;
+  clockLine: string;
+} {
+  const parts = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: SAO_PAULO_TZ,
+    weekday: "long",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
+
+  const pick = (type: string) => parts.find((p) => p.type === type)?.value || "";
+  const year = Number(pick("year"));
+  const day = pick("day");
+  const month = pick("month");
+  const weekdayPtBr = pick("weekday");
+  const timePtBr = `${pick("hour")}:${pick("minute")}`;
+  const isoDate = `${year}-${month}-${day}`;
+  const datePtBr = `${day}/${month}/${year}`;
+  return {
+    year,
+    isoDate,
+    datePtBr,
+    weekdayPtBr,
+    timePtBr,
+    clockLine: `HOJE é ${weekdayPtBr}, ${datePtBr} (${isoDate}), ${timePtBr} (America/Sao_Paulo). O ano corrente é ${year}.`,
+  };
+}
+
 /**
  * O LLM costuma inventar anos antigos (ex: 2023). Corrige para o ano atual
  * (America/Sao_Paulo) e, se ainda ficar no passado, empurra +1 ano.
