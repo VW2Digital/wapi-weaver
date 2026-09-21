@@ -314,25 +314,6 @@ export async function assumeInstagramAttendance(input: {
       [crypto.randomUUID(), input.tenantId, input.tenantId, input.contactPhone, input.actorUserId],
     );
   }
-  await db.query(
-    `UPDATE conversation_assignments
-     SET is_active = 0, unassigned_at = NOW()
-     WHERE tenant_id = ? AND contact_phone = ? AND is_active = 1`,
-    [input.tenantId, input.contactPhone],
-  );
-  await db.query(
-    `INSERT INTO conversation_assignments
-      (id, tenant_id, user_id, contact_phone, team_id, agent_id, assigned_by)
-     VALUES (?, ?, ?, ?, NULL, ?, ?)`,
-    [
-      crypto.randomUUID(),
-      input.tenantId,
-      input.tenantId,
-      input.contactPhone,
-      input.actorUserId,
-      input.actorUserId,
-    ],
-  );
   const window = getInstagramMessagingWindow(await loadLastInbound(input.tenantId, input.contactPhone));
   await recordInstagramAttention({
     tenantId: input.tenantId,
@@ -374,12 +355,6 @@ export async function resumeInstagramAutomation(input: {
       [rows[0].id, input.tenantId],
     );
   }
-  await db.query(
-    `UPDATE conversation_assignments
-     SET is_active = 0, unassigned_at = NOW()
-     WHERE tenant_id = ? AND contact_phone = ? AND is_active = 1`,
-    [input.tenantId, input.contactPhone],
-  );
   await recordInstagramAttention({
     tenantId: input.tenantId,
     contactPhone: input.contactPhone,
