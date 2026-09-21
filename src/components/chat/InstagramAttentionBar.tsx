@@ -25,8 +25,32 @@ const WINDOW_LABEL: Record<InstagramWindowState, string> = {
   closed: "Janela de atendimento encerrada",
 };
 
+function attentionStorageKey(storageId: string) {
+  return `bliv:ig-attention-collapsed:${storageId}`;
+}
+
+function isAttentionCollapsed(storageId: string, noticeKey: string) {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(attentionStorageKey(storageId)) === noticeKey;
+  } catch {
+    return false;
+  }
+}
+
+function persistAttentionCollapsed(storageId: string, noticeKey: string, collapsed: boolean) {
+  try {
+    const key = attentionStorageKey(storageId);
+    if (collapsed) window.localStorage.setItem(key, noticeKey);
+    else window.localStorage.removeItem(key);
+  } catch {
+    // O aviso continua utilizável se o navegador bloquear o armazenamento.
+  }
+}
+
 export function InstagramAttentionBar({
   state,
+  storageId,
   preview,
   onPreview,
   onAssume,
@@ -34,6 +58,7 @@ export function InstagramAttentionBar({
   busy,
 }: {
   state: InstagramAttentionView;
+  storageId: string;
   preview: InstagramWindowState | null;
   onPreview: (value: InstagramWindowState | null) => void;
   onAssume: () => void;
@@ -46,11 +71,11 @@ export function InstagramAttentionBar({
     ? new Date(state.lastInboundAt).toLocaleString("pt-BR")
     : "sem mensagem do cliente";
   const noticeKey = `${state.mode}:${state.window.state}:${state.lastInboundAt || ""}`;
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => isAttentionCollapsed(storageId, noticeKey));
 
   useEffect(() => {
-    setCollapsed(false);
-  }, [noticeKey]);
+    setCollapsed(isAttentionCollapsed(storageId, noticeKey));
+  }, [storageId, noticeKey]);
 
   return (
     <div className={`border-b border-border/60 bg-muted/30 px-3 text-xs text-foreground ${collapsed ? "py-1.5" : "space-y-2 py-2"}`}>
@@ -70,7 +95,13 @@ export function InstagramAttentionBar({
           variant="ghost"
           className="h-6 w-6 shrink-0 text-muted-foreground"
           title={collapsed ? "Mostrar detalhes" : "Fechar aviso"}
-          onClick={() => setCollapsed((open) => !open)}
+          onClick={() =>
+            setCollapsed((open) => {
+              const next = !open;
+              persistAttentionCollapsed(storageId, noticeKey, next);
+              return next;
+            })
+          }
         >
           {collapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
         </Button>

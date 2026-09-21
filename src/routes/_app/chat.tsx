@@ -638,6 +638,38 @@ interface ChatMessageRecord {
   channel?: string | null;
 }
 
+function readNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function resolveReactableMessageId(message: ChatMessageRecord): string | null {
+  const direct =
+    readNonEmptyString(message.wa_message_id) || readNonEmptyString(message.provider_message_id);
+  if (direct) return direct;
+
+  const metadata = message.metadata;
+  if (!metadata) return null;
+
+  const nestedMessage = metadata.message;
+  if (nestedMessage && typeof nestedMessage === "object") {
+    const record = nestedMessage as { id?: unknown; mid?: unknown };
+    const nested = readNonEmptyString(record.id) || readNonEmptyString(record.mid);
+    if (nested) return nested;
+  }
+
+  const raw = metadata.raw;
+  if (raw && typeof raw === "object") {
+    const rawMessage = (raw as { message?: { mid?: unknown; id?: unknown } }).message;
+    if (rawMessage) {
+      return readNonEmptyString(rawMessage.mid) || readNonEmptyString(rawMessage.id);
+    }
+  }
+
+  return null;
+}
+
 interface SendContactPayload {
   name: {
     formatted_name: string;
@@ -4258,11 +4290,13 @@ function ChatPage() {
 
   const messageMap = new Map<string, ChatMessageRecord>();
   normalMessages.forEach((message) => {
-    if (message.wa_message_id) {
-      messageMap.set(message.wa_message_id, { ...message, reactions: [] });
-    } else {
-      messageMap.set(message.id, { ...message, reactions: [] });
-    }
+    const providerMessageId = resolveReactableMessageId(message);
+    const normalized = {
+      ...message,
+      wa_message_id: readNonEmptyString(message.wa_message_id) || providerMessageId,
+      reactions: [] as ChatMessageReactionRecord[],
+    };
+    messageMap.set(providerMessageId || message.id, normalized);
   });
 
   reactions.forEach((reaction) => {
@@ -7133,6 +7167,7 @@ function ChatPage() {
                         {isInstagramChat && igAttention ? (
                           <InstagramAttentionBar
                             state={igAttention}
+                            storageId={selectedPhone || "instagram"}
                             preview={igWindowPreview}
                             onPreview={setIgWindowPreview}
                             busy={igAttentionQuery.isFetching}
