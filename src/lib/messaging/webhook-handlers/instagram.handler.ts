@@ -79,7 +79,11 @@ async function instagramDeliveryAlreadyStored(pageId: string, payload: unknown):
   return Boolean(rows[0]?.id);
 }
 
-export async function processInstagramWebhook(rawBody: string, signature: string | null): Promise<Response> {
+export async function processInstagramWebhook(
+  rawBody: string,
+  signature: string | null,
+  options?: { legacyCallback?: boolean },
+): Promise<Response> {
   let payload: unknown = null;
   try {
     payload = JSON.parse(rawBody);
@@ -113,6 +117,10 @@ export async function processInstagramWebhook(rawBody: string, signature: string
   if (!sigResult.valid) {
     if (await instagramDeliveryAlreadyStored(pageId, payload)) {
       logInfo("Instagram delivery already stored; acknowledging retry");
+      return new Response("EVENT_RECEIVED", { status: 200 });
+    }
+    if (options?.legacyCallback) {
+      logInfo("Legacy Instagram callback acknowledged without ingest", { reason: sigResult.reason });
       return new Response("EVENT_RECEIVED", { status: 200 });
     }
     logError("Signature validation failed", { reason: sigResult.reason });

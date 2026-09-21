@@ -18,7 +18,7 @@ export const Route = createFileRoute("/api/public/instagram-webhook")({
       POST: async ({ request }) => {
         const rawBody = await request.text();
         const sig = request.headers.get("x-hub-signature-256");
-        return processInstagramWebhook(rawBody, sig);
+        return processInstagramWebhook(rawBody, sig, { legacyCallback: true });
       },
     },
   },

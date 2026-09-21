@@ -41,20 +41,6 @@ export const Route = createFileRoute("/api/public/facebook-webhook")({
         const rawBody = await request.text();
         const sig = request.headers.get("x-hub-signature-256");
 
-        // 1. Authenticate Meta Signature on original raw body
-        const sigResult = await verifyMetaWebhookSignature(rawBody, sig, "messenger");
-        if (!sigResult.valid) {
-          logError("Signature validation failed", { reason: sigResult.reason });
-          await logWebhookDelivery({
-            provider: "messenger",
-            httpStatus: 403,
-            outcome: "rejected_signature",
-            rawBody: rawBody,
-            errorMessage: `Signature validation failed: ${sigResult.reason}`,
-          }).catch(() => {});
-          return new Response("Forbidden (Invalid Signature)", { status: 403 });
-        }
-
         let payload: unknown = null;
         try {
           payload = JSON.parse(rawBody);
@@ -81,6 +67,20 @@ export const Route = createFileRoute("/api/public/facebook-webhook")({
             errorMessage: "Meta page ID not found in payload",
           }).catch(() => {});
           return new Response("Page ID missing", { status: 400 });
+        }
+
+        const sigResult = await verifyMetaWebhookSignature(rawBody, sig, "messenger", pageId);
+        if (!sigResult.valid) {
+          logError("Signature validation failed", { reason: sigResult.reason });
+          await logWebhookDelivery({
+            provider: "messenger",
+            channelResourceId: pageId,
+            httpStatus: 403,
+            outcome: "rejected_signature",
+            rawBody: rawBody,
+            errorMessage: `Signature validation failed: ${sigResult.reason}`,
+          }).catch(() => {});
+          return new Response("Forbidden (Invalid Signature)", { status: 403 });
         }
 
         const resolution = await resolveMessengerTenant(pageId);
