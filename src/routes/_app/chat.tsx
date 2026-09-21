@@ -3249,6 +3249,37 @@ function ChatPage() {
     );
   }, [contactsQuery.data, draftChatContacts, selectedContact, instagramHydrateQuery.data]);
 
+  const channelHasMessages = (channel: "whatsapp" | "instagram" | "messenger" | "webchat") =>
+    contactsForUi.some((contact) => {
+      const contactChannel = contact.channel || "whatsapp";
+      return (
+        contactChannel === channel &&
+        Boolean(contact.last_message_body || contact.last_message_time)
+      );
+    });
+  const showWhatsappFilter = configuredChannels.includes("whatsapp") && channelHasMessages("whatsapp");
+  const showInstagramFilter = configuredChannels.includes("instagram") && channelHasMessages("instagram");
+  const showMessengerFilter = configuredChannels.includes("messenger") && channelHasMessages("messenger");
+  const showSiteFilter = configuredChannels.includes("webchat") && channelHasMessages("webchat");
+  const visibleChannelFilters = [
+    configuredChannels.includes("all"),
+    showWhatsappFilter,
+    showInstagramFilter,
+    showMessengerFilter,
+    showSiteFilter,
+  ].filter(Boolean).length;
+
+  useEffect(() => {
+    if (
+      (filterView === "whatsapp" && !showWhatsappFilter) ||
+      (filterView === "instagram" && !showInstagramFilter) ||
+      (filterView === "messenger" && !showMessengerFilter) ||
+      (filterView === "webchat" && !showSiteFilter)
+    ) {
+      setFilterView("all");
+    }
+  }, [filterView, showWhatsappFilter, showInstagramFilter, showMessengerFilter, showSiteFilter]);
+
   const hasUnreadInOpenChat = useMemo(() => {
     if (!selectedPhone) return false;
     if (isFlagEnabled(selectedContact?.is_unread) || (selectedContact?.unread_count ?? 0) > 0) {
@@ -4522,7 +4553,7 @@ function ChatPage() {
           <div className="p-3 border-b bg-card shrink-0">
             <div
               className="grid gap-3 place-items-center"
-              style={{ gridTemplateColumns: `repeat(${configuredChannels.length}, minmax(0, 1fr))` }}
+              style={{ gridTemplateColumns: `repeat(${Math.max(visibleChannelFilters, 1)}, minmax(0, 1fr))` }}
             >
               {configuredChannels.includes("all") && (
                 <button
@@ -4539,7 +4570,7 @@ function ChatPage() {
                   {filterView === "all" && "Todos"}
                 </button>
               )}
-              {configuredChannels.includes("whatsapp") && (
+              {showWhatsappFilter && (
                 <button
                   type="button"
                   onClick={() => setFilterView("whatsapp")}
@@ -4554,7 +4585,7 @@ function ChatPage() {
                   {filterView === "whatsapp" && "WhatsApp"}
                 </button>
               )}
-              {configuredChannels.includes("instagram") && (
+              {showInstagramFilter && (
                 <button
                   type="button"
                   onClick={() => setFilterView("instagram")}
@@ -4569,34 +4600,36 @@ function ChatPage() {
                   {filterView === "instagram" && "Instagram"}
                 </button>
               )}
-              {configuredChannels.includes("messenger") && (
+              {showMessengerFilter && (
                 <button
                   type="button"
                   onClick={() => setFilterView("messenger")}
                   className={cn(
                     "flex items-center justify-center rounded-full text-xs font-semibold transition-all",
                     filterView === "messenger"
-                      ? "h-10 px-4 gap-2 bg-[#0078FF] text-white shadow-sm"
+                      ? "h-10 px-4 gap-2 bg-[#0084FF] text-white shadow-sm"
                       : "h-10 w-10 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60",
                   )}
                 >
-                  <Globe className="h-4 w-4" />
-                  {filterView === "messenger" && "Site"}
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <path d="M12 2C6.477 2 2 6.145 2 11.258c0 2.914 1.453 5.508 3.738 7.18v3.743c0 .285.31.464.556.32l4.137-2.42c.504.07 1.02.11 1.569.11 5.523 0 10-4.146 10-9.26C22 6.144 17.523 2 12 2zm1.096 12.062l-2.616-2.79-5.1 2.79 5.6-5.95 2.616 2.79 5.1-2.79-5.6 5.95z" />
+                  </svg>
+                  {filterView === "messenger" && "Messenger"}
                 </button>
               )}
-              {configuredChannels.includes("webchat") && (
+              {showSiteFilter && (
                 <button
                   type="button"
                   onClick={() => setFilterView("webchat")}
                   className={cn(
                     "flex items-center justify-center rounded-full text-xs font-semibold transition-all",
                     filterView === "webchat"
-                      ? "h-10 px-4 gap-2 bg-sky-500 text-white shadow-sm"
+                      ? "h-10 px-4 gap-2 bg-[#0078FF] text-white shadow-sm"
                       : "h-10 w-10 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60",
                   )}
                 >
-                  <MessageSquare className="h-4 w-4" />
-                  {filterView === "webchat" && "WebChat"}
+                  <Globe className="h-4 w-4" />
+                  {filterView === "webchat" && "Site"}
                 </button>
               )}
             </div>
