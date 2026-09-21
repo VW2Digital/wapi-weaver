@@ -27,7 +27,10 @@ function escapeHtml(value: string) {
 function buildSettingsRedirect(requestUrl: URL) {
   const state = requestUrl.searchParams.get("state") || "";
   const dest = new URL("/settings", requestUrl.origin);
-  dest.searchParams.set("s", state.startsWith("instagram") ? "instagram" : "meta");
+    dest.searchParams.set(
+    "s",
+    state.startsWith("instagram") ? "instagram" : state.startsWith("messenger") ? "facebook" : "meta",
+  );
   dest.searchParams.set("oauth", "1");
 
   const error = requestUrl.searchParams.get("error");
@@ -97,7 +100,7 @@ function landingHtml(
       var code = ${JSON.stringify(oauth?.code || "")};
       var state = ${JSON.stringify(oauth?.state || "")};
       try {
-        if (code && state.indexOf("instagram") === 0) {
+        if (code && (state.indexOf("instagram") === 0 || state.indexOf("messenger") === 0)) {
           sessionStorage.setItem("bliv_meta_oauth_code", code);
           sessionStorage.setItem("bliv_meta_oauth_state", state);
           sessionStorage.setItem(

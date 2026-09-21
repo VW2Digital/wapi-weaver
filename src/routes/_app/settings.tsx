@@ -55,6 +55,7 @@ import {
   testInstagramConnection,
   revealInstagramAccessToken,
   onboardInstagramFacebookLogin,
+  onboardMessengerFacebookLogin,
   listFacebookPages,
   connectFacebookPage,
   disconnectFacebookPage,
@@ -9113,17 +9114,98 @@ function FacebookSettingsTab({
   const fetchFb = useServerFn(listFacebookPages);
   const connectFb = useServerFn(connectFacebookPage);
   const disconnectFb = useServerFn(disconnectFacebookPage);
+  const onboardMessengerFacebook = useServerFn(onboardMessengerFacebookLogin);
+  const getEmbeddedSignupConnections = useServerFn(listMetaAppConnectionsForEmbeddedSignup);
   const qc = useQueryClient();
+
+  const { data: embeddedSignupConnections } = useQuery({
+    queryKey: ["meta-app-connection-embedded-signup"],
+    queryFn: () => getEmbeddedSignupConnections(),
+  });
 
   const [pageId, setPageId] = useState("");
   const [pageName, setPageName] = useState("");
   const [pageAccessToken, setPageAccessToken] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isOauthConnecting, setIsOauthConnecting] = useState(false);
 
   const { data: pages, isLoading } = useQuery({
     queryKey: ["facebook-pages"],
     queryFn: () => fetchFb(),
   });
+
+  const oauthSearch = Route.useSearch();
+
+  useEffect(() => {
+    if (oauthSearch.oauth_error) {
+      toast.error(
+        oauthSearch.oauth_error_description ||
+          `Login do Facebook recusado (${oauthSearch.oauth_error}).`,
+      );
+    }
+  }, [oauthSearch.oauth_error, oauthSearch.oauth_error_description]);
+
+  const MESSENGER_OAUTH_SCOPES = "pages_show_list,pages_messaging,pages_manage_metadata";
+
+  const resolveMetaApp = () => {
+    const connections = embeddedSignupConnections || [];
+    return connections.find((c: any) => c.appId === "1783038629742610") || connections[0];
+  };
+
+  const startMessengerFacebookLogin = () => {
+    const selected = resolveMetaApp();
+    const appId = selected?.appId || "";
+    if (!appId) {
+      toast.error("Nenhuma Meta App Connection com App ID. Cadastre o app 1783038629742610 em Credenciais.");
+      return;
+    }
+    const redirectUri = `${window.location.origin}/api/public/meta/oauth/callback`;
+    const url = new URL("https://www.facebook.com/v26.0/dialog/oauth");
+    url.searchParams.set("client_id", appId);
+    url.searchParams.set("redirect_uri", redirectUri);
+    url.searchParams.set("response_type", "code");
+    url.searchParams.set("scope", MESSENGER_OAUTH_SCOPES);
+    url.searchParams.set("state", "messenger");
+    window.location.assign(url.toString());
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const code = sessionStorage.getItem("bliv_meta_oauth_code");
+    const state = sessionStorage.getItem("bliv_meta_oauth_state") || "";
+    const redirectUri = sessionStorage.getItem("bliv_meta_oauth_redirect_uri");
+    if (!code || !state.startsWith("messenger") || isOauthConnecting) return;
+    sessionStorage.removeItem("bliv_meta_oauth_code");
+    sessionStorage.removeItem("bliv_meta_oauth_state");
+    sessionStorage.removeItem("bliv_meta_oauth_redirect_uri");
+    setIsOauthConnecting(true);
+    const selected = resolveMetaApp();
+    onboardMessengerFacebook({
+      data: {
+        code,
+        redirect_uri: redirectUri || `${window.location.origin}/api/public/meta/oauth/callback`,
+        meta_app_connection_id: selected?.id,
+      },
+    })
+      .then((res: any) => {
+        const n = res?.connected?.length || 0;
+        const pendingWebhook = (res?.connected || []).some((page: any) => page.webhookSubscribed === false);
+        toast.success(
+          n
+            ? `Messenger conectado (${n} ${n === 1 ? "página" : "páginas"}).`
+            : "Login do Facebook concluído.",
+        );
+        if (pendingWebhook) {
+          toast.error("A Página foi salva, mas a inscrição do webhook na Meta não foi confirmada.");
+        }
+        qc.invalidateQueries({ queryKey: ["facebook-pages"] });
+      })
+      .catch((err: any) => {
+        toast.error(err?.message || "Falha ao conectar Messenger via Facebook Login.");
+      })
+      .finally(() => setIsOauthConnecting(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [embeddedSignupConnections]);
 
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -9185,9 +9267,28 @@ function FacebookSettingsTab({
                     <h2 className="font-display text-lg font-semibold">
                       Passo 1: Conectar sua Página do Facebook
                     </h2>
+                    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border p-5">
+                      <p className="text-sm font-semibold text-foreground">Conexão via Facebook Login</p>
+                      <p className="text-xs text-muted-foreground text-center max-w-md">
+                        Autoriza as Páginas que você administra e inscreve o Messenger no webhook.
+                        App Meta: 1783038629742610.
+                      </p>
+                      <Button
+                        type="button"
+                        onClick={startMessengerFacebookLogin}
+                        disabled={isOauthConnecting}
+                        className="bg-[#1877F2] hover:bg-[#1877F2]/90 text-white font-semibold"
+                      >
+                        {isOauthConnecting ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Facebook className="h-4 w-4" />
+                        )}
+                        Conectar Messenger
+                      </Button>
+                    </div>
                     <p className="text-sm text-muted-foreground">
-                      Insira as credenciais geradas na sua aplicação Meta Developers para a Página
-                      do Facebook.
+                      Ou informe manualmente as credenciais da Página geradas no Meta Developers.
                     </p>
 
                     <div className="grid gap-4 sm:grid-cols-2">

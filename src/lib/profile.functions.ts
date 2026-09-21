@@ -2538,6 +2538,132 @@ export const onboardInstagramFacebookLogin = createServerFn({ method: "POST" })
     };
   });
 
+export const onboardMessengerFacebookLogin = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d: any) =>
+    z
+      .object({
+        code: z.string().trim().min(1).optional(),
+        user_access_token: z.string().trim().min(10).optional(),
+        redirect_uri: z.string().url().optional(),
+        meta_app_connection_id: z.string().optional(),
+      })
+      .refine((v) => Boolean(v.code || v.user_access_token), {
+        message: "Informe code ou user_access_token.",
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { default: db } = await import("./db");
+    const { decryptMetaCredential } = await import("./encryption");
+    const graphVersion = "v26.0";
+
+    const connections = (await db.query(
+      `SELECT id, app_id, app_secret_encrypted
+       FROM meta_app_connections
+       WHERE tenant_id = ?
+       ORDER BY CASE WHEN app_id = '1783038629742610' THEN 0 ELSE 1 END, created_at DESC`,
+      [context.userId],
+    )) as Array<{ id: string; app_id: string; app_secret_encrypted: string }>;
+
+    const conn = data.meta_app_connection_id
+      ? connections.find((c) => c.id === data.meta_app_connection_id)
+      : connections.find((c) => c.app_id === "1783038629742610") || connections[0];
+
+    if (!conn?.app_id) {
+      throw new Error("Nenhuma Meta App Connection encontrada para este tenant.");
+    }
+
+    let userToken = data.user_access_token || "";
+    if (data.code) {
+      if (!data.redirect_uri) {
+        throw new Error("redirect_uri é obrigatório para trocar o code.");
+      }
+      let appSecret = "";
+      try {
+        appSecret = decryptMetaCredential(conn.app_secret_encrypted);
+      } catch {
+        throw new Error("Falha ao ler o App Secret da Meta App Connection.");
+      }
+      const tokenUrl = new URL(`https://graph.facebook.com/${graphVersion}/oauth/access_token`);
+      tokenUrl.searchParams.set("client_id", conn.app_id);
+      tokenUrl.searchParams.set("client_secret", appSecret);
+      tokenUrl.searchParams.set("redirect_uri", data.redirect_uri);
+      tokenUrl.searchParams.set("code", data.code);
+      const tokenRes = await fetch(tokenUrl.toString());
+      const tokenBody = await tokenRes.json();
+      if (!tokenRes.ok || !tokenBody?.access_token) {
+        throw new Error(getMetaErrorMessage(tokenBody, "Falha ao trocar o code por access token."));
+      }
+      userToken = String(tokenBody.access_token);
+    }
+
+    const pagesRes = await fetch(
+      `https://graph.facebook.com/${graphVersion}/me/accounts?fields=id,name,access_token&limit=100&access_token=${encodeURIComponent(userToken)}`,
+    );
+    const pagesBody = await pagesRes.json();
+    if (!pagesRes.ok) {
+      throw new Error(getMetaErrorMessage(pagesBody, "Falha ao listar Páginas do Facebook."));
+    }
+
+    const pages = Array.isArray(pagesBody?.data) ? pagesBody.data : [];
+    if (pages.length === 0) {
+      throw new Error(
+        "Nenhuma Página encontrada. Confirme que sua conta do Facebook administra a Página do Messenger.",
+      );
+    }
+
+    const connected: Array<{ pageId: string; pageName: string | null; webhookSubscribed: boolean }> = [];
+    for (const page of pages) {
+      const pageId = String(page?.id || "");
+      const pageToken = String(page?.access_token || "");
+      const pageName = page?.name ? String(page.name) : null;
+      if (!pageId || !pageToken) continue;
+
+      const conflicts = (await db.query(
+        `SELECT id FROM facebook_pages WHERE page_id = ? AND user_id != ? LIMIT 1`,
+        [pageId, context.userId],
+      )) as Array<{ id: string }>;
+      if (conflicts?.[0]) {
+        throw new Error("Esta Página do Facebook já está vinculada a outro usuário.");
+      }
+
+      let webhookSubscribed = false;
+      const subscribeRes = await fetch(
+        `https://graph.facebook.com/${graphVersion}/${encodeURIComponent(pageId)}/subscribed_apps`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            subscribed_fields: "messages,messaging_postbacks,message_deliveries,message_reads",
+            access_token: pageToken,
+          }),
+        },
+      );
+      const subscribeBody = await subscribeRes.json().catch(() => null);
+      webhookSubscribed = subscribeRes.ok && subscribeBody?.success !== false;
+
+      const id = crypto.randomUUID();
+      await db.query(
+        `INSERT INTO facebook_pages (id, user_id, page_id, page_name, page_access_token, status, webhook_subscribed)
+         VALUES (?, ?, ?, ?, ?, 'active', ?)
+         ON DUPLICATE KEY UPDATE
+           page_name = VALUES(page_name),
+           page_access_token = VALUES(page_access_token),
+           status = 'active',
+           webhook_subscribed = VALUES(webhook_subscribed)`,
+        [id, context.userId, pageId, pageName, pageToken, webhookSubscribed ? 1 : 0],
+      );
+      connected.push({ pageId, pageName, webhookSubscribed });
+    }
+
+    if (connected.length === 0) {
+      throw new Error("As Páginas retornadas pelo Facebook não trouxeram token de acesso.");
+    }
+
+    return { ok: true, connected, pages_scanned: pages.length, app_id: conn.app_id };
+  });
+
 export const disconnectInstagramAccount = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d: any) => z.object({ id: z.string() }).parse(d))
