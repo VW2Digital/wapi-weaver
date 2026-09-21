@@ -8,11 +8,8 @@ export const Route = createFileRoute("/api/billing/public-key")({
     handlers: {
       GET: async ({ request }) => {
         try {
-          const user = await verifyApiUser(request);
-          let config = await getMercadoPagoConfig(user.tenantId).catch(() => null);
-          if (!config || !config.publicKey) {
-            config = await getMercadoPagoConfig("__any__").catch(() => null);
-          }
+          await verifyApiUser(request);
+          const config = await getMercadoPagoConfig("global").catch(() => null);
 
           return new Response(
             JSON.stringify({

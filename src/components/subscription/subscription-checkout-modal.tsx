@@ -357,7 +357,7 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
     if (!pixData?.invoiceId || !open) return;
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/billing/invoices?id=${pixData.invoiceId}`, {
+        const res = await fetch(`/api/billing/invoices/${pixData.invoiceId}`, {
           headers: getAuthHeaders(),
           credentials: "include",
         });
@@ -367,7 +367,8 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
             queryClient.invalidateQueries({ queryKey: ["license-status"] });
             queryClient.invalidateQueries({ queryKey: ["billing"] });
             queryClient.invalidateQueries({ queryKey: ["my-plan"] });
-            onOpenChange(false);
+            setPixData(null);
+            setCardResult({ status: "approved", detail: "" });
           }
         }
       } catch {
@@ -488,23 +489,26 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
     }
   };
 
-  const isTransparentMode = gatewayConfig?.checkoutMode === "transparent";
+  const isTransparentMode = gatewayConfig?.checkoutMode === "transparent" && Boolean(gatewayConfig.publicKey);
+  const gatewayReady = gatewayConfig !== null;
+  const transparentMisconfigured = gatewayConfig?.checkoutMode === "transparent" && !gatewayConfig.publicKey;
+  const cardAwaitingReview = cardResult?.status === "in_process" || cardResult?.status === "pending";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100dvh-1rem)] overflow-y-auto overscroll-contain sm:max-h-[90dvh] sm:max-w-[520px] lg:max-w-[920px] rounded-2xl p-4 sm:p-5 gap-4 bg-card text-card-foreground shadow-2xl border border-border">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-bold flex items-center gap-2">
+      <DialogContent className="top-4 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-1.5rem)] translate-y-0 flex-col gap-0 overflow-hidden rounded-2xl border border-border bg-card p-0 text-card-foreground shadow-2xl sm:top-6 sm:max-w-[760px]">
+        <DialogHeader className="shrink-0 border-b border-border/60 px-5 pb-4 pe-14 pt-5">
+          <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
             <Sparkles className="h-5 w-5 text-[#F23869]" />
             Renovar Assinatura Bliv
           </DialogTitle>
           <DialogDescription>
-            Escolha o plano desejado e a duração do ciclo de faturamento para renovar seu acesso.
+            Escolha o plano, o período e a forma de pagamento.
           </DialogDescription>
         </DialogHeader>
 
         {errorMessage && (
-          <div className="rounded-xl bg-destructive/10 p-3 text-xs text-destructive flex items-center gap-2 border border-destructive/20">
+          <div className="mx-5 mt-4 flex shrink-0 items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             <span>{errorMessage}</span>
           </div>
@@ -512,7 +516,7 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
 
         {/* ── PIX SUCCESS ─────────────────────────────────────────────── */}
         {pixData ? (
-          <div className="space-y-4 py-2">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
             <div className="rounded-2xl border border-border bg-muted/40 p-4 flex flex-col items-center text-center space-y-3">
               <Badge variant="success">
                 PIX Gerado com Sucesso
@@ -551,7 +555,7 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
 
         /* ── CARD RESULT ─────────────────────────────────────────────── */
         ) : cardResult ? (
-          <div className="space-y-4 py-4 flex flex-col items-center text-center">
+          <div className="flex min-h-0 flex-1 flex-col items-center space-y-4 overflow-y-auto px-5 py-8 text-center">
             {cardResult.status === "approved" ? (
               <>
                 <div className="h-16 w-16 rounded-full bg-emerald-500/15 flex items-center justify-center">
@@ -566,20 +570,22 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
                 <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center">
                   <AlertTriangle className="h-8 w-8 text-destructive" />
                 </div>
-                <p className="font-bold text-lg text-foreground">Pagamento {cardResult.status === "in_process" ? "em análise" : "Recusado"}</p>
+                <p className="font-bold text-lg text-foreground">{cardAwaitingReview ? "Pagamento em análise" : "Pagamento recusado"}</p>
                 <p className="text-sm text-muted-foreground">
-                  {cardResult.status === "in_process"
-                    ? "Seu pagamento está em análise. Você será notificado em breve."
+                  {cardAwaitingReview
+                    ? "O Mercado Pago ainda está analisando este pagamento. A assinatura é ativada quando ele for aprovado."
                     : `Motivo: ${cardResult.detail || "Verifique os dados do cartão e tente novamente."}`}
                 </p>
-                <Button variant="outline" onClick={() => setCardResult(null)} className="rounded-xl px-8">Tentar Novamente</Button>
+                <Button variant="outline" onClick={() => setCardResult(null)} className="rounded-xl px-8">
+                  {cardAwaitingReview ? "Voltar" : "Tentar novamente"}
+                </Button>
               </>
             )}
           </div>
 
         /* ── MAIN FORM ───────────────────────────────────────────────── */
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 py-2 items-start">
+          <div className="grid min-h-0 flex-1 grid-cols-1 items-start gap-5 overflow-y-auto overscroll-contain px-5 py-4 lg:grid-cols-2 lg:gap-6">
             <div className="space-y-5 lg:pr-6 lg:border-r lg:border-border/60">
 
             {/* Step 1: Operational Plan */}
@@ -590,7 +596,7 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
               {isLoadingPlans ? (
                 <div className="flex items-center justify-center p-6 text-xs text-muted-foreground">Carregando planos...</div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-1 gap-2.5">
                   {operationalPlans.map((op: any) => {
                     const isSelected = selectedOpPlanId === op.id;
                     return (
@@ -798,31 +804,43 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
               </div>
             )}
 
-            {/* Action Button */}
-            <div className="sticky bottom-0 z-20 -mx-2 px-2 pt-3 pb-1 bg-gradient-to-t from-card via-card to-card/90">
-              <Button
-                disabled={isSubmitting || !selectedCommercialPlanId}
-                onClick={handleCheckout}
-                className="w-full bg-brand-gradient text-white rounded-xl py-5 font-bold shadow-lg shadow-[#F23869]/20 transition-all hover:opacity-95 active:scale-95"
-              >
-                {isSubmitting ? (
-                  <span className="flex items-center gap-2">
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    {paymentMethod === "pix" ? "Gerando Pix..." : "Processando pagamento..."}
-                  </span>
-                ) : paymentMethod === "pix" ? (
-                  <span className="flex items-center gap-2"><QrCode className="h-4 w-4" /> Gerar Código Pix</span>
-                ) : isTransparentMode ? (
-                  <span className="flex items-center gap-2">
-                    <Lock className="h-4 w-4" />
-                    Pagar R$ {selectedPlan ? Number(selectedPlan.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 }) : "---"}
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2"><ExternalLink className="h-4 w-4" /> Ir para Checkout Mercado Pago</span>
-                )}
-              </Button>
+            {transparentMisconfigured && (
+              <p className="text-xs text-destructive">
+                O checkout transparente está ativo, mas a chave pública do Mercado Pago não foi configurada.
+              </p>
+            )}
             </div>
-            </div>
+          </div>
+        )}
+
+        {!pixData && !cardResult && (
+          <div className="shrink-0 border-t border-border/60 bg-card px-5 py-4">
+            <Button
+              disabled={isSubmitting || !selectedCommercialPlanId || !gatewayReady || transparentMisconfigured}
+              onClick={handleCheckout}
+              className="w-full rounded-xl bg-brand-gradient py-5 font-bold text-white shadow-lg shadow-[#F23869]/20 transition-all hover:opacity-95 active:scale-[0.99]"
+            >
+              {isSubmitting ? (
+                <span className="flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  {paymentMethod === "pix" ? "Gerando Pix..." : "Processando pagamento..."}
+                </span>
+              ) : !gatewayReady ? (
+                <span className="flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Carregando pagamento...
+                </span>
+              ) : paymentMethod === "pix" ? (
+                <span className="flex items-center gap-2"><QrCode className="h-4 w-4" /> Gerar código Pix</span>
+              ) : isTransparentMode ? (
+                <span className="flex items-center gap-2">
+                  <Lock className="h-4 w-4" />
+                  Pagar R$ {selectedPlan ? Number(selectedPlan.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 }) : "---"}
+                </span>
+              ) : (
+                <span className="flex items-center gap-2"><ExternalLink className="h-4 w-4" /> Ir para o Mercado Pago</span>
+              )}
+            </Button>
           </div>
         )}
       </DialogContent>

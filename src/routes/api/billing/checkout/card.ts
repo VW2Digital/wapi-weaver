@@ -70,11 +70,8 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
           // 2. Fetch or create tenant subscription
           const sub = await getOrCreateSubscription(user.tenantId, user.userId);
 
-          // 3. Get platform Mercado Pago configuration
-          let platformGatewayConfig = await getMercadoPagoConfig(user.tenantId).catch(() => null);
-          if (!platformGatewayConfig || !platformGatewayConfig.accessToken) {
-            platformGatewayConfig = await getMercadoPagoConfig("global").catch(() => null);
-          }
+          // 3. Assinatura da plataforma usa só o gateway global, o mesmo do Pix.
+          const platformGatewayConfig = await getMercadoPagoConfig("global").catch(() => null);
 
           if (!platformGatewayConfig || !platformGatewayConfig.accessToken) {
             return new Response(
@@ -213,7 +210,8 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
             ]
           );
 
-          // 7. If approved, process atomically in transaction
+          // 7. If approved, process atomically in transaction.
+          // pending/in_process keep the invoice pending so the webhook can still activate the plan.
           if (paymentStatus === "approved") {
             const dateApproved = mpResponse.date_approved ? new Date(mpResponse.date_approved) : new Date();
             await db.transaction(async (conn) => {
@@ -226,12 +224,23 @@ export const Route = createFileRoute("/api/billing/checkout/card")({
                 mpResponse
               );
             });
-          } else {
+          } else if (paymentStatus === "rejected" || paymentStatus === "cancelled") {
             await db.query("UPDATE billing_invoices SET status = 'failed' WHERE id = ?", [invoice.id]);
             await logSubscriptionEvent(
               user.tenantId,
               sub.id,
               "payment_failed",
+              sub.status,
+              sub.status,
+              invoice.id,
+              paymentId,
+              { status: paymentStatus, status_detail: paymentStatusDetail }
+            );
+          } else {
+            await logSubscriptionEvent(
+              user.tenantId,
+              sub.id,
+              "payment_pending",
               sub.status,
               sub.status,
               invoice.id,

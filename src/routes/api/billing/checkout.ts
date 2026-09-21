@@ -60,11 +60,8 @@ export const Route = createFileRoute("/api/billing/checkout")({
           // Fetch or create subscription for tenant
           const sub = await getOrCreateSubscription(user.tenantId, user.userId);
 
-          // Get platform Mercado Pago Config
-          let platformGatewayConfig = await getMercadoPagoConfig(user.tenantId).catch(() => null);
-          if (!platformGatewayConfig || !platformGatewayConfig.accessToken) {
-            platformGatewayConfig = await getMercadoPagoConfig("global").catch(() => null);
-          }
+          // Assinatura da plataforma usa só o gateway global, o mesmo do Pix.
+          const platformGatewayConfig = await getMercadoPagoConfig("global").catch(() => null);
 
           if (!platformGatewayConfig || !platformGatewayConfig.accessToken) {
             return new Response(
