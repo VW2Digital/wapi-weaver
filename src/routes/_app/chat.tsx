@@ -2500,6 +2500,8 @@ function ChatPage() {
   const [contactInfoOpen, setContactInfoOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const contactPhotoInputRef = useRef<HTMLInputElement>(null);
 
@@ -3339,7 +3341,19 @@ function ChatPage() {
   // Scroll ao fim ao carregar novas mensagens
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messagesQuery.data?.length]);
+    setShowJumpToLatest(false);
+  }, [messagesQuery.data?.length, selectedPhone]);
+
+  const updateJumpToLatest = () => {
+    const list = messagesScrollRef.current;
+    if (!list) return;
+    const distanceFromBottom = list.scrollHeight - list.scrollTop - list.clientHeight;
+    setShowJumpToLatest(distanceFromBottom > 80);
+  };
+
+  const jumpToLatestMessages = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
   // Marca como lida tanto ao abrir quanto ao receber novas mensagens no chat aberto.
   useEffect(() => {
@@ -5996,7 +6010,11 @@ function ChatPage() {
                 )}
 
                 {/* Corpo / Lista de Balões */}
-                <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 relative bg-transparent pb-36 md:pb-40">
+                <div
+                  ref={messagesScrollRef}
+                  onScroll={updateJumpToLatest}
+                  className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 relative bg-transparent pb-36 md:pb-40"
+                >
                   {(() => {
                     let lastDateStr = "";
                     const formatDateSeparator = (
@@ -7111,6 +7129,20 @@ function ChatPage() {
 
                 {/* Caixa de Texto de Envio */}
                 <div className="absolute bottom-0 inset-x-0 z-10 pointer-events-none flex flex-col px-2.5 pb-2.5 pt-4 sm:px-4 sm:pb-4 md:px-6 md:pb-6 bg-gradient-to-t from-background/90 via-background/40 to-transparent">
+                  {showJumpToLatest ? (
+                    <div className="mb-2 flex justify-center">
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        className="pointer-events-auto h-9 w-9 rounded-full bg-card shadow-md"
+                        title="Ir para as mensagens mais recentes"
+                        onClick={jumpToLatestMessages}
+                      >
+                        <ChevronDown className="h-5 w-5" />
+                      </Button>
+                    </div>
+                  ) : null}
                   <div className="pointer-events-auto bg-card dark:bg-[#18161f] border border-border/80 dark:border-white/10 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/70 overflow-hidden flex flex-col transition-all duration-200 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20">
                     {/* Banner de Resposta */}
                     {replyingTo && (
