@@ -554,7 +554,14 @@ export const deletePlan = createServerFn({ method: "POST" })
   .validator(z.object({ id: z.string() }))
   .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
-    await db.query("DELETE FROM subscription_plans WHERE id = ?", [input.id]);
+    try {
+      await db.query("DELETE FROM subscription_plans WHERE id = ?", [input.id]);
+    } catch (err: any) {
+      if (err?.errno === 1451 || err?.code === "ER_ROW_IS_REFERENCED_2") {
+        throw new Error("Este plano tem preços vinculados. Exclua os preços antes de excluir os limites.");
+      }
+      throw err;
+    }
     return { success: true };
   });
 
@@ -605,6 +612,107 @@ export const createCommercialPlan = createServerFn({ method: "POST" })
       ],
     );
     return { success: true };
+  });
+
+const SELLABLE_PERIODS = {
+  monthly: { interval: "month" as const, count: 1, days: 30, cycle: "monthly", label: "Mensal" },
+  quarterly: { interval: "month" as const, count: 3, days: 90, cycle: "quarterly", label: "Trimestral" },
+  semiannual: { interval: "month" as const, count: 6, days: 180, cycle: "semiannual", label: "Semestral" },
+  yearly: { interval: "year" as const, count: 1, days: 365, cycle: "yearly", label: "Anual" },
+};
+
+function slugifyPlanName(name: string) {
+  const base = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+  return base || "plano";
+}
+
+export const createSellablePlan = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator(
+    z.object({
+      name: z.string().trim().min(1),
+      description: z.string().optional(),
+      price: z.number().min(0),
+      period: z.enum(["monthly", "quarterly", "semiannual", "yearly"]),
+      max_agents: z.number().int().min(0).default(1),
+      max_funnels: z.number().int().min(0).default(1),
+      max_users: z.number().int().min(0).default(1),
+      is_active: z.boolean().default(true),
+      existing_subscription_plan_id: z.string().trim().min(1).nullable().optional(),
+    }),
+  )
+  .handler(async ({ data: input, context }) => {
+    await assertAdmin(context);
+    const period = SELLABLE_PERIODS[input.period];
+
+    return db.transaction(async (conn) => {
+      let subscriptionPlanId = input.existing_subscription_plan_id || null;
+      if (subscriptionPlanId) {
+        const [existing] = (await conn.execute(
+          "SELECT id FROM subscription_plans WHERE id = ? LIMIT 1",
+          [subscriptionPlanId],
+        )) as [Array<{ id: string }>, unknown];
+        if (!existing[0]) {
+          throw new Error("O plano de limites escolhido não existe mais.");
+        }
+      } else {
+        subscriptionPlanId = crypto.randomUUID();
+        let slug = slugifyPlanName(input.name);
+        const [slugRows] = (await conn.execute(
+          "SELECT slug FROM subscription_plans WHERE slug = ? OR slug LIKE ? LIMIT 20",
+          [slug, `${slug}-%`],
+        )) as [Array<{ slug: string }>, unknown];
+        const taken = new Set(slugRows.map((row) => row.slug));
+        if (taken.has(slug)) {
+          let n = 2;
+          while (taken.has(`${slug}-${n}`)) n += 1;
+          slug = `${slug}-${n}`.slice(0, 80);
+        }
+        await conn.execute(
+          `INSERT INTO subscription_plans (id, name, slug, description, max_agents, max_funnels, max_users, is_active)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            subscriptionPlanId,
+            input.name,
+            slug,
+            input.description || null,
+            input.max_agents,
+            input.max_funnels,
+            input.max_users,
+            input.is_active ? 1 : 0,
+          ],
+        );
+      }
+
+      const billingId = crypto.randomUUID();
+      await conn.execute(
+        `INSERT INTO billing_plans (
+           id, name, description, price, currency, billing_interval, billing_interval_count,
+           duration_days, is_active, subscription_plan_id, billing_cycle, price_cents
+         ) VALUES (?, ?, ?, ?, 'BRL', ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          billingId,
+          `${input.name} · ${period.label}`,
+          input.description || null,
+          input.price,
+          period.interval,
+          period.count,
+          period.days,
+          input.is_active ? 1 : 0,
+          subscriptionPlanId,
+          period.cycle,
+          Math.round(input.price * 100),
+        ],
+      );
+
+      return { success: true, subscriptionPlanId, billingPlanId: billingId };
+    });
   });
 
 export const updateCommercialPlan = createServerFn({ method: "POST" })

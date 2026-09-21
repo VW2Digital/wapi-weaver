@@ -37,7 +37,15 @@ import {
   createCommercialPlan,
   updateCommercialPlan,
   deleteCommercialPlan,
+  createSellablePlan,
 } from "@/lib/license-admin.functions";
+
+const PLAN_PERIODS = [
+  { id: "monthly", label: "Mensal", hint: "30 dias" },
+  { id: "quarterly", label: "Trimestral", hint: "90 dias" },
+  { id: "semiannual", label: "Semestral", hint: "180 dias" },
+  { id: "yearly", label: "Anual", hint: "365 dias" },
+] as const;
 
 export function PlansManager() {
   const queryClient = useQueryClient();
@@ -71,6 +79,18 @@ export function PlansManager() {
   const [commIsActive, setCommIsActive] = useState(true);
   const [commSubPlanId, setCommSubPlanId] = useState<string>("");
   const [originalSubPlanId, setOriginalSubPlanId] = useState<string>("");
+
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [planName, setPlanName] = useState("");
+  const [planDescription, setPlanDescription] = useState("");
+  const [planPrice, setPlanPrice] = useState("");
+  const [planPeriod, setPlanPeriod] = useState<(typeof PLAN_PERIODS)[number]["id"]>("monthly");
+  const [planUsers, setPlanUsers] = useState(1);
+  const [planFunnels, setPlanFunnels] = useState(1);
+  const [planAgents, setPlanAgents] = useState(1);
+  const [planActive, setPlanActive] = useState(true);
+  const [reuseLimits, setReuseLimits] = useState(false);
+  const [reusePlanId, setReusePlanId] = useState("");
 
   // Queries
   const { data: opData, isLoading: opLoading } = useQuery({
@@ -134,6 +154,17 @@ export function PlansManager() {
     onError: (err: any) => toast.error(err.message || "Erro ao atualizar plano comercial."),
   });
 
+  const createSellableMut = useMutation({
+    mutationFn: (payload: any) => createSellablePlan({ data: payload }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["subscription-plans"] });
+      queryClient.invalidateQueries({ queryKey: ["commercial-plans"] });
+      setIsCreateOpen(false);
+      toast.success("Plano criado e disponível no checkout.");
+    },
+    onError: (err: any) => toast.error(err.message || "Erro ao criar plano."),
+  });
+
   const deleteCommMut = useMutation({
     mutationFn: (id: string) => deleteCommercialPlan({ data: { id } }),
     onSuccess: () => {
@@ -143,16 +174,46 @@ export function PlansManager() {
     onError: (err: any) => toast.error(err.message || "Erro ao excluir plano comercial."),
   });
 
-  const handleOpenCreateOp = () => {
-    setEditingOpId(null);
-    setOpName("");
-    setOpSlug("");
-    setOpDescription("");
-    setOpMaxAgents(1);
-    setOpMaxFunnels(1);
-    setOpMaxUsers(1);
-    setOpIsActive(true);
-    setIsOpOpen(true);
+  const handleOpenCreate = () => {
+    setPlanName("");
+    setPlanDescription("");
+    setPlanPrice("");
+    setPlanPeriod("monthly");
+    setPlanUsers(1);
+    setPlanFunnels(1);
+    setPlanAgents(1);
+    setPlanActive(true);
+    setReuseLimits(false);
+    setReusePlanId("");
+    setIsCreateOpen(true);
+  };
+
+  const handleSaveSellable = (e: React.FormEvent) => {
+    e.preventDefault();
+    const price = Number(planPrice.replace(",", "."));
+    if (!planName.trim()) {
+      toast.error("Informe o nome do plano.");
+      return;
+    }
+    if (!Number.isFinite(price) || price < 0) {
+      toast.error("Informe um preço válido.");
+      return;
+    }
+    if (reuseLimits && !reusePlanId) {
+      toast.error("Escolha o plano de limites que este preço vai usar.");
+      return;
+    }
+    createSellableMut.mutate({
+      name: planName.trim(),
+      description: planDescription.trim(),
+      price,
+      period: planPeriod,
+      max_agents: planAgents,
+      max_funnels: planFunnels,
+      max_users: planUsers,
+      is_active: planActive,
+      existing_subscription_plan_id: reuseLimits ? reusePlanId : null,
+    });
   };
 
   const handleOpenEditOp = (plan: any) => {
@@ -170,7 +231,7 @@ export function PlansManager() {
   const handleDeleteOp = async (plan: any) => {
     const ok = await confirm({
       title: "Excluir Plano Operacional",
-      description: `Tem certeza que deseja excluir o plano operacional "${plan.name}"? Isso revogará o link de planos comerciais correspondentes.`,
+      description: `Excluir "${plan.name}"? Se este plano tiver preços, apague os preços antes.`,
       confirmText: "Excluir",
       destructive: true,
     });
@@ -199,22 +260,6 @@ export function PlansManager() {
     } else {
       createOpMut.mutate(payload);
     }
-  };
-
-  const handleOpenCreateComm = () => {
-    setEditingCommId(null);
-    setCommId("");
-    setCommName("");
-    setCommDescription("");
-    setCommPrice(0.0);
-    setCommCurrency("BRL");
-    setCommInterval("month");
-    setCommIntervalCount(1);
-    setCommDurationDays(30);
-    setCommIsActive(true);
-    setCommSubPlanId("");
-    setOriginalSubPlanId("");
-    setIsCommOpen(true);
   };
 
   const handleOpenEditComm = (plan: any) => {
@@ -249,6 +294,10 @@ export function PlansManager() {
     e.preventDefault();
     if (!commId.trim() || !commName.trim()) {
       toast.error("Identificador e Nome são obrigatórios.");
+      return;
+    }
+    if (!commSubPlanId) {
+      toast.error("Vincule um plano de limites. Sem isso o checkout recusa a venda.");
       return;
     }
 
@@ -292,23 +341,26 @@ export function PlansManager() {
         <div>
           <h3 className="text-xl font-bold tracking-tight">Planos e Precificação</h3>
           <p className="text-sm text-muted-foreground">
-            Defina limites operacionais de recursos e precificações comerciais integradas.
+            Crie o plano uma vez: nome, preço, período e limites já ficam ligados para o checkout.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <Button
             variant={activeTab === "operational" ? "default" : "outline"}
             onClick={() => setActiveTab("operational")}
             className="gap-2"
           >
-            <Settings className="h-4 w-4" /> Plano Operacional (Limites)
+            <Settings className="h-4 w-4" /> Limites
           </Button>
           <Button
             variant={activeTab === "commercial" ? "default" : "outline"}
             onClick={() => setActiveTab("commercial")}
             className="gap-2"
           >
-            <CreditCard className="h-4 w-4" /> Plano Comercial (Preços)
+            <CreditCard className="h-4 w-4" /> Preços
+          </Button>
+          <Button onClick={handleOpenCreate} className="gap-2">
+            <Plus className="h-4 w-4" /> Criar plano
           </Button>
         </div>
       </div>
@@ -317,8 +369,8 @@ export function PlansManager() {
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <h4 className="text-lg font-semibold">Limites e Recursos Operacionais</h4>
-            <Button onClick={handleOpenCreateOp} className="gap-2">
-              <Plus className="h-4 w-4" /> Criar Plano Operacional
+            <Button onClick={handleOpenCreate} className="gap-2">
+              <Plus className="h-4 w-4" /> Criar plano
             </Button>
           </div>
 
@@ -395,8 +447,8 @@ export function PlansManager() {
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <h4 className="text-lg font-semibold">Precificações Comerciais</h4>
-            <Button onClick={handleOpenCreateComm} className="gap-2">
-              <Plus className="h-4 w-4" /> Criar Plano Comercial
+            <Button onClick={handleOpenCreate} className="gap-2">
+              <Plus className="h-4 w-4" /> Criar plano
             </Button>
           </div>
 
@@ -477,9 +529,96 @@ export function PlansManager() {
         </div>
       )}
 
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent className="top-4 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-1.5rem)] translate-y-0 flex-col gap-0 overflow-hidden p-0 sm:top-6 sm:max-w-[520px]">
+          <form onSubmit={handleSaveSellable} className="flex min-h-0 flex-1 flex-col">
+            <DialogHeader className="shrink-0 border-b border-border/60 px-5 pb-4 pe-14 pt-5">
+              <DialogTitle>Criar plano</DialogTitle>
+            </DialogHeader>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+              <p className="text-sm text-muted-foreground">
+                O nome, o preço e os limites são gravados juntos. O plano já entra no checkout.
+              </p>
+              <div className="grid gap-2">
+                <Label htmlFor="planName">Nome</Label>
+                <Input id="planName" value={planName} onChange={(e) => setPlanName(e.target.value)} placeholder="Ex.: Profissional" required />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="planPrice">Preço (R$)</Label>
+                <Input id="planPrice" inputMode="decimal" value={planPrice} onChange={(e) => setPlanPrice(e.target.value)} placeholder="99,90" required />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="planPeriod">Período</Label>
+                <select
+                  id="planPeriod"
+                  className="rounded-xl border border-input bg-background px-3 py-2 text-sm"
+                  value={planPeriod}
+                  onChange={(e) => setPlanPeriod(e.target.value as (typeof PLAN_PERIODS)[number]["id"])}
+                >
+                  {PLAN_PERIODS.map((period) => (
+                    <option key={period.id} value={period.id}>
+                      {period.label} · {period.hint}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 px-3 py-2">
+                <Label htmlFor="reuseLimits" className="text-sm">Usar limites de um plano já existente</Label>
+                <Switch id="reuseLimits" checked={reuseLimits} onCheckedChange={setReuseLimits} />
+              </div>
+              {reuseLimits ? (
+                <div className="grid gap-2">
+                  <Label htmlFor="reusePlanId">Limites</Label>
+                  <select
+                    id="reusePlanId"
+                    className="rounded-xl border border-input bg-background px-3 py-2 text-sm"
+                    value={reusePlanId}
+                    onChange={(e) => setReusePlanId(e.target.value)}
+                  >
+                    <option value="">Escolha o plano</option>
+                    {ops.map((plan: any) => (
+                      <option key={plan.id} value={plan.id}>{plan.name}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="planUsers">Usuários</Label>
+                    <Input id="planUsers" type="number" min={0} value={planUsers} onChange={(e) => setPlanUsers(parseInt(e.target.value, 10) || 0)} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="planFunnels">Funis</Label>
+                    <Input id="planFunnels" type="number" min={0} value={planFunnels} onChange={(e) => setPlanFunnels(parseInt(e.target.value, 10) || 0)} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="planAgents">Agentes</Label>
+                    <Input id="planAgents" type="number" min={0} value={planAgents} onChange={(e) => setPlanAgents(parseInt(e.target.value, 10) || 0)} />
+                  </div>
+                </div>
+              )}
+              <div className="grid gap-2">
+                <Label htmlFor="planDesc">Descrição</Label>
+                <Input id="planDesc" value={planDescription} onChange={(e) => setPlanDescription(e.target.value)} />
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch id="planActive" checked={planActive} onCheckedChange={setPlanActive} />
+                <Label htmlFor="planActive">Disponível para venda</Label>
+              </div>
+            </div>
+            <DialogFooter className="shrink-0 border-t border-border/60 px-5 py-4">
+              <Button type="submit" className="w-full" disabled={createSellableMut.isPending}>
+                {createSellableMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Criar plano
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {/* Operational Plan Dialog */}
       <Dialog open={isOpOpen} onOpenChange={setIsOpOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="top-4 max-h-[calc(100dvh-2rem)] w-[calc(100%-1.5rem)] translate-y-0 overflow-y-auto sm:top-6 sm:max-w-[425px]">
           <form onSubmit={handleSaveOp}>
             <DialogHeader>
               <DialogTitle>{editingOpId ? "Editar Limites" : "Criar Plano Operacional"}</DialogTitle>
@@ -532,7 +671,7 @@ export function PlansManager() {
 
       {/* Commercial Plan Dialog */}
       <Dialog open={isCommOpen} onOpenChange={setIsCommOpen}>
-        <DialogContent className="sm:max-w-[450px]">
+        <DialogContent className="top-4 max-h-[calc(100dvh-2rem)] w-[calc(100%-1.5rem)] translate-y-0 overflow-y-auto sm:top-6 sm:max-w-[480px]">
           <form onSubmit={handleSaveComm}>
             <DialogHeader>
               <DialogTitle>{editingCommId ? "Editar Preço Comercial" : "Criar Plano Comercial"}</DialogTitle>
@@ -578,7 +717,7 @@ export function PlansManager() {
               <div className="grid gap-2">
                 <Label htmlFor="commSubPlanId">Plano Operacional Vinculado (Limites)</Label>
                 <select id="commSubPlanId" className="rounded-md border p-2 bg-background text-foreground" value={commSubPlanId} onChange={(e) => setCommSubPlanId(e.target.value)}>
-                  <option value="">-- Sem vínculo --</option>
+                  <option value="">Escolha os limites</option>
                   {ops.map((o: any) => (
                     <option key={o.id} value={o.id}>{o.name} ({o.slug})</option>
                   ))}
