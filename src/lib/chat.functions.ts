@@ -1126,6 +1126,18 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       );
     }
 
+    if (messageChannel === "instagram") {
+      const { assertInstagramHumanSend } = await import("./instagram/attention.server");
+      try {
+        await assertInstagramHumanSend(effectiveUserId, digits);
+      } catch (error) {
+        return {
+          ok: false as const,
+          error: error instanceof Error ? error.message : "Não foi possível enviar a mensagem no Instagram.",
+        };
+      }
+    }
+
     const queuedMessage = await enqueueChatOutboxMessage({
       tenantId: effectiveUserId,
       userId: effectiveUserId,

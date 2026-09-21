@@ -128,6 +128,19 @@ export async function processCanonicalEvent(event: CanonicalEvent): Promise<void
 
         // Trigger bot flow for inbound messages.
         if (event.eventType === "message.received") {
+          if (event.provider === "instagram") {
+            const { noteInstagramInbound } = await import("@/lib/instagram/attention.server");
+            noteInstagramInbound({
+              tenantId: event.tenantId,
+              contactPhone,
+              igAccountId: event.channelResourceId,
+              messageId: saved.messageId,
+            }).catch((error) => {
+              console.error("[messaging:processor] Instagram window note failed", {
+                message: error instanceof Error ? error.message : "unknown",
+              });
+            });
+          }
           triggerBotForMessage({
             userId,
             phoneNumberId: event.channelResourceId,

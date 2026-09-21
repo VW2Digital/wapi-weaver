@@ -50,6 +50,7 @@
   "incoming_webhook_events",
   "incoming_webhooks",
   "instagram_accounts",
+  "instagram_attention_events",
   "instagram_webhook_events",
   "knowledge_base",
   "license_activations",

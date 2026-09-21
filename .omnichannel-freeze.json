@@ -9,6 +9,28 @@
       "enabled": false,
       "since": "STEP12_AUTHORIZED"
     },
+    "instagram": {
+      "enabled": true,
+      "since": "UNFREEZE_INSTAGRAM",
+      "patterns": [
+        "src/lib/messaging/outbound/adapters/instagram.outbound-adapter.ts",
+        "src/lib/messaging/outbound/adapters/instagram.api.ts",
+        "src/lib/instagram.functions.ts",
+        "src/routes/api/public/instagram-webhook.ts",
+        "src/lib/messaging/webhook-handlers/instagram.handler.ts"
+      ]
+    },
+    "core": {
+      "enabled": true,
+      "since": "UNFREEZE_OMNICHANNEL_CORE",
+      "patterns": [
+        "src/lib/chat.functions.ts",
+        "src/lib/chat-outbox.server.ts",
+        "src/lib/messaging/processor.server.ts",
+        "src/lib/messaging/outbound/provider-dispatcher.ts",
+        "database/migrations/056_instagram_human_attention.sql"
+      ]
+    },
     "webchat": {
       "enabled": false,
       "since": "WEBCHAT_PRECHAT_PHONE_FEATURE_REFROZEN",

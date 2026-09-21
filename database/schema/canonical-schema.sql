@@ -201,6 +201,9 @@ CREATE TABLE IF NOT EXISTS `bot_conversation_state` (
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `channel` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'whatsapp',
   `provider_account_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `human_takeover_at` datetime DEFAULT NULL,
+  `human_takeover_by` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `takeover_restore_ai` tinyint(1) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_bot_conv_state` (`user_id`,`contact_number`,`instance_id`,`channel`),
   KEY `current_step_id` (`current_step_id`),
@@ -1141,6 +1144,24 @@ CREATE TABLE IF NOT EXISTS `instagram_accounts` (
   UNIQUE KEY `uq_instagram_accounts_ig_user` (`ig_user_id`),
   KEY `idx_instagram_accounts_user` (`user_id`),
   CONSTRAINT `fk_instagram_accounts_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `instagram_attention_events` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `contact_phone` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `ig_account_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `user_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `action` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `window_state` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `message_id` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `meta_error_code` int DEFAULT NULL,
+  `meta_error_subcode` int DEFAULT NULL,
+  `fbtrace_id` varchar(128) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `detail_json` json DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_ig_attention_tenant` (`tenant_id`,`contact_phone`,`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `instagram_webhook_events` (

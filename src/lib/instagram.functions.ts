@@ -20,6 +20,7 @@ export interface InstagramSendParams {
   };
   replyToMessageId?: string;
   useHumanAgentTag?: boolean; // For messages outside 24h window
+  policyGrant?: "server";
 }
 
 export interface InstagramSendResult {
@@ -51,6 +52,10 @@ function logError(message: string, error?: any) {
 export async function sendInstagramMessage(
   params: InstagramSendParams,
 ): Promise<InstagramSendResult> {
+  if (params.useHumanAgentTag && params.policyGrant !== "server") {
+    throw new Error("HUMAN_AGENT_REQUIRES_AUTHENTICATED_HUMAN");
+  }
+
   const payload: any = {
     recipient: { id: params.recipientId },
   };

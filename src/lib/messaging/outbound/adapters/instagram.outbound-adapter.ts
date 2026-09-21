@@ -15,10 +15,14 @@ export class InstagramOutboundAdapter implements IOutboundAdapter {
     }
 
     const channel = await this.resolveChannel(context);
+    const { assertInstagramHumanSend, recordInstagramAttention, friendlyInstagramSendError } = await import(
+      "@/lib/instagram/attention.server"
+    );
+    const decision = await assertInstagramHumanSend(context.tenantId, context.contactPhone);
 
     const payload = buildInstagramOutboundPayload(context.providerRecipientId || "", context.payload as any, {
       replyToMessageId: context.payload.reply_to_message_id,
-      useHumanAgentTag: false,
+      useHumanAgentTag: decision.useHumanAgentTag,
     });
 
     const client = new InstagramClient({
@@ -26,7 +30,34 @@ export class InstagramOutboundAdapter implements IOutboundAdapter {
       accessToken: resolveChannelAccessToken(channel),
     });
 
-    const result = await client.send({ payload });
+    let result;
+    try {
+      result = await client.send({ payload });
+    } catch (error) {
+      const body = (error as { body?: unknown })?.body;
+      const friendly = friendlyInstagramSendError(body);
+      await recordInstagramAttention({
+        tenantId: context.tenantId,
+        contactPhone: context.contactPhone,
+        action: "META_MESSAGE_ERROR",
+        windowState: decision.window.state,
+        messageId: context.messageId,
+        igAccountId: channel.externalAccountId,
+        metaBody: body,
+      });
+      const wrapped = new Error(friendly);
+      (wrapped as Error & { retryable?: boolean }).retryable = false;
+      throw wrapped;
+    }
+
+    await recordInstagramAttention({
+      tenantId: context.tenantId,
+      contactPhone: context.contactPhone,
+      action: decision.auditAction,
+      windowState: decision.window.state,
+      messageId: result.providerMessageId,
+      igAccountId: channel.externalAccountId,
+    });
 
     return {
       provider: this.provider,

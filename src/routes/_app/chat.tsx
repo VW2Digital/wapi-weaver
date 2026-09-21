@@ -37,6 +37,11 @@ import {
   toggleBotActive,
   listBotConversationFlags,
 } from "@/lib/chat-actions.functions";
+import {
+  assumeInstagramHumanAttendance,
+  getInstagramAttention,
+  resumeInstagramAutomationAttendance,
+} from "@/lib/instagram/attention.functions";
 import { listFunnels, listAllUserStages, createOpportunity, createActivity, bulkAssignToKanban, createNote } from "@/lib/crm.functions";
 import { uploadMetaMediaViaApi, uploadInstagramMediaViaApi } from "@/lib/meta-media-upload";
 import { Card } from "@/components/ui/card";
@@ -47,6 +52,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CallButton } from "@/components/calls/CallButton";
+import { InstagramAttentionBar } from "@/components/chat/InstagramAttentionBar";
 import { IncomingCallDialog } from "@/components/calls/IncomingCallDialog";
 import { ActiveCallDialog } from "@/components/calls/ActiveCallDialog";
 import {
@@ -3100,6 +3106,19 @@ function ChatPage() {
     staleTime: 10_000,
   });
 
+  const isInstagramSelection =
+    selectedContact?.channel === "instagram" || Boolean(selectedPhone?.startsWith("ig_"));
+  const [igWindowPreview, setIgWindowPreview] = useState<null | "standard" | "human_agent" | "closed">(null);
+  const fetchIgAttention = useServerFn(getInstagramAttention);
+  const assumeIgAttendance = useServerFn(assumeInstagramHumanAttendance);
+  const resumeIgAttendance = useServerFn(resumeInstagramAutomationAttendance);
+  const igAttentionQuery = useQuery({
+    queryKey: ["ig-attention", selectedPhone],
+    queryFn: () => fetchIgAttention({ data: { contactPhone: selectedPhone! } }),
+    enabled: Boolean(isInstagramSelection && selectedPhone),
+    refetchInterval: 30_000,
+  });
+
   // Atualiza o selectedContact quando abrimos o painel e carregamos dados completos
   useEffect(() => {
     if (!contactDetailsQuery.data || !selectedContact) return;
@@ -4270,13 +4289,9 @@ function ChatPage() {
 
   // Calcula a janela de 24h para contatos do Instagram
   const isInstagramChat = selectedContact?.channel === "instagram" || selectedPhone?.startsWith("ig_");
-  const lastInboundMessage = displayMessages
-    .filter((m) => m.direction === "incoming")
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
-  const isInstagram24hExpired = Boolean(
-    isInstagramChat &&
-      lastInboundMessage &&
-      Date.now() - new Date(lastInboundMessage.timestamp).getTime() > 24 * 60 * 60 * 1000,
+  const igAttention = igAttentionQuery.data;
+  const isInstagramComposerBlocked = Boolean(
+    isInstagramChat && (igAttentionQuery.isLoading || (igAttention && !igAttention.composerEnabled)),
   );
 
   const visibleMessageIds = displayMessages.map((message) => message.id);
@@ -7115,22 +7130,47 @@ function ChatPage() {
                       </div>
                     ) : (
                       <>
-                        {/* Aviso de Janela de 24h do Instagram Expirada */}
-                        {isInstagram24hExpired && (
-                          <div className="bg-amber-500/10 border-b border-amber-500/20 px-3.5 py-2 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-2">
-                            <Clock className="h-4 w-4 shrink-0" />
-                            <span>
-                              A janela regulamentar de 24h da Meta para resposta direta expirou. Aguarde uma nova mensagem do contato no Instagram.
-                            </span>
-                          </div>
-                        )}
+                        {isInstagramChat && igAttention ? (
+                          <InstagramAttentionBar
+                            state={igAttention}
+                            preview={igWindowPreview}
+                            onPreview={setIgWindowPreview}
+                            busy={igAttentionQuery.isFetching}
+                            onAssume={() => {
+                              if (!selectedPhone) return;
+                              assumeIgAttendance({ data: { contactPhone: selectedPhone } })
+                                .then(() => {
+                                  qc.invalidateQueries({ queryKey: ["ig-attention", selectedPhone] });
+                                  qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+                                })
+                                .catch((error: unknown) => {
+                                  toast.error(error instanceof Error ? error.message : "Não foi possível assumir o atendimento.");
+                                });
+                            }}
+                            onResume={() => {
+                              if (!selectedPhone) return;
+                              resumeIgAttendance({ data: { contactPhone: selectedPhone } })
+                                .then(() => {
+                                  qc.invalidateQueries({ queryKey: ["ig-attention", selectedPhone] });
+                                  qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+                                })
+                                .catch((error: unknown) => {
+                                  toast.error(error instanceof Error ? error.message : "Não foi possível devolver para a automação.");
+                                });
+                            }}
+                          />
+                        ) : null}
 
                         {/* Linha Superior: Campo de Texto */}
                         <div className="px-3.5 pt-3 pb-2 md:px-4 md:pt-3.5 md:pb-2.5">
                           <Label className="sr-only">Mensagem</Label>
                           <Textarea
-                            placeholder={isInstagram24hExpired ? "Janela de 24h expirada no Instagram..." : "Escreva sua mensagem aqui"}
-                            disabled={isInstagram24hExpired}
+                            placeholder={
+                              isInstagramComposerBlocked
+                                ? igAttention?.blockMessage || "Janela de atendimento encerrada. Aguarde uma nova mensagem do cliente para continuar esta conversa."
+                                : "Escreva sua mensagem aqui"
+                            }
+                            disabled={isInstagramComposerBlocked}
                             className="min-h-[44px] max-h-[140px] w-full p-0 resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent text-sm md:text-sm shadow-none font-sans leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                             rows={1}
                             value={typedMessage}
@@ -7138,7 +7178,7 @@ function ChatPage() {
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && !e.shiftKey) {
                                 e.preventDefault();
-                                if (!isInstagram24hExpired) handleSendText();
+                                if (!isInstagramComposerBlocked) handleSendText();
                               }
                             }}
                           />
@@ -7272,8 +7312,8 @@ function ChatPage() {
                               type="button"
                               size="icon"
                               variant="ghost"
-                              title={isInstagram24hExpired ? "Janela de 24h expirada" : "Gravar áudio"}
-                              disabled={isInstagram24hExpired}
+                              title={isInstagramComposerBlocked ? "Janela de atendimento encerrada" : "Gravar áudio"}
+                              disabled={isInstagramComposerBlocked}
                               onClick={handleStartRecording}
                               className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
@@ -7283,7 +7323,7 @@ function ChatPage() {
 
                           {/* Botão Enviar */}
                           <Button
-                            disabled={!typedMessage.trim() || sendMutation.isPending || isInstagram24hExpired}
+                            disabled={!typedMessage.trim() || sendMutation.isPending || isInstagramComposerBlocked}
                             onClick={handleSendText}
                             className="h-8 px-4 rounded-xl bg-[#ff3366] hover:bg-[#e02453] active:scale-95 transition-all text-white font-medium flex items-center gap-1.5 shadow-sm text-xs md:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                           >

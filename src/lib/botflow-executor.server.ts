@@ -533,6 +533,18 @@ export async function processBotFlow(
       return;
     }
 
+    if (channel === "instagram") {
+      const { assertInstagramAutomationSend } = await import("./instagram/attention.server");
+      try {
+        await assertInstagramAutomationSend(tenantId, phoneDigits);
+      } catch (gateError) {
+        logInfo("Fluxo automático do Instagram não iniciado", {
+          reason: gateError instanceof Error ? gateError.message : "blocked",
+        });
+        return;
+      }
+    }
+
     const {
       ensureBotConversationStateColumns,
       evaluateInboundBotGate,
@@ -1831,6 +1843,15 @@ export async function processBotFlow(
         });
       }
     } else if (channel === "instagram") {
+      const { assertInstagramAutomationSend } = await import("./instagram/attention.server");
+      try {
+        await assertInstagramAutomationSend(tenantId, phoneDigits);
+      } catch (gateError) {
+        logInfo("Envio automático do Instagram cancelado", {
+          code: gateError instanceof Error ? gateError.message : "blocked",
+        });
+        return;
+      }
       const channelAuth = await resolveBotSendAuth(tenantId, "instagram", phoneNumberId);
       const { data: igAcc } = await dbAdmin
         .from("instagram_accounts")
@@ -2264,6 +2285,15 @@ export async function executeInactivityStep(
         providerMsgId = normalizeWaMessageId(resJson?.messages?.[0]?.id) || null;
       }
     } else if (channel === "instagram") {
+      const { assertInstagramAutomationSend } = await import("./instagram/attention.server");
+      try {
+        await assertInstagramAutomationSend(tenantId, phoneDigits);
+      } catch (gateError) {
+        logInfo("Envio automático do Instagram cancelado", {
+          code: gateError instanceof Error ? gateError.message : "blocked",
+        });
+        return;
+      }
       const channelAuth = await resolveBotSendAuth(tenantId, "instagram", phoneNumberId);
       const { data: igAcc } = await dbAdmin
         .from("instagram_accounts")

@@ -493,12 +493,13 @@ export async function processChatOutboxBatch(): Promise<number> {
       try {
         await completeJob(job, await dispatch(job));
       } catch (error) {
+        const explicit = (error as { retryable?: boolean } | null)?.retryable;
         const dispatchError =
           error instanceof DispatchError
             ? error
             : new DispatchError(
                 error instanceof Error ? error.message : "Falha desconhecida no envio.",
-                true,
+                explicit === false ? false : true,
               );
         console.error("[Chat Outbox] Falha ao processar mensagem.", {
           outboxId: job.id,

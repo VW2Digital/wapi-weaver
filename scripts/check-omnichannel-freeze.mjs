@@ -82,6 +82,22 @@ function isUnfrozen(file, manifest) {
     }
   }
 
+  if (unfreeze.instagram?.enabled) {
+    const patterns = Array.isArray(unfreeze.instagram.patterns)
+      ? unfreeze.instagram.patterns
+      : [];
+    if (patterns.some((p) => matchesPattern(file, p))) {
+      return true;
+    }
+  }
+
+  if (unfreeze.core?.enabled) {
+    const patterns = Array.isArray(unfreeze.core.patterns) ? unfreeze.core.patterns : [];
+    if (patterns.some((p) => matchesPattern(file, p))) {
+      return true;
+    }
+  }
+
   if (unfreeze.webchat?.enabled) {
     const patterns = Array.isArray(unfreeze.webchat.patterns)
       ? unfreeze.webchat.patterns

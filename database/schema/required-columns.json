@@ -149,7 +149,10 @@
     "created_at",
     "updated_at",
     "channel",
-    "provider_account_id"
+    "provider_account_id",
+    "human_takeover_at",
+    "human_takeover_by",
+    "takeover_restore_ai"
   ],
   "bot_event_log": [
     "id",
@@ -768,6 +771,21 @@
     "instagram_username",
     "is_active",
     "webhook_subscribed"
+  ],
+  "instagram_attention_events": [
+    "id",
+    "tenant_id",
+    "contact_phone",
+    "ig_account_id",
+    "user_id",
+    "action",
+    "window_state",
+    "message_id",
+    "meta_error_code",
+    "meta_error_subcode",
+    "fbtrace_id",
+    "detail_json",
+    "created_at"
   ],
   "instagram_webhook_events": [
     "id",
