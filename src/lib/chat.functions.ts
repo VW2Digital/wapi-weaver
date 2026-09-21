@@ -559,38 +559,33 @@ export const getChatMessages = createServerFn({ method: "POST" })
     console.log("[MESSAGES] Buscando mensagens para:", { phone, effectiveUserId, userId: context.userId });
 
     // O chat não precisa trazer anos de mensagens para abrir uma única
-    // conversa. O limite evita que uma tabela grande deixe a interface em
-    // carregamento indefinido
-    const baseMessagesQuery = `SELECT * FROM (
-       SELECT id, direction, created_at, body, status
+    // conversa. A ordenação fica só no id: ordenar metadata/raw_payload
+    // estoura o sort buffer e o fallback antigo omitia wa_message_id.
+    const idRows = (await db.query(
+      `SELECT id
        FROM direct_messages
        WHERE (user_id = ? OR tenant_id = ?) AND contact_phone = ?
        ORDER BY created_at DESC
-       LIMIT 500
-     ) AS recent_messages
-     ORDER BY created_at ASC`;
-    const richMessagesQuery = `SELECT * FROM (
-       SELECT id, wa_message_id, provider_message_id, direction, created_at, type, body, status,
-              reply_to_message_id, metadata, raw_payload, channel, sender_name, sender_wa_id
-       FROM direct_messages
-       WHERE (user_id = ? OR tenant_id = ?) AND contact_phone = ?
-       ORDER BY created_at DESC
-       LIMIT 500
-     ) AS recent_messages
-     ORDER BY created_at ASC`;
+       LIMIT 500`,
+      [effectiveUserId, effectiveUserId, phone],
+    )) as Array<{ id: string }>;
 
-    let messages: unknown[];
-    try {
-      messages = (await db.query(richMessagesQuery, [effectiveUserId, effectiveUserId, phone])) as unknown[];
-      console.log("[MESSAGES] Query rich executada com sucesso:", { messageCount: messages?.length });
-    } catch (error) {
-      console.warn(
-        "Schema legado em direct_messages; carregando a conversa com as colunas-base.",
-        error,
+    let messages: DirectMessageRow[] = [];
+    if (idRows.length > 0) {
+      const ids = idRows.map((row) => row.id);
+      const placeholders = ids.map(() => "?").join(", ");
+      messages = (await db.query(
+        `SELECT id, wa_message_id, provider_message_id, direction, created_at, type, body, status,
+                reply_to_message_id, metadata, raw_payload, channel, sender_name, sender_wa_id
+         FROM direct_messages
+         WHERE id IN (${placeholders})`,
+        ids,
+      )) as DirectMessageRow[];
+      messages.sort(
+        (left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime(),
       );
-      messages = (await db.query(baseMessagesQuery, [effectiveUserId, effectiveUserId, phone])) as unknown[];
-      console.log("[MESSAGES] Query base executada com sucesso:", { messageCount: messages?.length });
     }
+    console.log("[MESSAGES] Query executada com sucesso:", { messageCount: messages.length });
 
     // Históricos auxiliares não podem impedir a abertura das mensagens.
     // Instalações ainda em migração podem não ter todas as colunas
