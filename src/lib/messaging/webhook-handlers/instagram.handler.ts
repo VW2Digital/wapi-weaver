@@ -1,6 +1,7 @@
 "use server";
 
 import { createHmac, timingSafeEqual } from "crypto";
+import db from "@/lib/db";
 import { instagramAdapter } from "@/lib/messaging/adapters/instagram.adapter";
 import type { CanonicalIdentity } from "@/lib/messaging/types";
 import { resolveInstagramTenant } from "@/lib/messaging/services/tenant-resolution.service";
@@ -52,6 +53,32 @@ export async function verifyInstagramWebhookSubscription(
   return new Response("Forbidden", { status: 403 });
 }
 
+function instagramMessageId(payload: unknown): string | null {
+  const messaging = (payload as { entry?: Array<{ messaging?: Array<Record<string, { mid?: string }>> }> })
+    ?.entry?.[0]?.messaging?.[0];
+  const mid =
+    messaging?.message?.mid ||
+    messaging?.postback?.mid ||
+    messaging?.reaction?.mid ||
+    messaging?.read?.mid;
+  return typeof mid === "string" && mid.length > 0 ? mid : null;
+}
+
+async function instagramDeliveryAlreadyStored(pageId: string, payload: unknown): Promise<boolean> {
+  const mid = instagramMessageId(payload);
+  if (!mid) return false;
+  const resolution = await resolveInstagramTenant(pageId);
+  if (!resolution.resolved) return false;
+  const rows = (await db.query(
+    `SELECT id
+     FROM messaging_events
+     WHERE tenant_id = ? AND provider = 'instagram' AND external_event_id = ?
+     LIMIT 1`,
+    [resolution.resolved.tenantId, mid],
+  )) as Array<{ id: string }>;
+  return Boolean(rows[0]?.id);
+}
+
 export async function processInstagramWebhook(rawBody: string, signature: string | null): Promise<Response> {
   let payload: unknown = null;
   try {
@@ -84,6 +111,10 @@ export async function processInstagramWebhook(rawBody: string, signature: string
   // 1. Authenticate Meta Signature on original raw body (usando o pageId/resourceId para buscar o secret em instagram_accounts caso não esteja em platform_settings)
   const sigResult = await verifyMetaWebhookSignature(rawBody, signature, "instagram", pageId);
   if (!sigResult.valid) {
+    if (await instagramDeliveryAlreadyStored(pageId, payload)) {
+      logInfo("Instagram delivery already stored; acknowledging retry");
+      return new Response("EVENT_RECEIVED", { status: 200 });
+    }
     logError("Signature validation failed", { reason: sigResult.reason });
     await logWebhookDelivery({
       provider: "instagram",
