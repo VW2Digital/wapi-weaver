@@ -104,6 +104,8 @@ export const Route = createFileRoute("/api/auth/register")({
           let errorMessage = err?.message || "Erro no servidor ao realizar cadastro.";
           if (err?.code === "ER_DUP_ENTRY" || err?.errno === 1062 || String(err?.message).includes("licenses")) {
             errorMessage = "Já existe uma licença ou conta cadastrada com este e-mail.";
+          } else if (err?.code === "ER_NO_REFERENCED_ROW_2" || err?.errno === 1452) {
+            errorMessage = "Não foi possível criar o período de teste. Confira se existe um plano de acesso ativo.";
           }
           return new Response(JSON.stringify({ error: errorMessage }), {
             status: 500,
