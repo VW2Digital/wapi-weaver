@@ -682,6 +682,18 @@
     "prompt",
     "is_active"
   ],
+  "email_provider_settings": [
+    "id",
+    "tenant_id",
+    "provider",
+    "api_key_encrypted",
+    "from_email",
+    "from_name",
+    "reply_to",
+    "is_active",
+    "created_at",
+    "updated_at"
+  ],
   "facebook_pages": [
     "id",
     "workspace_id",
@@ -1091,6 +1103,16 @@
     "retry_count",
     "created_at",
     "updated_at"
+  ],
+  "password_reset_tokens": [
+    "id",
+    "tenant_id",
+    "user_id",
+    "token_hash",
+    "expires_at",
+    "used_at",
+    "requested_ip",
+    "created_at"
   ],
   "payment_gateway_settings": [
     "tenant_id",

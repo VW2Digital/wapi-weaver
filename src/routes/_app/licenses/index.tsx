@@ -203,7 +203,7 @@ function LicensesPage() {
     e.preventDefault();
     if (!editingLicense) return;
     updateMutation.mutate({
-      id: editingLicense.id,
+      id: String(editingLicense.id),
       client_name: editClientName,
       client_email: editClientEmail,
       plan: editPlan,
@@ -215,7 +215,7 @@ function LicensesPage() {
   };
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteLicenseMut({ data: { id } }),
+    mutationFn: (id: string | number) => deleteLicenseMut({ data: { id: String(id) } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["licenses"] });
       queryClient.invalidateQueries({ queryKey: ["licenses-stats"] });
@@ -226,7 +226,7 @@ function LicensesPage() {
     },
   });
 
-  const handleDelete = async (id: string, domainName: string) => {
+  const handleDelete = async (id: string | number, domainName: string) => {
     const ok = await confirm({
       title: "Revogar Acesso",
       description: `Tem certeza que deseja revogar o acesso do domínio ${domainName}? O sistema cliente deixará de funcionar imediatamente.`,

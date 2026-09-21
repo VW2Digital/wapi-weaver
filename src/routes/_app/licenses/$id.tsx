@@ -37,7 +37,7 @@ import {
 
 function LicenseDetailPage() {
   const { id } = Route.useParams();
-  const licenseId = id; // licenses.id é VARCHAR(36) UUID — não converter para number
+  const licenseId = String(id);
   const router = useRouter();
   const queryClient = useQueryClient();
   const confirm = useConfirm();

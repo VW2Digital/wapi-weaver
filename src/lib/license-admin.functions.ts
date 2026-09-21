@@ -47,6 +47,12 @@ async function resolveSubscriptionPlanId(plan: string): Promise<string> {
   return rows[0].id;
 }
 
+/** licenses.id is bigint AUTO_INCREMENT; MySQL/JSON may send a number. */
+const licenseIdSchema = z.preprocess(
+  (value) => (value === undefined || value === null ? value : String(value)),
+  z.string().min(1),
+);
+
 // 1. List licenses
 export const listLicenses = createServerFn({ method: "GET" })
   .middleware([requireAuth])
@@ -255,7 +261,7 @@ export const getLicenseStats = createServerFn({ method: "GET" })
 // 4. Get individual license details
 export const getLicenseDetail = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .validator(z.object({ id: z.string().min(1) }))
+  .validator(z.object({ id: licenseIdSchema }))
   .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
 
@@ -293,7 +299,7 @@ export const updateLicense = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator(
     z.object({
-      id: z.string().min(1),
+      id: licenseIdSchema,
       client_name: z.string().trim().min(1),
       client_email: z.string().trim().email().optional().or(z.literal("")),
       plan: z.string(),
@@ -398,7 +404,7 @@ export const updateLicense = createServerFn({ method: "POST" })
 // 6. Delete license
 export const deleteLicense = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator(z.object({ id: z.string().min(1) }))
+  .validator(z.object({ id: licenseIdSchema }))
   .handler(async ({ data: input, context }) => {
     await assertAdmin(context);
 

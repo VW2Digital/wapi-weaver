@@ -91,6 +91,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card } from "@/components/ui/card";
 import { GatewaySettings } from "@/components/licenses/gateway-settings";
+import { EmailProviderSettings } from "@/components/licenses/email-provider-settings";
 import { BannersManager } from "@/components/licenses/banners-manager";
 import { hasMasterRole } from "@/lib/roles";
 import { Input } from "@/components/ui/input";
@@ -164,6 +165,7 @@ import {
   Megaphone,
   LayoutGrid,
   ArrowDownWideNarrow,
+  Mail,
 } from "lucide-react";
 import { ResultAlert } from "@/components/result-alert";
 import { PasswordInput } from "@/components/password-input";
@@ -1585,6 +1587,34 @@ function SettingsPage() {
                   {isAdminMaster && (
                     <button
                       type="button"
+                      onClick={() => setActiveSection("admin-email")}
+                      className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                          <Mail className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h5 className="font-semibold text-sm text-foreground">
+                              E-mail (Resend)
+                            </h5>
+                            <Badge className="border-none bg-primary/10 text-[9px] font-semibold uppercase text-primary hover:bg-primary/10">
+                              Admin Master
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            API key, remetente e teste de envio para recuperação de senha.
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  )}
+
+                  {isAdminMaster && (
+                    <button
+                      type="button"
                       onClick={() => setActiveSection("admin-banners")}
                       className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
                     >
@@ -1741,6 +1771,9 @@ function SettingsPage() {
           <div className="flex-1 overflow-y-auto p-6 w-full">
             <div className={activeSection === "admin-payments" ? "block" : "hidden"}>
               <GatewaySettings enabled={isAdminMaster && activeSection === "admin-payments"} />
+            </div>
+            <div className={activeSection === "admin-email" ? "block" : "hidden"}>
+              <EmailProviderSettings enabled={isAdminMaster && activeSection === "admin-email"} />
             </div>
             <div className={activeSection === "admin-banners" ? "block" : "hidden"}>
               <BannersManager />

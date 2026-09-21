@@ -1,9 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { db } from "@/integrations/mysql/client";
+import { useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/password-input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -13,55 +11,20 @@ export const Route = createFileRoute("/reset-password")({ component: ResetPasswo
 
 function ResetPasswordPage() {
   const navigate = useNavigate();
-  const [ready, setReady] = useState(false);
+  const token = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("token") ?? "";
+  }, []);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    const sub = db.auth.onAuthStateChange((event: string) => {
-      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") setReady(true);
-    });
-
-    const searchParams = new URLSearchParams(window.location.search);
-    const token = searchParams.get("token");
-
-    if (token) {
-      fetch("/api/auth/verify-token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
-      })
-        .then(async (res) => {
-          const data = await res.json();
-          if (!res.ok) {
-            throw new Error(data.error || "Falha ao verificar token");
-          }
-
-          const session = {
-            access_token: data.access_token,
-            user: data.user,
-          };
-
-          localStorage.setItem("app-token", data.access_token);
-          localStorage.setItem("app-session", JSON.stringify(session));
-
-          db._notifyListeners("PASSWORD_RECOVERY", session);
-        })
-        .catch((err: any) => {
-          toast.error(err.message || "Link de recuperação inválido ou expirado.");
-        });
-    } else {
-      db.auth.getSession().then(({ data }: any) => {
-        if (data.session) setReady(true);
-      });
-    }
-
-    return () => sub.data.subscription.unsubscribe();
-  }, []);
-
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!token) {
+      toast.error("Link inválido. Solicite uma nova recuperação de senha.");
+      return;
+    }
     if (password.length < 8) {
       toast.error("A senha precisa ter ao menos 8 caracteres.");
       return;
@@ -72,10 +35,14 @@ function ResetPasswordPage() {
     }
     setBusy(true);
     try {
-      const { error } = await db.auth.updateUser({ password });
-      if (error) throw error;
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Falha ao atualizar senha");
       toast.success("Senha atualizada! Faça login novamente.");
-      await db.auth.signOut();
       navigate({ to: "/login" });
     } catch (e: any) {
       toast.error(e.message ?? "Falha ao atualizar senha");
@@ -94,14 +61,13 @@ function ResetPasswordPage() {
           <span className="font-display text-lg font-semibold">Definir nova senha</span>
         </div>
 
-        {!ready ? (
+        {!token ? (
           <p className="text-sm text-muted-foreground">
-            Validando link de recuperação… Se você abriu esta página fora do email de recuperação,
-            volte ao{" "}
+            Link inválido. Volte ao{" "}
             <a href="/login" className="text-primary hover:underline">
               login
             </a>{" "}
-            e clique em "Esqueci minha senha".
+            e clique em Esqueci minha senha.
           </p>
         ) : (
           <form onSubmit={submit} className="space-y-4">

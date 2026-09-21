@@ -73,6 +73,8 @@ import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
 import { Route as ApiAuthOtpRouteImport } from './routes/api/auth/otp'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
 import { Route as ApiAuthForgotPasswordRouteImport } from './routes/api/auth/forgot-password'
+import { Route as ApiAuthResetPasswordRouteImport } from './routes/api/auth/reset-password'
+import { Route as ApiAdminEmailProviderRouteImport } from './routes/api/admin/email-provider'
 import { Route as ApiAdminTestSubscriptionsRunnerRouteImport } from './routes/api/admin/test-subscriptions-runner'
 import { Route as ApiAdminTestBannersRunRouteImport } from './routes/api/admin/test-banners-run'
 import { Route as ApiAdminTestBannersPhaseCRouteImport } from './routes/api/admin/test-banners-phase-c'
@@ -108,6 +110,7 @@ import { Route as ApiPublicWebchatPublicIdConfigRouteImport } from './routes/api
 import { Route as ApiPublicMetaOauthCallbackRouteImport } from './routes/api/public/meta/oauth/callback'
 import { Route as ApiBillingPaymentsIdStatusRouteImport } from './routes/api/billing/payments/$id/status'
 import { Route as ApiAdminPaymentGatewaysMercadopagoTestRouteImport } from './routes/api/admin/payment-gateways/mercadopago/test'
+import { Route as ApiAdminEmailProviderTestRouteImport } from './routes/api/admin/email-provider/test'
 import { Route as ApiPublicWebchatPublicIdWidgetJsRouteImport } from './routes/api/public/webchat.$publicId.widget.js'
 
 const TermsRoute = TermsRouteImport.update({
@@ -435,6 +438,11 @@ const ApiAuthForgotPasswordRoute = ApiAuthForgotPasswordRouteImport.update({
   path: '/api/auth/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthResetPasswordRoute = ApiAuthResetPasswordRouteImport.update({
+  id: '/api/auth/reset-password',
+  path: '/api/auth/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminTestSubscriptionsRunnerRoute =
   ApiAdminTestSubscriptionsRunnerRouteImport.update({
     id: '/api/admin/test-subscriptions-runner',
@@ -571,6 +579,11 @@ const ApiAdminPaymentGatewaysMercadopagoRoute =
     path: '/api/admin/payment-gateways/mercadopago',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAdminEmailProviderRoute = ApiAdminEmailProviderRouteImport.update({
+  id: '/api/admin/email-provider',
+  path: '/api/admin/email-provider',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicWebhooksIncomingTokenRoute =
   ApiPublicWebhooksIncomingTokenRouteImport.update({
     id: '/api/public/webhooks/incoming/$token',
@@ -631,6 +644,12 @@ const ApiAdminPaymentGatewaysMercadopagoTestRoute =
     path: '/test',
     getParentRoute: () => ApiAdminPaymentGatewaysMercadopagoRoute,
   } as any)
+const ApiAdminEmailProviderTestRoute =
+  ApiAdminEmailProviderTestRouteImport.update({
+    id: '/test',
+    path: '/test',
+    getParentRoute: () => ApiAdminEmailProviderRoute,
+  } as any)
 const ApiPublicWebchatPublicIdWidgetJsRoute =
   ApiPublicWebchatPublicIdWidgetJsRouteImport.update({
     id: '/api/public/webchat/$publicId/widget/js',
@@ -680,6 +699,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/test-banners-run': typeof ApiAdminTestBannersRunRoute
   '/api/admin/test-subscriptions-runner': typeof ApiAdminTestSubscriptionsRunnerRoute
   '/api/auth/forgot-password': typeof ApiAuthForgotPasswordRoute
+  '/api/auth/reset-password': typeof ApiAuthResetPasswordRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/otp': typeof ApiAuthOtpRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
@@ -715,6 +735,7 @@ export interface FileRoutesByFullPath {
   '/contacts/': typeof AppContactsIndexRoute
   '/ds-agente/': typeof AppDsAgenteIndexRoute
   '/licenses/': typeof AppLicensesIndexRoute
+  '/api/admin/email-provider': typeof ApiAdminEmailProviderRouteWithChildren
   '/api/admin/payment-gateways/mercadopago': typeof ApiAdminPaymentGatewaysMercadopagoRouteWithChildren
   '/api/billing/checkout/card': typeof ApiBillingCheckoutCardRoute
   '/api/billing/checkout/pix': typeof ApiBillingCheckoutPixRoute
@@ -727,6 +748,7 @@ export interface FileRoutesByFullPath {
   '/api/public/meta-webhook/$publicId': typeof ApiPublicMetaWebhookPublicIdRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
+  '/api/admin/email-provider/test': typeof ApiAdminEmailProviderTestRoute
   '/api/admin/payment-gateways/mercadopago/test': typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
   '/api/billing/payments/$id/status': typeof ApiBillingPaymentsIdStatusRoute
   '/api/public/meta/oauth/callback': typeof ApiPublicMetaOauthCallbackRoute
@@ -781,6 +803,7 @@ export interface FileRoutesByTo {
   '/api/admin/test-banners-run': typeof ApiAdminTestBannersRunRoute
   '/api/admin/test-subscriptions-runner': typeof ApiAdminTestSubscriptionsRunnerRoute
   '/api/auth/forgot-password': typeof ApiAuthForgotPasswordRoute
+  '/api/auth/reset-password': typeof ApiAuthResetPasswordRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/otp': typeof ApiAuthOtpRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
@@ -816,6 +839,7 @@ export interface FileRoutesByTo {
   '/contacts': typeof AppContactsIndexRoute
   '/ds-agente': typeof AppDsAgenteIndexRoute
   '/licenses': typeof AppLicensesIndexRoute
+  '/api/admin/email-provider': typeof ApiAdminEmailProviderRouteWithChildren
   '/api/admin/payment-gateways/mercadopago': typeof ApiAdminPaymentGatewaysMercadopagoRouteWithChildren
   '/api/billing/checkout/card': typeof ApiBillingCheckoutCardRoute
   '/api/billing/checkout/pix': typeof ApiBillingCheckoutPixRoute
@@ -828,6 +852,7 @@ export interface FileRoutesByTo {
   '/api/public/meta-webhook/$publicId': typeof ApiPublicMetaWebhookPublicIdRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
+  '/api/admin/email-provider/test': typeof ApiAdminEmailProviderTestRoute
   '/api/admin/payment-gateways/mercadopago/test': typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
   '/api/billing/payments/$id/status': typeof ApiBillingPaymentsIdStatusRoute
   '/api/public/meta/oauth/callback': typeof ApiPublicMetaOauthCallbackRoute
@@ -884,6 +909,7 @@ export interface FileRoutesById {
   '/api/admin/test-banners-run': typeof ApiAdminTestBannersRunRoute
   '/api/admin/test-subscriptions-runner': typeof ApiAdminTestSubscriptionsRunnerRoute
   '/api/auth/forgot-password': typeof ApiAuthForgotPasswordRoute
+  '/api/auth/reset-password': typeof ApiAuthResetPasswordRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/otp': typeof ApiAuthOtpRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
@@ -919,6 +945,7 @@ export interface FileRoutesById {
   '/_app/contacts/': typeof AppContactsIndexRoute
   '/_app/ds-agente/': typeof AppDsAgenteIndexRoute
   '/_app/licenses/': typeof AppLicensesIndexRoute
+  '/api/admin/email-provider': typeof ApiAdminEmailProviderRouteWithChildren
   '/api/admin/payment-gateways/mercadopago': typeof ApiAdminPaymentGatewaysMercadopagoRouteWithChildren
   '/api/billing/checkout/card': typeof ApiBillingCheckoutCardRoute
   '/api/billing/checkout/pix': typeof ApiBillingCheckoutPixRoute
@@ -931,6 +958,7 @@ export interface FileRoutesById {
   '/api/public/meta-webhook/$publicId': typeof ApiPublicMetaWebhookPublicIdRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
   '/api/whatsapp/business-profile/photo': typeof ApiWhatsappBusinessProfilePhotoRoute
+  '/api/admin/email-provider/test': typeof ApiAdminEmailProviderTestRoute
   '/api/admin/payment-gateways/mercadopago/test': typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
   '/api/billing/payments/$id/status': typeof ApiBillingPaymentsIdStatusRoute
   '/api/public/meta/oauth/callback': typeof ApiPublicMetaOauthCallbackRoute
@@ -987,6 +1015,7 @@ export interface FileRouteTypes {
     | '/api/admin/test-banners-run'
     | '/api/admin/test-subscriptions-runner'
     | '/api/auth/forgot-password'
+    | '/api/auth/reset-password'
     | '/api/auth/login'
     | '/api/auth/otp'
     | '/api/auth/register'
@@ -1022,6 +1051,7 @@ export interface FileRouteTypes {
     | '/contacts/'
     | '/ds-agente/'
     | '/licenses/'
+    | '/api/admin/email-provider'
     | '/api/admin/payment-gateways/mercadopago'
     | '/api/billing/checkout/card'
     | '/api/billing/checkout/pix'
@@ -1034,6 +1064,7 @@ export interface FileRouteTypes {
     | '/api/public/meta-webhook/$publicId'
     | '/api/public/webhooks/stripe'
     | '/api/whatsapp/business-profile/photo'
+    | '/api/admin/email-provider/test'
     | '/api/admin/payment-gateways/mercadopago/test'
     | '/api/billing/payments/$id/status'
     | '/api/public/meta/oauth/callback'
@@ -1088,6 +1119,7 @@ export interface FileRouteTypes {
     | '/api/admin/test-banners-run'
     | '/api/admin/test-subscriptions-runner'
     | '/api/auth/forgot-password'
+    | '/api/auth/reset-password'
     | '/api/auth/login'
     | '/api/auth/otp'
     | '/api/auth/register'
@@ -1123,6 +1155,7 @@ export interface FileRouteTypes {
     | '/contacts'
     | '/ds-agente'
     | '/licenses'
+    | '/api/admin/email-provider'
     | '/api/admin/payment-gateways/mercadopago'
     | '/api/billing/checkout/card'
     | '/api/billing/checkout/pix'
@@ -1135,6 +1168,7 @@ export interface FileRouteTypes {
     | '/api/public/meta-webhook/$publicId'
     | '/api/public/webhooks/stripe'
     | '/api/whatsapp/business-profile/photo'
+    | '/api/admin/email-provider/test'
     | '/api/admin/payment-gateways/mercadopago/test'
     | '/api/billing/payments/$id/status'
     | '/api/public/meta/oauth/callback'
@@ -1190,6 +1224,7 @@ export interface FileRouteTypes {
     | '/api/admin/test-banners-run'
     | '/api/admin/test-subscriptions-runner'
     | '/api/auth/forgot-password'
+    | '/api/auth/reset-password'
     | '/api/auth/login'
     | '/api/auth/otp'
     | '/api/auth/register'
@@ -1225,6 +1260,7 @@ export interface FileRouteTypes {
     | '/_app/contacts/'
     | '/_app/ds-agente/'
     | '/_app/licenses/'
+    | '/api/admin/email-provider'
     | '/api/admin/payment-gateways/mercadopago'
     | '/api/billing/checkout/card'
     | '/api/billing/checkout/pix'
@@ -1237,6 +1273,7 @@ export interface FileRouteTypes {
     | '/api/public/meta-webhook/$publicId'
     | '/api/public/webhooks/stripe'
     | '/api/whatsapp/business-profile/photo'
+    | '/api/admin/email-provider/test'
     | '/api/admin/payment-gateways/mercadopago/test'
     | '/api/billing/payments/$id/status'
     | '/api/public/meta/oauth/callback'
@@ -1269,6 +1306,7 @@ export interface RootRouteChildren {
   ApiAdminTestBannersRunRoute: typeof ApiAdminTestBannersRunRoute
   ApiAdminTestSubscriptionsRunnerRoute: typeof ApiAdminTestSubscriptionsRunnerRoute
   ApiAuthForgotPasswordRoute: typeof ApiAuthForgotPasswordRoute
+  ApiAuthResetPasswordRoute: typeof ApiAuthResetPasswordRoute
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
   ApiAuthOtpRoute: typeof ApiAuthOtpRoute
   ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
@@ -1300,6 +1338,7 @@ export interface RootRouteChildren {
   ApiWhatsappMediaUploadRoute: typeof ApiWhatsappMediaUploadRoute
   ApiWhatsappRegisterRoute: typeof ApiWhatsappRegisterRoute
   FunctionsV1MercadopagoWebhookRoute: typeof FunctionsV1MercadopagoWebhookRoute
+  ApiAdminEmailProviderRoute: typeof ApiAdminEmailProviderRouteWithChildren
   ApiAdminPaymentGatewaysMercadopagoRoute: typeof ApiAdminPaymentGatewaysMercadopagoRouteWithChildren
   ApiPublicContactsIngestRoute: typeof ApiPublicContactsIngestRoute
   ApiPublicCronProcessDsAgentFollowupsRoute: typeof ApiPublicCronProcessDsAgentFollowupsRoute
@@ -1769,6 +1808,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/reset-password': {
+      id: '/api/auth/reset-password'
+      path: '/api/auth/reset-password'
+      fullPath: '/api/auth/reset-password'
+      preLoaderRoute: typeof ApiAuthResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/test-subscriptions-runner': {
       id: '/api/admin/test-subscriptions-runner'
       path: '/api/admin/test-subscriptions-runner'
@@ -2014,6 +2060,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminPaymentGatewaysMercadopagoTestRouteImport
       parentRoute: typeof ApiAdminPaymentGatewaysMercadopagoRoute
     }
+    '/api/admin/email-provider': {
+      id: '/api/admin/email-provider'
+      path: '/api/admin/email-provider'
+      fullPath: '/api/admin/email-provider'
+      preLoaderRoute: typeof ApiAdminEmailProviderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/email-provider/test': {
+      id: '/api/admin/email-provider/test'
+      path: '/test'
+      fullPath: '/api/admin/email-provider/test'
+      preLoaderRoute: typeof ApiAdminEmailProviderTestRouteImport
+      parentRoute: typeof ApiAdminEmailProviderRoute
+    }
     '/api/public/webchat/$publicId/widget/js': {
       id: '/api/public/webchat/$publicId/widget/js'
       path: '/api/public/webchat/$publicId/widget/js'
@@ -2150,6 +2210,20 @@ const ApiWhatsappBusinessProfileRouteWithChildren =
     ApiWhatsappBusinessProfileRouteChildren,
   )
 
+interface ApiAdminEmailProviderRouteChildren {
+  ApiAdminEmailProviderTestRoute: typeof ApiAdminEmailProviderTestRoute
+}
+
+const ApiAdminEmailProviderRouteChildren: ApiAdminEmailProviderRouteChildren =
+  {
+    ApiAdminEmailProviderTestRoute: ApiAdminEmailProviderTestRoute,
+  }
+
+const ApiAdminEmailProviderRouteWithChildren =
+  ApiAdminEmailProviderRoute._addFileChildren(
+    ApiAdminEmailProviderRouteChildren,
+  )
+
 interface ApiAdminPaymentGatewaysMercadopagoRouteChildren {
   ApiAdminPaymentGatewaysMercadopagoTestRoute: typeof ApiAdminPaymentGatewaysMercadopagoTestRoute
 }
@@ -2184,6 +2258,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminTestBannersRunRoute: ApiAdminTestBannersRunRoute,
   ApiAdminTestSubscriptionsRunnerRoute: ApiAdminTestSubscriptionsRunnerRoute,
   ApiAuthForgotPasswordRoute: ApiAuthForgotPasswordRoute,
+  ApiAuthResetPasswordRoute: ApiAuthResetPasswordRoute,
   ApiAuthLoginRoute: ApiAuthLoginRoute,
   ApiAuthOtpRoute: ApiAuthOtpRoute,
   ApiAuthRegisterRoute: ApiAuthRegisterRoute,
@@ -2215,6 +2290,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWhatsappMediaUploadRoute: ApiWhatsappMediaUploadRoute,
   ApiWhatsappRegisterRoute: ApiWhatsappRegisterRoute,
   FunctionsV1MercadopagoWebhookRoute: FunctionsV1MercadopagoWebhookRoute,
+  ApiAdminEmailProviderRoute: ApiAdminEmailProviderRouteWithChildren,
   ApiAdminPaymentGatewaysMercadopagoRoute:
     ApiAdminPaymentGatewaysMercadopagoRouteWithChildren,
   ApiPublicContactsIngestRoute: ApiPublicContactsIngestRoute,
