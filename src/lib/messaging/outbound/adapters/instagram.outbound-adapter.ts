@@ -15,6 +15,7 @@ export class InstagramOutboundAdapter implements IOutboundAdapter {
     }
 
     const channel = await this.resolveChannel(context);
+    const credentials = await this.resolveSendCredentials(channel, context.tenantId, context.userId);
     const { assertInstagramHumanSend, recordInstagramAttention, friendlyInstagramSendError } = await import(
       "@/lib/instagram/attention.server"
     );
@@ -26,8 +27,8 @@ export class InstagramOutboundAdapter implements IOutboundAdapter {
     });
 
     const client = new InstagramClient({
-      igUserId: channel.externalAccountId || "",
-      accessToken: resolveChannelAccessToken(channel),
+      igUserId: credentials.igUserId,
+      accessToken: credentials.accessToken,
     });
 
     let result;
@@ -42,7 +43,7 @@ export class InstagramOutboundAdapter implements IOutboundAdapter {
         action: "META_MESSAGE_ERROR",
         windowState: decision.window.state,
         messageId: context.messageId,
-        igAccountId: channel.externalAccountId,
+        igAccountId: credentials.igUserId,
         metaBody: body,
       });
       const wrapped = new Error(friendly);
@@ -56,15 +57,56 @@ export class InstagramOutboundAdapter implements IOutboundAdapter {
       action: decision.auditAction,
       windowState: decision.window.state,
       messageId: result.providerMessageId,
-      igAccountId: channel.externalAccountId,
+      igAccountId: credentials.igUserId,
     });
 
     return {
       provider: this.provider,
       providerMessageId: result.providerMessageId,
-      providerAccountId: channel.externalAccountId,
+      providerAccountId: credentials.igUserId,
       status: "sent",
       responsePayload: result.body,
+    };
+  }
+
+  private async resolveSendCredentials(
+    channel: ChannelConnection,
+    tenantId: string,
+    userId: string,
+  ): Promise<{ igUserId: string; accessToken: string }> {
+    const externalId = channel.externalAccountId || "";
+    const rows = (await db.query(
+      `SELECT ig_user_id, instagram_business_account_id, access_token
+       FROM instagram_accounts
+       WHERE (tenant_id = ? OR user_id = ?)
+         AND is_active = 1
+         AND access_token IS NOT NULL
+         AND access_token <> ''
+         AND (
+           page_id = ?
+           OR ig_user_id = ?
+           OR instagram_business_account_id = ?
+         )
+       ORDER BY updated_at DESC
+       LIMIT 1`,
+      [tenantId, userId || tenantId, externalId, externalId, externalId],
+    )) as Array<{
+      ig_user_id: string | null;
+      instagram_business_account_id: string | null;
+      access_token: string | null;
+    }>;
+    const account = rows[0];
+    const freshToken = account?.access_token?.trim() || "";
+    if (account && freshToken) {
+      return {
+        igUserId: account.ig_user_id || account.instagram_business_account_id || externalId,
+        accessToken: freshToken,
+      };
+    }
+
+    return {
+      igUserId: externalId,
+      accessToken: resolveChannelAccessToken(channel),
     };
   }
 
