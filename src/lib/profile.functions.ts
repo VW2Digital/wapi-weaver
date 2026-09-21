@@ -2476,8 +2476,36 @@ export const onboardInstagramFacebookLogin = createServerFn({ method: "POST" })
       );
     }
 
+    const channelRows = (await db.query(
+      `SELECT external_account_id
+       FROM channel_connections
+       WHERE tenant_id = ? AND provider = 'instagram' AND status = 'active'`,
+      [context.userId],
+    )) as Array<{ external_account_id: string | null }>;
+    const deliveryRows = (await db.query(
+      `SELECT channel_resource_id
+       FROM webhook_delivery_logs
+       WHERE provider = 'instagram' AND tenant_id = ? AND outcome = 'queued'
+       ORDER BY received_at DESC
+       LIMIT 20`,
+      [context.userId],
+    )) as Array<{ channel_resource_id: string | null }>;
+    const channelIds = new Set(channelRows.map((row) => String(row.external_account_id || "")).filter(Boolean));
+    const knownIds = new Set([
+      ...channelIds,
+      ...deliveryRows.map((row) => String(row.channel_resource_id || "")).filter(Boolean),
+    ]);
+    const pageScore = (page: any) => {
+      const pageId = String(page?.id || "");
+      const igId = String(page?.instagram_business_account?.id || "");
+      if (channelIds.has(pageId) || channelIds.has(igId)) return 0;
+      if (knownIds.has(pageId) || knownIds.has(igId)) return 1;
+      return 2;
+    };
+    const chosenPages = [...igPages].sort((a, b) => pageScore(a) - pageScore(b)).slice(0, 1);
+
     const connected: Array<{ pageId: string; igUserId: string; username: string | null }> = [];
-    for (const page of igPages) {
+    for (const page of chosenPages) {
       const pageToken = String(page.access_token || userToken);
       const igId = String(page.instagram_business_account.id);
       const username = page.instagram_business_account.username || page.name || null;
@@ -2527,6 +2555,32 @@ export const onboardInstagramFacebookLogin = createServerFn({ method: "POST" })
           pageToken,
         ],
       );
+
+      const { encryptMetaCredential } = await import("./encryption");
+      const activeChannels = (await db.query(
+        `SELECT id, external_account_id
+         FROM channel_connections
+         WHERE tenant_id = ? AND provider = 'instagram' AND status = 'active'
+         ORDER BY updated_at DESC
+         LIMIT 1`,
+        [context.userId],
+      )) as Array<{ id: string; external_account_id: string | null }>;
+      const currentExternalId = String(activeChannels[0]?.external_account_id || "");
+      const channelMatchesChosen =
+        !currentExternalId || currentExternalId === pageId || currentExternalId === igId;
+      if (activeChannels[0] && channelMatchesChosen) {
+        await db.query(
+          `UPDATE channel_connections
+           SET external_account_id = ?,
+               display_name = ?,
+               access_token_encrypted = ?,
+               status = 'active',
+               updated_at = NOW()
+           WHERE id = ? AND tenant_id = ?`,
+          [pageId, username, encryptMetaCredential(pageToken), activeChannels[0].id, context.userId],
+        );
+      }
+
       connected.push({ pageId, igUserId: igId, username });
     }
 

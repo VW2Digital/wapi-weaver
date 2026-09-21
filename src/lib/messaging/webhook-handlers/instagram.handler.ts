@@ -127,7 +127,48 @@ export async function processInstagramWebhook(rawBody: string, signature: string
     return new Response("Forbidden (Invalid Signature)", { status: 403 });
   }
 
-  const resolution = await resolveInstagramTenant(pageId);
+  let resolution = await resolveInstagramTenant(pageId);
+  if (!resolution.resolved) {
+    const prior = (await db.query(
+      `SELECT tenant_id
+       FROM webhook_delivery_logs
+       WHERE provider = 'instagram'
+         AND channel_resource_id = ?
+         AND tenant_id IS NOT NULL
+         AND outcome = 'queued'
+       ORDER BY received_at DESC
+       LIMIT 1`,
+      [pageId],
+    )) as Array<{ tenant_id: string | null }>;
+    const tenantId = prior[0]?.tenant_id || sigResult.tenantId || null;
+    if (tenantId) {
+      const channels = (await db.query(
+        `SELECT external_account_id
+         FROM channel_connections
+         WHERE tenant_id = ? AND provider = 'instagram' AND status = 'active'
+         ORDER BY updated_at DESC
+         LIMIT 1`,
+        [tenantId],
+      )) as Array<{ external_account_id: string | null }>;
+      const accounts = (await db.query(
+        `SELECT user_id, page_id
+         FROM instagram_accounts
+         WHERE tenant_id = ? OR user_id = ?
+         LIMIT 1`,
+        [tenantId, tenantId],
+      )) as Array<{ user_id: string | null; page_id: string | null }>;
+      const channelResourceId = channels[0]?.external_account_id || accounts[0]?.page_id || pageId;
+      resolution = {
+        resolved: {
+          tenantId,
+          userId: accounts[0]?.user_id || tenantId,
+          channelResourceId,
+          channelType: "instagram",
+        },
+        reason: "prior_instagram_delivery",
+      };
+    }
+  }
   if (!resolution.resolved) {
     logError("Tenant not found for Instagram page", { pageId, reason: resolution.reason });
     await logWebhookDelivery({

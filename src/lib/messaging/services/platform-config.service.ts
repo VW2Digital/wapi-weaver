@@ -58,6 +58,7 @@ export interface WebhookSecretResolution {
   source: "platform_settings" | "channel_account";
   secret: string;
   appId: string | null;
+  tenantId?: string | null;
 }
 
 /**
@@ -169,16 +170,40 @@ async function listInstagramSignatureSecrets(resourceId: string): Promise<Webhoo
   const tenantIds = [
     ...new Set(accounts.map((account) => account.tenant_id || account.user_id).filter((id): id is string => Boolean(id))),
   ];
+  if (tenantIds.length === 0) {
+    const priorTenants = (await db.query(
+      `SELECT DISTINCT tenant_id
+       FROM webhook_delivery_logs
+       WHERE provider = 'instagram'
+         AND channel_resource_id = ?
+         AND tenant_id IS NOT NULL
+         AND outcome = 'queued'
+       LIMIT 5`,
+      [resourceId],
+    )) as Array<{ tenant_id: string | null }>;
+    for (const row of priorTenants) {
+      if (row.tenant_id) tenantIds.push(row.tenant_id);
+    }
+  }
   if (tenantIds.length === 0) return found;
 
   const placeholders = tenantIds.map(() => "?").join(", ");
   const connections = (await db.query(
-    `SELECT app_id, app_secret_encrypted
+    `SELECT tenant_id, app_id, app_secret_encrypted
      FROM meta_app_connections
      WHERE tenant_id IN (${placeholders})`,
     tenantIds,
-  )) as Array<{ app_id: string | null; app_secret_encrypted: string | null }>;
+  )) as Array<{ tenant_id: string | null; app_id: string | null; app_secret_encrypted: string | null }>;
 
+  await pushConnectionSecrets(connections, push);
+
+  return found;
+}
+
+async function pushConnectionSecrets(
+  connections: Array<{ tenant_id: string | null; app_id: string | null; app_secret_encrypted: string | null }>,
+  push: (candidate: WebhookSecretResolution) => void,
+) {
   const { decryptMetaCredential } = await import("@/lib/encryption");
   for (const connection of connections) {
     if (!connection.app_secret_encrypted) continue;
@@ -189,14 +214,13 @@ async function listInstagramSignatureSecrets(resourceId: string): Promise<Webhoo
           source: "channel_account",
           secret,
           appId: connection.app_id,
+          tenantId: connection.tenant_id,
         });
       }
     } catch {
       // Credencial ilegível não entra na verificação.
     }
   }
-
-  return found;
 }
 
 function signatureMatches(rawBody: string, signatureHeader: string, secret: string) {
@@ -211,6 +235,7 @@ export interface SignatureValidationResult {
   valid: boolean;
   matchedSource: "platform_settings" | "channel_account" | null;
   appId?: string | null;
+  tenantId?: string | null;
   reason?: string;
 }
 
@@ -237,7 +262,12 @@ export async function verifyMetaWebhookSignature(
         console.log(
           `[META_WEBHOOK_SIGNATURE] provider=instagram appId=${candidate.appId} secretSource=${candidate.source} valid=true`,
         );
-        return { valid: true, matchedSource: candidate.source, appId: candidate.appId };
+        return {
+          valid: true,
+          matchedSource: candidate.source,
+          appId: candidate.appId,
+          tenantId: candidate.tenantId ?? null,
+        };
       }
     }
     console.log(
