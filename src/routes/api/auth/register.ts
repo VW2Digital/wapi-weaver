@@ -70,8 +70,8 @@ export const Route = createFileRoute("/api/auth/register")({
             expiresAt.setDate(expiresAt.getDate() + 3);
 
             await conn.execute(
-              `INSERT INTO licenses (id, license_key_hash, license_key_preview, client_name, client_email, plan, status, expires_at, tenant_id)
-               VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, ?)
+              `INSERT INTO licenses (license_key_hash, license_key_preview, client_name, client_email, plan, status, expires_at, tenant_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                ON DUPLICATE KEY UPDATE tenant_id = VALUES(tenant_id), client_email = VALUES(client_email), status = 'active'`,
               [keyHash, cleanEmail, displayName || cleanEmail, cleanEmail, "basic", "active", expiresAt, userId],
             );
