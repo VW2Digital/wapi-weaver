@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { ChevronDown, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatWindowRemaining, type InstagramWindowState } from "@/lib/instagram/messaging-window";
 
@@ -43,18 +45,38 @@ export function InstagramAttentionBar({
   const lastInbound = state.lastInboundAt
     ? new Date(state.lastInboundAt).toLocaleString("pt-BR")
     : "sem mensagem do cliente";
+  const noticeKey = `${state.mode}:${state.window.state}:${state.lastInboundAt || ""}`;
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    setCollapsed(false);
+  }, [noticeKey]);
 
   return (
-    <div className="border-b border-border/60 bg-muted/30 px-3 py-2 text-xs text-foreground space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-md border border-border bg-background px-2 py-0.5 font-medium">{modeLabel}</span>
-        <span className="rounded-md border border-border bg-background px-2 py-0.5 font-medium">
-          {WINDOW_LABEL[shown]}
-        </span>
-        {state.mode === "human" && state.attendantName ? (
-          <span>Atendente: {state.attendantName}</span>
-        ) : null}
+    <div className={`border-b border-border/60 bg-muted/30 px-3 text-xs text-foreground ${collapsed ? "py-1.5" : "space-y-2 py-2"}`}>
+      <div className="flex items-start gap-2">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          <span className="rounded-md border border-border bg-background px-2 py-0.5 font-medium">{modeLabel}</span>
+          <span className="rounded-md border border-border bg-background px-2 py-0.5 font-medium">
+            {WINDOW_LABEL[shown]}
+          </span>
+          {state.mode === "human" && state.attendantName ? (
+            <span className="truncate">Atendente: {state.attendantName}</span>
+          ) : null}
+        </div>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="h-6 w-6 shrink-0 text-muted-foreground"
+          title={collapsed ? "Mostrar detalhes" : "Fechar aviso"}
+          onClick={() => setCollapsed((open) => !open)}
+        >
+          {collapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+        </Button>
       </div>
+      {collapsed ? null : (
+        <>
       <p className="text-muted-foreground">
         Conta conectada: {state.igAccountLabel || "Instagram"} · Última mensagem do cliente: {lastInbound}
         {shown === "standard" && state.window.expiresAt
@@ -101,6 +123,8 @@ export function InstagramAttentionBar({
           </select>
         </label>
       ) : null}
+        </>
+      )}
     </div>
   );
 }
