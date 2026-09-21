@@ -129,6 +129,84 @@ export async function getMetaWebhookSecret(
   throw new Error("META_APP_SECRET_NOT_CONFIGURED");
 }
 
+async function listInstagramSignatureSecrets(resourceId: string): Promise<WebhookSecretResolution[]> {
+  const found: WebhookSecretResolution[] = [];
+  const seen = new Set<string>();
+  const push = (candidate: WebhookSecretResolution) => {
+    if (candidate.secret.length < 20 || seen.has(candidate.secret)) return;
+    seen.add(candidate.secret);
+    found.push(candidate);
+  };
+
+  const platform = await getPlatformSecrets();
+  const platformSecret = String(platform?.meta_app_secret ?? "").trim();
+  if (platformSecret) {
+    push({
+      source: "platform_settings",
+      secret: platformSecret,
+      appId: platform?.meta_app_id || null,
+    });
+  }
+
+  const accounts = (await db.query(
+    `SELECT tenant_id, user_id, app_secret
+     FROM instagram_accounts
+     WHERE page_id = ? OR instagram_business_account_id = ? OR ig_user_id = ?`,
+    [resourceId, resourceId, resourceId],
+  )) as Array<{ tenant_id: string | null; user_id: string | null; app_secret: string | null }>;
+
+  for (const account of accounts) {
+    const igSecret = String(account.app_secret ?? "").trim();
+    if (igSecret) {
+      push({
+        source: "channel_account",
+        secret: igSecret,
+        appId: platform?.meta_app_id || null,
+      });
+    }
+  }
+
+  const tenantIds = [
+    ...new Set(accounts.map((account) => account.tenant_id || account.user_id).filter((id): id is string => Boolean(id))),
+  ];
+  if (tenantIds.length === 0) return found;
+
+  const placeholders = tenantIds.map(() => "?").join(", ");
+  const connections = (await db.query(
+    `SELECT app_id, app_secret_encrypted
+     FROM meta_app_connections
+     WHERE tenant_id IN (${placeholders})`,
+    tenantIds,
+  )) as Array<{ app_id: string | null; app_secret_encrypted: string | null }>;
+
+  const { decryptMetaCredential } = await import("@/lib/encryption");
+  for (const connection of connections) {
+    if (!connection.app_secret_encrypted) continue;
+    try {
+      const secret = decryptMetaCredential(connection.app_secret_encrypted).trim();
+      if (secret) {
+        push({
+          source: "channel_account",
+          secret,
+          appId: connection.app_id,
+        });
+      }
+    } catch {
+      // Credencial ilegível não entra na verificação.
+    }
+  }
+
+  return found;
+}
+
+function signatureMatches(rawBody: string, signatureHeader: string, secret: string) {
+  const expected = "sha256=" + createHmac("sha256", secret).update(Buffer.from(rawBody, "utf8")).digest("hex");
+  return (
+    expected.length === signatureHeader.length &&
+    timingSafeEqual(Buffer.from(expected, "utf8"), Buffer.from(signatureHeader, "utf8"))
+  );
+}
+
 export interface SignatureValidationResult {
   valid: boolean;
   matchedSource: "platform_settings" | "channel_account" | null;
@@ -145,6 +223,29 @@ export async function verifyMetaWebhookSignature(
   provider: "whatsapp" | "instagram" | "messenger" = "whatsapp",
   resourceId?: string,
 ): Promise<SignatureValidationResult> {
+  if (provider === "instagram" && resourceId) {
+    if (!signatureHeader || !signatureHeader.startsWith("sha256=")) {
+      return { valid: false, matchedSource: null, reason: "missing_or_malformed_header" };
+    }
+    const candidates = await listInstagramSignatureSecrets(resourceId);
+    if (candidates.length === 0) {
+      console.error(`[META_WEBHOOK_SIGNATURE] provider=instagram valid=false reason=META_APP_SECRET_NOT_CONFIGURED`);
+      return { valid: false, matchedSource: null, reason: "META_APP_SECRET_NOT_CONFIGURED" };
+    }
+    for (const candidate of candidates) {
+      if (signatureMatches(rawBody, signatureHeader, candidate.secret)) {
+        console.log(
+          `[META_WEBHOOK_SIGNATURE] provider=instagram appId=${candidate.appId} secretSource=${candidate.source} valid=true`,
+        );
+        return { valid: true, matchedSource: candidate.source, appId: candidate.appId };
+      }
+    }
+    console.log(
+      `[META_WEBHOOK_SIGNATURE] provider=instagram candidates=${candidates.length} valid=false reason=invalid_signature`,
+    );
+    return { valid: false, matchedSource: null, reason: "invalid_signature" };
+  }
+
   let secretConfig: WebhookSecretResolution;
   try {
     secretConfig = await getMetaWebhookSecret(provider, resourceId);
