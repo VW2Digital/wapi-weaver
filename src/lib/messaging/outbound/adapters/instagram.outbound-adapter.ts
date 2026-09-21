@@ -27,7 +27,7 @@ export class InstagramOutboundAdapter implements IOutboundAdapter {
     });
 
     const client = new InstagramClient({
-      igUserId: credentials.igUserId,
+      igUserId: credentials.graphNodeId,
       accessToken: credentials.accessToken,
     });
 
@@ -73,10 +73,10 @@ export class InstagramOutboundAdapter implements IOutboundAdapter {
     channel: ChannelConnection,
     tenantId: string,
     userId: string,
-  ): Promise<{ igUserId: string; accessToken: string }> {
+  ): Promise<{ graphNodeId: string; igUserId: string; accessToken: string }> {
     const externalId = channel.externalAccountId || "";
     const rows = (await db.query(
-      `SELECT ig_user_id, instagram_business_account_id, access_token
+      `SELECT ig_user_id, instagram_business_account_id, page_id, access_token
        FROM instagram_accounts
        WHERE (tenant_id = ? OR user_id = ?)
          AND is_active = 1
@@ -93,18 +93,22 @@ export class InstagramOutboundAdapter implements IOutboundAdapter {
     )) as Array<{
       ig_user_id: string | null;
       instagram_business_account_id: string | null;
+      page_id: string | null;
       access_token: string | null;
     }>;
     const account = rows[0];
     const freshToken = account?.access_token?.trim() || "";
     if (account && freshToken) {
+      const igUserId = account.ig_user_id || account.instagram_business_account_id || externalId;
       return {
-        igUserId: account.ig_user_id || account.instagram_business_account_id || externalId,
+        graphNodeId: account.page_id || externalId || igUserId,
+        igUserId,
         accessToken: freshToken,
       };
     }
 
     return {
+      graphNodeId: externalId,
       igUserId: externalId,
       accessToken: resolveChannelAccessToken(channel),
     };
