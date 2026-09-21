@@ -73,7 +73,7 @@ export function CalendarEventCard({ event, onClick, compact = false }: CalendarE
       <div className="flex items-center justify-between gap-1">
         <span className="font-semibold text-xs text-foreground truncate">{event.title}</span>
         {isCancelled && (
-          <Badge variant="outline" className="text-[9px] px-1 py-0 border-destructive text-destructive shrink-0">
+          <Badge variant="destructive" className="shrink-0">
             Cancelado
           </Badge>
         )}

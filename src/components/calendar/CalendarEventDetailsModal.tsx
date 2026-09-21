@@ -68,13 +68,13 @@ export function CalendarEventDetailsModal({
   const getStatusBadge = (st: string) => {
     switch (st) {
       case "confirmado":
-        return <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30">Confirmado</Badge>;
+        return <Badge variant="success">Confirmado</Badge>;
       case "concluido":
-        return <Badge className="bg-blue-500/15 text-blue-600 border-blue-500/30">Concluído</Badge>;
+        return <Badge variant="secondary">Concluído</Badge>;
       case "cancelado":
-        return <Badge variant="outline" className="border-destructive text-destructive">Cancelado</Badge>;
+        return <Badge variant="destructive">Cancelado</Badge>;
       case "nao_compareceu":
-        return <Badge variant="outline" className="border-amber-500 text-amber-600">Não Compareceu</Badge>;
+        return <Badge variant="warning">Não Compareceu</Badge>;
       default:
         return <Badge variant="secondary">Agendado</Badge>;
     }

@@ -579,10 +579,10 @@ export function OpportunityModal({
                   {opportunity?.primary_contact_name || opportunity?.title || "Sem Contato"}
                 </SheetTitle>
                 {opportunity?.status === "won" && (
-                  <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20 font-medium">Ganho</Badge>
+                  <Badge variant="success">Ganho</Badge>
                 )}
                 {opportunity?.status === "lost" && (
-                  <Badge variant="outline" className="bg-red-500/10 text-red-500 border-red-500/20 font-medium">Perdido</Badge>
+                  <Badge variant="destructive">Perdido</Badge>
                 )}
               </div>
               <div className="text-sm text-muted-foreground mt-0.5">

@@ -9073,7 +9073,7 @@ function InstagramSettingsTab({
                     <span className="font-semibold text-sm text-foreground">
                       @{acc.instagram_username || acc.page_name || "Conta"}
                     </span>
-                    <Badge variant="secondary" className="bg-success/15 text-success hover:bg-success/20 text-[10px] border-none font-semibold">
+                    <Badge variant="success">
                       Ativo
                     </Badge>
                   </div>

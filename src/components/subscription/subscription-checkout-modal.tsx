@@ -514,7 +514,7 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
         {pixData ? (
           <div className="space-y-4 py-2">
             <div className="rounded-2xl border border-border bg-muted/40 p-4 flex flex-col items-center text-center space-y-3">
-              <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-0 font-medium">
+              <Badge variant="success">
                 PIX Gerado com Sucesso
               </Badge>
               <p className="text-xs text-muted-foreground">

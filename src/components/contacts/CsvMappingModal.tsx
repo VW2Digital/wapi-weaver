@@ -267,7 +267,7 @@ export const CsvMappingModal: React.FC<CsvMappingModalProps> = ({
 
           <div>
             {phoneHeaderName ? (
-              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-300 dark:border-emerald-800 gap-1.5 text-xs py-1 px-3">
+              <Badge variant="success" className="gap-1.5">
                 <CheckCircle2 className="h-4 w-4" /> <strong>{validContacts.length}</strong> contatos prontos para importar
               </Badge>
             ) : (

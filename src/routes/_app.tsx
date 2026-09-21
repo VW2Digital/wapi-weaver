@@ -50,6 +50,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { SidebarProvider, Sidebar, SidebarRail, SidebarTrigger, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset } from "@/components/ui/sidebar";
 import { SidebarNav, type SidebarNavItem } from "@/components/SidebarNav";
 import { PageHeaderProvider } from "@/components/layout/page-header-provider";
@@ -587,9 +588,9 @@ function AppLayout() {
 
           {/* Banner de Trial Ativo */}
           {isTrialActive && subAccess && (
-            <div className="bg-gradient-to-r from-[#F23869] via-[#D93B92] to-[#BF39B6] text-white px-4 py-2.5 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-3 text-xs sm:text-sm shrink-0 border-b border-white/10 z-30">
+            <div className="bg-brand-gradient text-primary-foreground px-4 py-2.5 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-3 text-xs sm:text-sm shrink-0 border-b border-primary-foreground/10 z-30">
               <div className="flex items-center gap-2.5">
-                <Sparkles className="h-5 w-5 text-amber-300 shrink-0 animate-pulse" />
+                <Sparkles className="h-5 w-5 text-warning shrink-0 animate-pulse" />
                 <div>
                   <span className="font-bold">Período de Teste Gratuito Ativo:</span>{" "}
                   <span className="opacity-95">
@@ -599,20 +600,22 @@ function AppLayout() {
                   </span>
                 </div>
               </div>
-              <button
+              <Button
+                type="button"
+                size="sm"
                 onClick={() => setIsCheckoutModalOpen(true)}
-                className="inline-flex items-center rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 px-4 py-2 text-xs font-extrabold shadow-md active:scale-95 transition-all shrink-0 cursor-pointer"
+                className="bg-warning text-foreground shadow-sm hover:bg-warning/90"
               >
                 Conhecer Planos
-              </button>
+              </Button>
             </div>
           )}
 
           {/* Banner de Assinatura Expirada / Bloqueada */}
           {(isSubscriptionBlocked || isLicenseExpiredOrWarning) && !isTrialActive && (
-            <div className="bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 text-white px-4 py-2.5 shadow-md flex flex-col sm:flex-row items-center justify-between gap-3 text-xs sm:text-sm shrink-0 border-b border-red-500/30 z-30">
+            <div className="bg-destructive text-destructive-foreground px-4 py-2.5 shadow-md flex flex-col sm:flex-row items-center justify-between gap-3 text-xs sm:text-sm shrink-0 border-b border-destructive-foreground/20 z-30">
               <div className="flex items-center gap-2.5">
-                <AlertTriangle className="h-5 w-5 text-amber-200 shrink-0 animate-bounce" />
+                <AlertTriangle className="h-5 w-5 text-warning shrink-0 animate-bounce" />
                 <div>
                   <span className="font-bold">Seu Período de Teste Terminou:</span>{" "}
                   <span className="opacity-95">
@@ -620,12 +623,14 @@ function AppLayout() {
                   </span>
                 </div>
               </div>
-              <button
+              <Button
+                type="button"
+                size="sm"
                 onClick={() => setIsCheckoutModalOpen(true)}
-                className="inline-flex items-center rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 text-xs font-bold shadow-md active:scale-95 transition-all shrink-0 cursor-pointer"
+                className="bg-success text-success-foreground shadow-sm hover:bg-success/90"
               >
                 Ativar Minha Assinatura
-              </button>
+              </Button>
             </div>
           )}
 

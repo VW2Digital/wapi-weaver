@@ -420,7 +420,7 @@ Regras:
                     Endpoint de Ingestão:
                   </span>
                   <div className="flex items-center gap-2 bg-background p-2.5 rounded-lg border font-mono text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
-                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-300">
+                    <Badge variant="success">
                       POST
                     </Badge>
                     <span>https://seu-dominio.com.br/api/webhooks/incoming</span>
