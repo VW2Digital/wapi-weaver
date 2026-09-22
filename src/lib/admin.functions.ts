@@ -6,6 +6,11 @@ import { recordAudit } from "./audit.functions";
 import crypto from "crypto";
 import { hasCompanyAdminRole, hasMasterRole, isMaster } from "./roles";
 import { encryptMetaCredential } from "./encryption";
+import { isCompleteNavigationOrder } from "./navigation-registry";
+import {
+  persistGlobalSidebarOrder,
+  readGlobalSidebarOrder,
+} from "./sidebar-order.repository";
 
 type DebugJsonPrimitive = string | number | boolean | null;
 type DebugJsonValue = DebugJsonPrimitive | DebugJsonObject | DebugJsonValue[];
@@ -444,28 +449,35 @@ export const deleteSchemaBackup = createServerFn({ method: "POST" })
 
 export const getSidebarOrder = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .handler(async ({ context }) => {
-    const { data, error } = await context.db
-      .from("platform_settings")
-      .select("sidebar_order")
-      .eq("id", 1)
-      .maybeSingle();
-    if (error) throw error;
-    return { order: (data as any)?.sidebar_order ?? null };
+  .handler(async () => {
+    const { default: db } = await import("./db");
+    return readGlobalSidebarOrder(db.query);
   });
 
 export const updateSidebarOrder = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((d) => z.object({ order: z.string().nullable() }).parse(d))
+  .validator((d) =>
+    z
+      .object({
+        order: z.array(z.string()).min(1),
+        expectedVersion: z.number().int().nonnegative(),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
-    const { error } = await context.db.from("platform_settings").upsert({
-      id: 1,
-      sidebar_order: data.order,
-      updated_at: new Date().toISOString(),
-      updated_by: context.userId,
-    } as never);
-    if (error) throw error;
+    await assertAdminMaster(context.userId);
+    if (!isCompleteNavigationOrder(data.order)) {
+      throw new Error(
+        "A ordem do menu deve conter todos os identificadores conhecidos, sem duplicações.",
+      );
+    }
+
+    const { default: db } = await import("./db");
+    const saved = await persistGlobalSidebarOrder(db.query, {
+      order: data.order,
+      expectedVersion: data.expectedVersion,
+      updatedBy: context.userId,
+    });
 
     await recordAudit({
       userId: context.userId,
@@ -473,9 +485,16 @@ export const updateSidebarOrder = createServerFn({ method: "POST" })
       action: "platform_settings.update_sidebar_order",
       entityType: "platform_settings",
       entityId: "1",
-      metadata: { has_custom_order: !!data.order },
+      metadata: {
+        item_count: data.order.length,
+        previous_version: data.expectedVersion,
+        new_version: data.expectedVersion + 1,
+      },
     });
-    return { ok: true };
+    return {
+      ok: true,
+      ...saved,
+    };
   });
 
 export const getLicenseStatus = createServerFn({ method: "GET" })

@@ -248,11 +248,31 @@ function InstagramPublicContentPage() {
     );
   }
 
+  if (dashboardQuery.isError) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Não foi possível carregar o conteúdo público do Instagram</AlertTitle>
+        <AlertDescription className="space-y-3">
+          <p>
+            {dashboardQuery.error instanceof Error
+              ? dashboardQuery.error.message
+              : "O servidor não respondeu à consulta da integração."}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => dashboardQuery.refetch()}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Tentar novamente
+          </Button>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
   return (
-    <div className="space-y-6 pb-10">
-      <Card className="border-border/60 shadow-sm">
+    <div className="min-w-0 space-y-4 pb-10 sm:space-y-6">
+      <Card className="min-w-0 overflow-hidden border-border/60 shadow-sm">
         <CardHeader className="gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+          <div className="min-w-0">
             <CardTitle className="flex items-center gap-2">
               <Instagram className="h-5 w-5" />
               Conta profissional
@@ -264,6 +284,7 @@ function InstagramPublicContentPage() {
           {connection ? (
             <Button
               variant="outline"
+              className="w-full sm:w-auto"
               onClick={() => disconnectMutation.mutate()}
               disabled={disconnectMutation.isPending}
             >
@@ -272,6 +293,7 @@ function InstagramPublicContentPage() {
             </Button>
           ) : (
             <Button
+              className="w-full sm:w-auto"
               onClick={startFacebookLogin}
               disabled={connectMutation.isPending || metaAppsQuery.isLoading}
             >
@@ -285,6 +307,15 @@ function InstagramPublicContentPage() {
           )}
         </CardHeader>
         <CardContent>
+          {metaAppsQuery.isError && !connection && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Credenciais da plataforma indisponíveis</AlertTitle>
+              <AlertDescription>
+                Não foi possível consultar a configuração Meta necessária para iniciar a conexão.
+              </AlertDescription>
+            </Alert>
+          )}
           {connection ? (
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="rounded-lg border bg-muted/20 p-4">
@@ -317,7 +348,7 @@ function InstagramPublicContentPage() {
               </div>
             </div>
           ) : (
-            <div className="rounded-lg border border-dashed p-8 text-center">
+            <div className="rounded-lg border border-dashed p-5 text-center sm:p-8">
               <ShieldCheck className="mx-auto h-8 w-8 text-muted-foreground" />
               <p className="mt-3 font-medium">Nenhuma conta conectada</p>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -346,7 +377,7 @@ function InstagramPublicContentPage() {
         </CardContent>
       </Card>
 
-      <Card className="border-border/60 shadow-sm">
+      <Card className="min-w-0 overflow-hidden border-border/60 shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Hash className="h-5 w-5" />
@@ -508,7 +539,7 @@ function InstagramPublicContentPage() {
         </CardContent>
       </Card>
 
-      <Card className="border-border/60 shadow-sm">
+      <Card className="min-w-0 overflow-hidden border-border/60 shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Grid3X3 className="h-5 w-5" />
@@ -519,8 +550,8 @@ function InstagramPublicContentPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="flex items-center justify-between rounded-lg border p-4">
-            <div>
+          <div className="flex flex-col items-start gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
               <Label htmlFor="storefront-enabled" className="font-medium">
                 Exibir galeria na vitrine
               </Label>
@@ -529,6 +560,7 @@ function InstagramPublicContentPage() {
               </p>
             </div>
             <Switch
+              className="shrink-0"
               id="storefront-enabled"
               checked={storeForm.enabled}
               onCheckedChange={(enabled) => setStoreForm((form) => ({ ...form, enabled }))}
@@ -618,7 +650,7 @@ function InstagramPublicContentPage() {
             <Button
               onClick={() => storefrontMutation.mutate()}
               disabled={storefrontMutation.isPending}
-              className="ml-auto"
+              className="w-full sm:ml-auto sm:w-auto"
             >
               {storefrontMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Salvar vitrine

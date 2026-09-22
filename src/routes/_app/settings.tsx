@@ -94,6 +94,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card } from "@/components/ui/card";
@@ -101,6 +102,11 @@ import { GatewaySettings } from "@/components/licenses/gateway-settings";
 import { EmailProviderSettings } from "@/components/licenses/email-provider-settings";
 import { BannersManager } from "@/components/licenses/banners-manager";
 import { hasMasterRole } from "@/lib/roles";
+import {
+  DEFAULT_NAVIGATION_ORDER,
+  getOrderedNavigationItems,
+  moveNavigationItem,
+} from "@/lib/navigation-registry";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -3746,79 +3752,14 @@ function ReadOnly({ label, value, onCopy }: { label: string; value: string; onCo
   );
 }
 
-const MENU_ITEMS = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/chat", label: "Mensagens", icon: MessageCircle },
-  { to: "/contacts", label: "Contatos", icon: Users },
-  { to: "/lists", label: "Listas & Tags", icon: ListChecks },
-  { to: "/templates", label: "Templates", icon: FileText },
-  { to: "/campaigns", label: "Campanhas", icon: Send },
-  { to: "/crm", label: "Kanban", icon: Kanban },
-  { to: "/bot", label: "Bot de Fluxo", icon: Bot },
-  { to: "/ds-agente", label: "Agente de IA", icon: BrainCircuit },
-  { to: "/billing", label: "Faturamento", icon: Receipt },
-  { to: "/settings", label: "Configurações", icon: Settings },
-];
-
 function AdminPlatformSection() {
   const fetchRoles = useServerFn(getCurrentUserRoles);
   const fetchSettings = useServerFn(getPlatformSettings);
   const saveSettings = useServerFn(updatePlatformSettings);
-  const fetchSidebarOrder = useServerFn(getSidebarOrder);
-  const saveSidebarOrder = useServerFn(updateSidebarOrder);
   const qc = useQueryClient();
 
   const { data: roleData } = useQuery({ queryKey: ["my-roles"], queryFn: () => fetchRoles() });
   const isAdmin = roleData?.isAdmin === true;
-
-  const { data: sidebarOrderData } = useQuery({
-    queryKey: ["sidebar-order"],
-    queryFn: () => fetchSidebarOrder(),
-    enabled: isAdmin,
-  });
-
-  const [localNavOrder, setLocalNavOrder] = useState<any[]>([]);
-  const [sidebarOrderCollapsed, toggleSidebarOrderCollapsed] = usePersistedCollapsedState(
-    "zapdispatch_settings_sidebar_order_collapsed",
-    true,
-  );
-  const [savingSidebar, setSavingSidebar] = useState(false);
-
-  useEffect(() => {
-    if (sidebarOrderData) {
-      const order = sidebarOrderData.order;
-      if (order) {
-        try {
-          const parsed =
-            typeof order === "string" ? (JSON.parse(order) as string[]) : (order as string[]);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const sorted = [...MENU_ITEMS].sort((a, b) => {
-              const idxA = parsed.indexOf(a.to);
-              const idxB = parsed.indexOf(b.to);
-              if (idxA === -1 && idxB === -1) return 0;
-              if (idxA === -1) return 1;
-              if (idxB === -1) return -1;
-              return idxA - idxB;
-            });
-            setLocalNavOrder(sorted);
-            return;
-          }
-        } catch {}
-      }
-    }
-    setLocalNavOrder([...MENU_ITEMS]);
-  }, [sidebarOrderData]);
-
-  const moveItem = (index: number, direction: "up" | "down") => {
-    const nextIndex = direction === "up" ? index - 1 : index + 1;
-    if (nextIndex < 0 || nextIndex >= localNavOrder.length) return;
-
-    const updated = [...localNavOrder];
-    const temp = updated[index];
-    updated[index] = updated[nextIndex];
-    updated[nextIndex] = temp;
-    setLocalNavOrder(updated);
-  };
 
   const { data: settings } = useQuery({
     queryKey: ["platform-settings"],
@@ -4289,243 +4230,6 @@ function AdminPlatformSection() {
               <ExportSchemaButton />
             </div>
             <SchemaBackupsHistory />
-          </div>
-
-          <div className="mt-6 border-t pt-5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1">
-                <h3 className="font-display text-base font-semibold flex items-center gap-2">
-                  Organização do Menu Lateral
-                </h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Reorganize os itens do menu lateral usando as setas. As alterações afetam todos os
-                  usuários da plataforma.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={toggleSidebarOrderCollapsed}
-                aria-expanded={!sidebarOrderCollapsed}
-                aria-label={
-                  sidebarOrderCollapsed ? "Expandir seção de menu" : "Recolher seção de menu"
-                }
-                className="shrink-0 gap-1 mt-0.5"
-              >
-                {sidebarOrderCollapsed ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronUp className="h-4 w-4" />
-                )}
-                <span className="hidden sm:inline text-xs">
-                  {sidebarOrderCollapsed ? "Expandir" : "Recolher"}
-                </span>
-              </Button>
-            </div>
-
-            {!sidebarOrderCollapsed && (
-              <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Controles de reordenação */}
-                <div className="space-y-2 rounded-xl border bg-muted/15 p-4">
-                  <div className="text-sm font-semibold mb-3 text-foreground">Reordenar Itens</div>
-                  <div className="space-y-1.5 max-h-[380px] overflow-y-auto pr-1">
-                    {localNavOrder.map((item, idx) => {
-                      const Icon = item.icon;
-                      return (
-                        <div
-                          key={item.to}
-                          className="flex items-center justify-between rounded-lg border bg-card p-3 shadow-sm transition-all hover:border-primary/20"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                              <Icon className="h-4 w-4" />
-                            </div>
-                            <div className="text-left">
-                              <div className="text-sm font-medium text-foreground leading-snug">
-                                {item.label}
-                              </div>
-                              <div className="text-[10px] text-muted-foreground leading-none">
-                                {item.to}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 rounded-md"
-                              disabled={idx === 0}
-                              onClick={() => moveItem(idx, "up")}
-                              title="Mover para cima"
-                            >
-                              <ChevronUp className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 rounded-md"
-                              disabled={idx === localNavOrder.length - 1}
-                              onClick={() => moveItem(idx, "down")}
-                              title="Mover para baixo"
-                            >
-                              <ChevronDown className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="flex gap-2 pt-4 mt-2 border-t">
-                    <Button
-                      size="sm"
-                      onClick={async () => {
-                        setSavingSidebar(true);
-                        try {
-                          const paths = localNavOrder.map((item) => item.to);
-                          const res = await saveSidebarOrder({
-                            data: { order: JSON.stringify(paths) },
-                          });
-                          if (!res.ok) throw new Error("Erro de resposta do servidor");
-                          toast.success("Ordem do menu lateral salva!");
-                          qc.refetchQueries({ queryKey: ["sidebar-order"], type: "all" });
-                        } catch (e: any) {
-                          toast.error(e.message || "Erro ao salvar");
-                        } finally {
-                          setSavingSidebar(false);
-                        }
-                      }}
-                      disabled={savingSidebar}
-                    >
-                      {savingSidebar ? "Salvando..." : "Salvar Nova Ordem"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={async () => {
-                        if (!confirm("Deseja restaurar a ordem padrão do menu?")) return;
-                        setSavingSidebar(true);
-                        try {
-                          const res = await saveSidebarOrder({ data: { order: null } });
-                          if (!res.ok) throw new Error("Erro de resposta do servidor");
-                          toast.success("Ordem padrão restaurada!");
-                          setLocalNavOrder([...MENU_ITEMS]);
-                          qc.refetchQueries({ queryKey: ["sidebar-order"], type: "all" });
-                        } catch (e: any) {
-                          toast.error(e.message || "Erro ao restaurar");
-                        } finally {
-                          setSavingSidebar(false);
-                        }
-                      }}
-                      disabled={savingSidebar}
-                    >
-                      Restaurar Padrão
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Pré-visualização em tempo real */}
-                <div className="flex flex-col items-center justify-center rounded-xl border bg-card p-6 border-dashed">
-                  <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-4 self-start">
-                    Visualização em Tempo Real (Preview)
-                  </div>
-
-                  <div className="w-[230px] rounded-xl border bg-sidebar p-3 text-sidebar-foreground shadow-lg flex flex-col text-left">
-                    <div className="flex items-center gap-2 px-3 py-2 mb-3 border-b border-sidebar-border/30">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-sidebar-primary">
-                        <MessageCircle className="h-3.5 w-3.5 text-sidebar-primary-foreground" />
-                      </div>
-                      <span className="font-display text-xs font-semibold text-sidebar-foreground">
-                        Bliv
-                      </span>
-                    </div>
-
-                    <div className="px-3 pb-1.5 text-[9px] font-medium uppercase tracking-wider text-sidebar-foreground/45">
-                      Menu
-                    </div>
-
-                    <div className="space-y-0.5 max-h-[280px] overflow-y-auto pr-1">
-                      {localNavOrder.map((item, index) => {
-                        const Icon = item.icon;
-                        const active = index === 0;
-                        const isSettings = item.to === "/settings";
-
-                        if (isSettings) {
-                          return (
-                            <div key={item.to} className="space-y-0.5">
-                              <div
-                                className={cn(
-                                  "relative flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs transition-colors text-sidebar-foreground/75",
-                                )}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <Icon className="h-3.5 w-3.5 text-sidebar-foreground/75" />
-                                  <span className="truncate">{item.label}</span>
-                                </div>
-                                <ChevronDown className="h-3 w-3 text-sidebar-foreground/45" />
-                              </div>
-                              <div className="pl-4 space-y-0.5 border-l border-sidebar-border/30 ml-4 mt-0.5">
-                                <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] bg-sidebar-accent text-sidebar-accent-foreground font-medium">
-                                  <Settings className="h-3 w-3 text-sidebar-accent-foreground" />
-                                  <span>Geral</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-sidebar-foreground/60">
-                                  <UserCog className="h-3 w-3 text-sidebar-foreground/60" />
-                                  <span>Perfil WhatsApp</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-sidebar-foreground/60">
-                                  <ShieldCheck className="h-3 w-3 text-sidebar-foreground/60" />
-                                  <span>Usuários</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-sidebar-foreground/60">
-                                  <ScrollText className="h-3 w-3 text-sidebar-foreground/60" />
-                                  <span>Auditoria</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-sidebar-foreground/60">
-                                  <Activity className="h-3 w-3 text-sidebar-foreground/60" />
-                                  <span>Eventos do Webhook</span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <div
-                            key={item.to}
-                            className={cn(
-                              "relative flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs transition-colors",
-                              active
-                                ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                                : "text-sidebar-foreground/75",
-                            )}
-                          >
-                            {active && (
-                              <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r-full bg-sidebar-primary" />
-                            )}
-                            <Icon
-                              className={cn(
-                                "h-3.5 w-3.5",
-                                active
-                                  ? "text-sidebar-accent-foreground"
-                                  : "text-sidebar-foreground/75",
-                              )}
-                            />
-                            <span className="truncate">{item.label}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="text-[11px] text-muted-foreground mt-4 text-center leading-relaxed">
-                    💡 O primeiro item da lista é mostrado como ativo nesta pré-visualização.
-                    <br />
-                    As alterações são aplicadas a todos os usuários após salvar.
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="mt-4 flex gap-2">
@@ -5269,77 +4973,106 @@ function AdminSidebarSection() {
   const qc = useQueryClient();
 
   const { data: roleData } = useQuery({ queryKey: ["my-roles"], queryFn: () => fetchRoles() });
-  const isAdmin = roleData?.isAdmin === true;
+  const isAdminMaster = hasMasterRole(roleData?.roles || []);
 
   const { data: sidebarOrderData } = useQuery({
     queryKey: ["sidebar-order"],
     queryFn: () => fetchSidebarOrder(),
-    enabled: isAdmin,
+    enabled: isAdminMaster,
+    staleTime: 0,
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 
-  const [localNavOrder, setLocalNavOrder] = useState<any[]>([]);
+  const [localOrderIds, setLocalOrderIds] = useState<string[]>(DEFAULT_NAVIGATION_ORDER);
+  const [savedOrderIds, setSavedOrderIds] = useState<string[]>(DEFAULT_NAVIGATION_ORDER);
+  const [baseVersion, setBaseVersion] = useState<number | null>(null);
+  const [externalUpdate, setExternalUpdate] = useState(false);
   const [savingSidebar, setSavingSidebar] = useState(false);
+  const isDirty = localOrderIds.join("|") !== savedOrderIds.join("|");
+  const isDefaultOrder = localOrderIds.join("|") === DEFAULT_NAVIGATION_ORDER.join("|");
+  const localNavOrder = getOrderedNavigationItems(localOrderIds);
 
   useEffect(() => {
-    if (sidebarOrderData) {
-      const order = sidebarOrderData.order;
-      if (order) {
-        try {
-          const parsed =
-            typeof order === "string" ? (JSON.parse(order) as string[]) : (order as string[]);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const sorted = [...MENU_ITEMS].sort((a, b) => {
-              const idxA = parsed.indexOf(a.to);
-              const idxB = parsed.indexOf(b.to);
-              if (idxA === -1 && idxB === -1) return 0;
-              if (idxA === -1) return 1;
-              if (idxB === -1) return -1;
-              return idxA - idxB;
-            });
-            setLocalNavOrder(sorted);
-            return;
-          }
-        } catch {}
-      }
+    if (!sidebarOrderData || sidebarOrderData.version === baseVersion) return;
+    if (baseVersion !== null && isDirty) {
+      setExternalUpdate(true);
+      return;
     }
-    setLocalNavOrder([...MENU_ITEMS]);
-  }, [sidebarOrderData]);
+    setLocalOrderIds(sidebarOrderData.order);
+    setSavedOrderIds(sidebarOrderData.order);
+    setBaseVersion(sidebarOrderData.version);
+    setExternalUpdate(false);
+  }, [baseVersion, isDirty, sidebarOrderData]);
 
   const moveItem = (index: number, direction: "up" | "down") => {
-    const nextIndex = direction === "up" ? index - 1 : index + 1;
-    if (nextIndex < 0 || nextIndex >= localNavOrder.length) return;
-    const updated = [...localNavOrder];
-    const temp = updated[index];
-    updated[index] = updated[nextIndex];
-    updated[nextIndex] = temp;
-    setLocalNavOrder(updated);
+    setLocalOrderIds((current) => moveNavigationItem(current, index, direction));
   };
+
+  if (roleData && !isAdminMaster) {
+    return (
+      <Alert variant="destructive">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Acesso restrito</AlertTitle>
+        <AlertDescription>
+          Somente administradores master podem alterar a ordem global do menu.
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <Card className="p-6 space-y-6 border-primary/20">
-      <div className="flex items-start gap-3">
+      <div className="flex items-start justify-between gap-3">
         <div className="rounded-lg bg-primary/10 p-2">
           <LayoutDashboard className="h-5 w-5 text-primary" />
         </div>
-        <div>
+        <div className="flex-1">
           <h2 className="font-display text-lg font-semibold">Organização do Menu Lateral</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Reorganize os itens do menu lateral usando as setas. As alterações afetam todos os
             usuários da plataforma.
           </p>
         </div>
+        <Badge variant={isDirty ? "secondary" : "outline"}>
+          {isDirty ? "Alterações não salvas" : `Ordem salva · versão ${baseVersion ?? 0}`}
+        </Badge>
       </div>
+
+      {externalUpdate && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Nova versão disponível</AlertTitle>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            Outro administrador salvou uma nova ordem enquanto você editava.
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                if (!sidebarOrderData) return;
+                setLocalOrderIds(sidebarOrderData.order);
+                setSavedOrderIds(sidebarOrderData.order);
+                setBaseVersion(sidebarOrderData.version);
+                setExternalUpdate(false);
+              }}
+            >
+              Carregar versão mais recente
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Controles de reordenação */}
         <div className="space-y-2 rounded-xl border bg-muted/15 p-4">
           <div className="text-sm font-semibold mb-3 text-foreground">Reordenar Itens</div>
-          <div className="space-y-1.5 max-h-[380px] overflow-y-auto pr-1">
+          <div className="space-y-1.5 max-h-95 overflow-y-auto pr-1">
             {localNavOrder.map((item, idx) => {
               const Icon = item.icon;
               return (
                 <div
-                  key={item.to}
+                  key={item.id}
                   className="flex items-center justify-between rounded-lg border bg-card p-3 shadow-sm transition-all hover:border-primary/20"
                 >
                   <div className="flex items-center gap-3">
@@ -5385,42 +5118,43 @@ function AdminSidebarSection() {
             <Button
               size="sm"
               onClick={async () => {
+                if (baseVersion === null) return;
                 setSavingSidebar(true);
                 try {
-                  const paths = localNavOrder.map((item) => item.to);
-                  const res = await saveSidebarOrder({ data: { order: JSON.stringify(paths) } });
+                  const res = await saveSidebarOrder({
+                    data: { order: localOrderIds, expectedVersion: baseVersion },
+                  });
                   if (!res.ok) throw new Error("Erro de resposta do servidor");
+                  setLocalOrderIds(res.order);
+                  setSavedOrderIds(res.order);
+                  setBaseVersion(res.version);
+                  setExternalUpdate(false);
+                  qc.setQueryData(["sidebar-order"], {
+                    order: res.order,
+                    version: res.version,
+                    updatedAt: res.updatedAt,
+                  });
+                  await qc.invalidateQueries({ queryKey: ["sidebar-order"] });
                   toast.success("Ordem do menu lateral salva!");
-                  qc.refetchQueries({ queryKey: ["sidebar-order"], type: "all" });
-                } catch (e: any) {
-                  toast.error(e.message || "Erro ao salvar");
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : "Erro ao salvar");
                 } finally {
                   setSavingSidebar(false);
                 }
               }}
-              disabled={savingSidebar}
+              disabled={savingSidebar || !isDirty || baseVersion === null || externalUpdate}
             >
               {savingSidebar ? "Salvando..." : "Salvar Nova Ordem"}
             </Button>
             <Button
               size="sm"
               variant="outline"
-              onClick={async () => {
+              onClick={() => {
                 if (!confirm("Deseja restaurar a ordem padrão do menu?")) return;
-                setSavingSidebar(true);
-                try {
-                  const res = await saveSidebarOrder({ data: { order: null } });
-                  if (!res.ok) throw new Error("Erro de resposta do servidor");
-                  toast.success("Ordem padrão restaurada!");
-                  setLocalNavOrder([...MENU_ITEMS]);
-                  qc.refetchQueries({ queryKey: ["sidebar-order"], type: "all" });
-                } catch (e: any) {
-                  toast.error(e.message || "Erro ao restaurar");
-                } finally {
-                  setSavingSidebar(false);
-                }
+                setLocalOrderIds([...DEFAULT_NAVIGATION_ORDER]);
+                toast.info("Ordem padrão carregada. Clique em Salvar Nova Ordem para confirmar.");
               }}
-              disabled={savingSidebar}
+              disabled={savingSidebar || isDefaultOrder}
             >
               Restaurar Padrão
             </Button>
@@ -5433,7 +5167,7 @@ function AdminSidebarSection() {
             Visualização em Tempo Real (Preview)
           </div>
 
-          <div className="w-[230px] rounded-xl border bg-sidebar p-3 text-sidebar-foreground shadow-lg flex flex-col text-left">
+          <div className="w-57.5 rounded-xl border bg-sidebar p-3 text-sidebar-foreground shadow-lg flex flex-col text-left">
             <div className="flex items-center gap-2 px-3 py-2 mb-3 border-b border-sidebar-border/30">
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-sidebar-primary">
                 <MessageCircle className="h-3.5 w-3.5 text-sidebar-primary-foreground" />
@@ -5447,15 +5181,14 @@ function AdminSidebarSection() {
               Menu
             </div>
 
-            <div className="space-y-0.5 max-h-[280px] overflow-y-auto pr-1">
+            <div className="space-y-0.5 max-h-70 overflow-y-auto pr-1">
               {localNavOrder.map((item, index) => {
                 const Icon = item.icon;
                 const active = index === 0;
-                const isSettings = item.to === "/settings";
 
-                if (isSettings) {
+                if (item.children?.length) {
                   return (
-                    <div key={item.to} className="space-y-0.5">
+                    <div key={item.id} className="space-y-0.5">
                       <div className="relative flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs transition-colors text-sidebar-foreground/75">
                         <div className="flex items-center gap-2">
                           <Icon className="h-3.5 w-3.5 text-sidebar-foreground/75" />
@@ -5464,26 +5197,23 @@ function AdminSidebarSection() {
                         <ChevronDown className="h-3 w-3 text-sidebar-foreground/45" />
                       </div>
                       <div className="pl-4 space-y-0.5 border-l border-sidebar-border/30 ml-4 mt-0.5">
-                        <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] bg-sidebar-accent text-sidebar-accent-foreground font-medium">
-                          <Settings className="h-3 w-3 text-sidebar-accent-foreground" />
-                          <span>Geral</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-sidebar-foreground/60">
-                          <UserCog className="h-3 w-3 text-sidebar-foreground/60" />
-                          <span>Perfil WhatsApp</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-sidebar-foreground/60">
-                          <ShieldCheck className="h-3 w-3 text-sidebar-foreground/60" />
-                          <span>Usuários</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-sidebar-foreground/60">
-                          <ScrollText className="h-3 w-3 text-sidebar-foreground/60" />
-                          <span>Auditoria</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-sidebar-foreground/60">
-                          <Activity className="h-3 w-3 text-sidebar-foreground/60" />
-                          <span>Eventos do Webhook</span>
-                        </div>
+                        {item.children.map((child, childIndex) => {
+                          const ChildIcon = child.icon;
+                          return (
+                            <div
+                              key={child.id}
+                              className={cn(
+                                "flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px]",
+                                childIndex === 0
+                                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                                  : "text-sidebar-foreground/60",
+                              )}
+                            >
+                              <ChildIcon className="h-3 w-3" />
+                              <span>{child.label}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -5491,7 +5221,7 @@ function AdminSidebarSection() {
 
                 return (
                   <div
-                    key={item.to}
+                    key={item.id}
                     className={cn(
                       "relative flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs transition-colors",
                       active
@@ -5516,7 +5246,7 @@ function AdminSidebarSection() {
           </div>
 
           <div className="text-[11px] text-muted-foreground mt-4 text-center leading-relaxed">
-            💡 O primeiro item da lista é mostrado como ativo nesta pré-visualização.
+            O primeiro item da lista é mostrado como ativo nesta pré-visualização.
             <br />
             As alterações são aplicadas a todos os usuários após salvar.
           </div>

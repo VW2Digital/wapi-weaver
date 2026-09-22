@@ -2,7 +2,6 @@ import { createFileRoute, Outlet, Link, useRouter, useLocation } from "@tanstack
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { getSidebarOrder, getLicenseStatus } from "@/lib/admin.functions";
-import { getLicenseRole } from "@/lib/license-admin.functions";
 import { getProfile } from "@/lib/profile.functions";
 import { listChatContacts } from "@/lib/chat.functions";
 import { useAuth } from "@/hooks/use-auth";
@@ -52,11 +51,27 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { SidebarProvider, Sidebar, SidebarRail, SidebarTrigger, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset } from "@/components/ui/sidebar";
+import {
+  SidebarProvider,
+  Sidebar,
+  SidebarRail,
+  SidebarTrigger,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarInset,
+} from "@/components/ui/sidebar";
 import { SidebarNav, type SidebarNavItem } from "@/components/SidebarNav";
 import { PageHeaderProvider } from "@/components/layout/page-header-provider";
 import { SubscriptionCheckoutModal } from "@/components/subscription/subscription-checkout-modal";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import {
+  getOrderedNavigationItems,
+  isNavigationVisible,
+  NAVIGATION_REGISTRY,
+  resolveNavigationRoute,
+} from "@/lib/navigation-registry";
 
 function useGravatarUrl(email: string | null | undefined) {
   const [url, setUrl] = useState<string | null>(null);
@@ -79,59 +94,6 @@ function useGravatarUrl(email: string | null | undefined) {
   return url;
 }
 
-type NavChildItem = {
-  to: string;
-  label: string;
-  icon: React.ElementType<{ className?: string }>;
-};
-
-type NavParentItem = NavChildItem & {
-  children: NavChildItem[];
-};
-
-type NavItem = NavChildItem | NavParentItem;
-
-const NAV: NavItem[] = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/chat", label: "Mensagens", icon: MessageCircle },
-  { to: "/contacts/", label: "Contatos", icon: Users },
-  { to: "/lists", label: "Listas & Tags", icon: ListChecks },
-  { to: "/templates", label: "Templates", icon: FileText },
-  { to: "/campaigns/", label: "Campanhas", icon: Send },
-  { to: "/crm", label: "Kanban", icon: Kanban },
-  { to: "/agenda", label: "Agenda", icon: Calendar },
-  {
-    to: "/automacoes",
-    label: "Automações",
-    icon: Zap,
-    children: [
-      { to: "/bot", label: "Fluxos de Automação", icon: Bot },
-      { to: "/ds-agente", label: "DS Agente", icon: BrainCircuit },
-      { to: "/webhooks", label: "Webhooks", icon: Webhook },
-    ],
-  },
-  { to: "/instagram-content", label: "Conteúdo Instagram", icon: Instagram },
-  { to: "/billing", label: "Faturamento", icon: Receipt },
-  {
-    to: "/settings",
-    label: "Configurações",
-    icon: Settings,
-    children: [
-      { to: "/settings", label: "Geral", icon: Settings },
-      { to: "/whatsapp-business-profile", label: "Perfil WhatsApp", icon: UserCog },
-      { to: "/users", label: "Membros da empresa", icon: ShieldCheck },
-      { to: "/audit", label: "Auditoria", icon: ScrollText },
-      { to: "/webhook-events", label: "Eventos do Webhook", icon: Activity },
-      { to: "/docs", label: "Documentação", icon: BookOpen },
-    ],
-  },
-];
-
-const ADMIN_ONLY_PATHS = new Set([
-  "/webhook-events",
-  "/billing",
-]);
-
 const OPERATIONAL_PATHS = new Set([
   "/chat",
   "/contacts",
@@ -148,21 +110,6 @@ const OPERATIONAL_PATHS = new Set([
   "/webhooks",
   "/webhook-events",
 ]);
-
-const GROUP_ORDER: Record<string, number> = {
-  "/dashboard": 0,
-  "/chat": 0,
-  "/contacts/": 1,
-  "/lists": 1,
-  "/templates": 2,
-  "/campaigns/": 2,
-  "/crm": 3,
-  "/agenda": 3,
-  "/automacoes": 4,
-  "/billing": 5,
-  "/settings": 6,
-  "/licenses/": 7,
-};
 
 function AppLayout() {
   const { user, loading } = useAuth();
@@ -204,19 +151,15 @@ function AppLayout() {
   }, [contactsQuery.data]);
 
   const fetchSidebarOrder = useServerFn(getSidebarOrder);
-  const fetchLicenseRole = useServerFn(getLicenseRole);
 
   const { data: sidebarOrderData } = useQuery({
     queryKey: ["sidebar-order"],
     queryFn: () => fetchSidebarOrder(),
-    staleTime: 60_000,
-  });
-
-  const licenseRoleQuery = useQuery({
-    queryKey: ["license-role"],
-    queryFn: () => fetchLicenseRole({}),
-    enabled: !loading && !!user && isAdmin,
-    staleTime: 60_000,
+    enabled: !loading && Boolean(user),
+    staleTime: 0,
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 
   const subscriptionQuery = useQuery({
@@ -234,7 +177,7 @@ function AppLayout() {
     enabled: !loading && !!user,
     staleTime: 10000,
     retry: false,
-    refetchInterval: (query) => query.state.status === "error" ? false : 30000,
+    refetchInterval: (query) => (query.state.status === "error" ? false : 30000),
   });
 
   const subAccess = subscriptionQuery.data?.access;
@@ -242,54 +185,29 @@ function AppLayout() {
   const isTrialActive = subAccess ? subAccess.status === "trialing" && subAccess.allowed : false;
 
   const navItems = useMemo(() => {
-    const base: NavItem[] = [...NAV];
     const billingEnabled = import.meta.env.VITE_BILLING_ENABLED !== "false";
-    const filtered = billingEnabled ? base : base.filter(item => item.to !== "/billing");
-
     const isAdminMasterUser = hasMasterRole(roles);
-
-    if (isAdminMasterUser) {
-      const panelItem: NavChildItem = {
-        to: "/licenses/",
-        label: "Gerenciamento de Clientes / Assinaturas",
-        icon: Users,
-      };
-      filtered.push(panelItem);
-    }
-    return filtered;
-  }, [licenseRoleQuery.data?.isAdmin, isAdmin, roles]);
+    return NAVIGATION_REGISTRY.filter(
+      (item) =>
+        (billingEnabled || item.id !== "billing") &&
+        isNavigationVisible(item.visibility, {
+          isAdmin,
+          isMaster: isAdminMasterUser,
+        }),
+    );
+  }, [isAdmin, roles]);
 
   const orderedNav = useMemo(() => {
-    const raw = sidebarOrderData?.order;
-    if (!raw) return [...navItems];
-    try {
-      const pathsOrder =
-        typeof raw === "string" ? (JSON.parse(raw) as string[]) : (raw as string[]);
-      if (!Array.isArray(pathsOrder) || pathsOrder.length === 0) return [...navItems];
-
-      const navDefaults = new Map(navItems.map((item, idx) => [item.to, idx]));
-      const navCopy = [...navItems];
-      navCopy.sort((a, b) => {
-        const idxA = pathsOrder.indexOf(a.to);
-        const idxB = pathsOrder.indexOf(b.to);
-        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-        const defA = navDefaults.get(a.to) ?? 999;
-        const defB = navDefaults.get(b.to) ?? 999;
-        return defA - defB;
-      });
-      return navCopy;
-    } catch {
-      return [...navItems];
-    }
+    const available = new Set(navItems.map(({ id }) => id));
+    return getOrderedNavigationItems(sidebarOrderData?.order).filter(({ id }) => available.has(id));
   }, [sidebarOrderData, navItems]);
 
   const sidebarGroups = useMemo(() => {
-    const groupMap = new Map<number, SidebarNavItem[]>();
-    for (const item of orderedNav) {
-      if (ADMIN_ONLY_PATHS.has(item.to) && !isAdmin) continue;
-      const gIdx = GROUP_ORDER[item.to] ?? 0;
-      if (!groupMap.has(gIdx)) groupMap.set(gIdx, []);
+    const groups: SidebarNavItem[][] = [];
+    let previousGroup: string | null = null;
+    const isAdminMasterUser = hasMasterRole(roles);
 
+    for (const item of orderedNav) {
       const isLocked = isSubscriptionBlocked && OPERATIONAL_PATHS.has(item.to);
 
       const navItem: SidebarNavItem = {
@@ -299,9 +217,15 @@ function AppLayout() {
         isLocked,
         badge: item.to === "/chat" && totalUnread > 0 ? totalUnread : undefined,
       };
-      if ("children" in item && item.children.length > 0) {
-        navItem.children = item.children
-          .filter((child) => !ADMIN_ONLY_PATHS.has(child.to) || isAdmin)
+      const children = item.children;
+      if (children?.length) {
+        navItem.children = children
+          .filter((child) =>
+            isNavigationVisible(child.visibility, {
+              isAdmin,
+              isMaster: isAdminMasterUser,
+            }),
+          )
           .map((child) => ({
             id: child.to,
             label: child.label,
@@ -310,72 +234,28 @@ function AppLayout() {
           }));
         if (navItem.children.length === 0) continue;
       }
-      groupMap.get(gIdx)!.push(navItem);
+      if (previousGroup !== item.group || groups.length === 0) {
+        groups.push([]);
+      }
+      groups[groups.length - 1].push(navItem);
+      previousGroup = item.group;
     }
-    return Array.from(groupMap.entries())
-      .sort(([a], [b]) => a - b)
-      .map(([, items]) => items)
-      .filter((g) => g.length > 0);
-  }, [orderedNav, isAdmin, totalUnread, isSubscriptionBlocked]);
+    return groups;
+  }, [orderedNav, isAdmin, totalUnread, isSubscriptionBlocked, roles]);
 
   const handleNavigate = useCallback(
     (path: string) => {
-      const p = path.endsWith("/") && path !== "/" ? path.slice(0, -1) : path;
-      if (isSubscriptionBlocked && OPERATIONAL_PATHS.has(p)) {
+      const route = resolveNavigationRoute(path);
+      if (!route) {
+        console.error(`[Navigation] Unknown sidebar route: ${path}`);
+        toast.error("Não foi possível abrir esta seção: rota inválida.");
+        return;
+      }
+      if (isSubscriptionBlocked && OPERATIONAL_PATHS.has(route)) {
         setIsCheckoutModalOpen(true);
         return;
       }
-      if (p === "/settings") {
-        router.navigate({ to: "/settings", search: { s: undefined } });
-      } else if (p === "/chat") {
-        router.navigate({ to: "/chat" });
-      } else if (p === "/dashboard") {
-        router.navigate({ to: "/dashboard" });
-      } else if (p === "/contacts") {
-        router.navigate({ to: "/contacts" });
-      } else if (p === "/lists") {
-        router.navigate({ to: "/lists" });
-      } else if (p === "/templates") {
-        router.navigate({ to: "/templates" });
-      } else if (p === "/campaigns") {
-        router.navigate({ to: "/campaigns" });
-      } else if (p === "/crm") {
-        router.navigate({ to: "/crm" });
-      } else if (p === "/agenda") {
-        router.navigate({ to: "/agenda" });
-      } else if (p === "/bot") {
-        router.navigate({ to: "/bot" });
-      } else if (p === "/ds-agente") {
-        router.navigate({ to: "/ds-agente" });
-      } else if (p === "/webhooks") {
-        router.navigate({ to: "/webhooks" });
-      } else if (p === "/billing") {
-        router.navigate({ to: "/billing" });
-      } else if (p === "/whatsapp-business-profile") {
-        router.navigate({ to: "/whatsapp-business-profile" });
-      } else if (p === "/users") {
-        router.navigate({ to: "/users" });
-      } else if (p === "/audit") {
-        router.navigate({ to: "/audit" });
-      } else if (p === "/webhook-events") {
-        router.navigate({ to: "/webhook-events" });
-      } else if (p === "/licenses") {
-        router.navigate({ to: "/licenses" });
-      } else if (p === "/docs") {
-        router.navigate({ to: "/docs" });
-      } else if (p === "/webchat") {
-        router.navigate({ to: "/webchat" });
-      } else if (p === "/profile") {
-        router.navigate({ to: "/profile" });
-      } else if (p === "/groups") {
-        router.navigate({ to: "/groups" });
-      } else if (p === "/settings/custom-fields") {
-        router.navigate({ to: "/settings/custom-fields" });
-      } else if (p === "/ai-agent") {
-        router.navigate({ to: "/ds-agente" });
-      } else {
-        router.navigate({ to: "/settings", search: { s: undefined } });
-      }
+      router.history.push(route);
     },
     [router, isSubscriptionBlocked],
   );
@@ -392,9 +272,7 @@ function AppLayout() {
   useEffect(() => {
     setProfileAvatar(profileSidebarQuery.data?.avatar_url ?? null);
     setProfileDisplayName(
-      profileSidebarQuery.data?.display_name ||
-      profileSidebarQuery.data?.full_name ||
-      null
+      profileSidebarQuery.data?.display_name || profileSidebarQuery.data?.full_name || null,
     );
   }, [profileSidebarQuery.data]);
 
@@ -497,7 +375,7 @@ function AppLayout() {
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
                   size="lg"
-                  className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:!w-10 group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto"
+                  className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:w-10! group-data-[collapsible=icon]:h-10! group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto"
                 >
                   <Avatar className="h-8 w-8 shrink-0">
                     {avatarUrl && <AvatarImage src={avatarUrl} alt={user.email ?? ""} />}
@@ -506,16 +384,27 @@ function AppLayout() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                    <span className="truncate font-medium">{profileDisplayName ?? user.email?.split("@")?.[0]}</span>
-                    <span className="truncate text-xs text-sidebar-foreground/60">{user.email}</span>
+                    <span className="truncate font-medium">
+                      {profileDisplayName ?? user.email?.split("@")?.[0]}
+                    </span>
+                    <span className="truncate text-xs text-sidebar-foreground/60">
+                      {user.email}
+                    </span>
                   </div>
                   <ChevronUp className="ml-auto h-4 w-4 group-data-[collapsible=icon]:hidden" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
-            <DropdownMenuContent side="top" align="center" sideOffset={4} className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg z-[100]">
+              <DropdownMenuContent
+                side="top"
+                align="center"
+                sideOffset={4}
+                className="z-100 w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+              >
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-medium truncate">{profileDisplayName ?? user.email?.split("@")?.[0]}</span>
+                    <span className="text-sm font-medium truncate">
+                      {profileDisplayName ?? user.email?.split("@")?.[0]}
+                    </span>
                     <span className="text-xs text-muted-foreground truncate">{user.email}</span>
                   </div>
                 </DropdownMenuLabel>
@@ -621,7 +510,8 @@ function AppLayout() {
                 <div>
                   <span className="font-bold">Seu Período de Teste Terminou:</span>{" "}
                   <span className="opacity-95">
-                    Para continuar utilizando todos os recursos operacionais do BLIV CRM, ative sua assinatura.
+                    Para continuar utilizando todos os recursos operacionais do BLIV CRM, ative sua
+                    assinatura.
                   </span>
                 </div>
               </div>
@@ -645,10 +535,7 @@ function AppLayout() {
       </SidebarProvider>
 
       {/* Modal de Checkout / Renovação de Assinatura */}
-      <SubscriptionCheckoutModal
-        open={isCheckoutModalOpen}
-        onOpenChange={setIsCheckoutModalOpen}
-      />
+      <SubscriptionCheckoutModal open={isCheckoutModalOpen} onOpenChange={setIsCheckoutModalOpen} />
     </>
   );
 }
