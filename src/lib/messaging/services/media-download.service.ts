@@ -54,6 +54,8 @@ export async function downloadMessageMedia(
     if (provider === "instagram") {
       const remoteUrl = attachment.remoteUrl;
       if (!remoteUrl) continue;
+      const { isInstagramPostOrReelUrl } = await import("@/lib/chat-instagram-share");
+      if (isInstagramPostOrReelUrl(remoteUrl)) continue;
 
       const { downloadAndPersistInstagramMedia } = await import("@/lib/instagram-media-downloader");
       await downloadAndPersistInstagramMedia(

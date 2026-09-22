@@ -54,6 +54,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CallButton } from "@/components/calls/CallButton";
 import { InstagramAttentionBar } from "@/components/chat/InstagramAttentionBar";
+import { ChatVideoBubble } from "@/components/chat/ChatVideoBubble";
+import { resolveInstagramShareUrl } from "@/lib/chat-instagram-share";
 import { IncomingCallDialog } from "@/components/calls/IncomingCallDialog";
 import { ActiveCallDialog } from "@/components/calls/ActiveCallDialog";
 import {
@@ -6727,10 +6729,9 @@ function ChatPage() {
                                             )}
                                             {headerMediaType === "video" && headerMediaUrl && (
                                               <div className="w-full overflow-hidden bg-black/10 rounded-t-xl">
-                                                <video
+                                                <ChatVideoBubble
                                                   src={getMediaUrl(headerMediaUrl, msg.id)}
-                                                  controls
-                                                  className="w-full max-h-64 object-cover"
+                                                  isInstagram={isInstagramChat}
                                                 />
                                               </div>
                                             )}
@@ -6843,28 +6844,31 @@ function ChatPage() {
                                                 )}
                                               >
                                                 {(() => {
-                                                  const videoSrc = getMediaUrl(
+                                                  const rawVideo =
                                                     msg.video?.link ||
-                                                      msg.video?.id ||
-                                                      (msg.metadata as any)?.video?.link ||
-                                                      (msg.metadata as any)?.video?.url ||
-                                                      (msg.metadata as any)?.video?.id ||
-                                                      (msg.metadata as any)?.media_url ||
-                                                      (msg.metadata as any)?.mediaUrl ||
-                                                      (isUrl(bodyText) || /^\d{15,18}$/.test(bodyText) ? bodyText : ""),
-                                                    msg.id,
-                                                  );
-                                                  return videoSrc ? (
-                                                    <video
+                                                    msg.video?.id ||
+                                                    (msg.metadata as any)?.video?.link ||
+                                                    (msg.metadata as any)?.video?.url ||
+                                                    (msg.metadata as any)?.video?.id ||
+                                                    (msg.metadata as any)?.media_url ||
+                                                    (msg.metadata as any)?.mediaUrl ||
+                                                    (msg.metadata as any)?.primaryAttachment?.remoteUrl ||
+                                                    (isUrl(bodyText) || /^\d{15,18}$/.test(bodyText) ? bodyText : "");
+                                                  const videoSrc = getMediaUrl(rawVideo, msg.id);
+                                                  const shareUrl = resolveInstagramShareUrl([
+                                                    rawVideo,
+                                                    videoSrc,
+                                                    bodyText,
+                                                    (msg.metadata as any)?.primaryAttachment?.remoteUrl,
+                                                    (msg.metadata as any)?.attachments?.[0]?.remoteUrl,
+                                                  ]);
+                                                  return (
+                                                    <ChatVideoBubble
                                                       src={videoSrc}
-                                                      controls
-                                                      preload="metadata"
-                                                      className="w-full max-h-72 object-cover rounded-2xl"
+                                                      shareUrl={shareUrl}
+                                                      isInstagram={isInstagramChat}
+                                                      caption={msg.video?.caption || null}
                                                     />
-                                                  ) : (
-                                                    <div className="aspect-video w-full bg-muted flex items-center justify-center rounded-2xl">
-                                                      <Video className="h-6 w-6 text-muted-foreground" />
-                                                    </div>
                                                   );
                                                 })()}
                                                 <div className="pointer-events-none absolute bottom-1.5 right-2 z-10 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white shadow-sm backdrop-blur-[1px]">

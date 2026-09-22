@@ -15,6 +15,7 @@ import {
   logAdapterError,
   resolveMessageType,
 } from "./base.adapter";
+import { isInstagramPostOrReelUrl, isPlayableVideoSrc } from "@/lib/chat-instagram-share";
 
 export type InstagramRawPayload = {
   object?: string;
@@ -92,8 +93,11 @@ function resolveInstagramMessageType(
       attachment.type === "share" ||
       attachment.type === "ig_reel"
     ) {
-      if (remoteUrl) {
-        type = remoteUrl ? "video" : "unknown";
+      if (remoteUrl && isPlayableVideoSrc(remoteUrl)) {
+        type = "video";
+      } else if (remoteUrl) {
+        type = "video";
+        if (isInstagramPostOrReelUrl(remoteUrl) && !body) body = remoteUrl;
       }
     }
     attachments.push(buildAttachment(type, meta));
