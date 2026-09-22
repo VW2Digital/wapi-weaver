@@ -16,6 +16,7 @@
         "src/lib/messaging/outbound/adapters/instagram.outbound-adapter.ts",
         "src/lib/messaging/outbound/adapters/instagram.api.ts",
         "src/lib/messaging/outbound/adapters/instagram.payload-builder.ts",
+        "src/routes/_app/chat.tsx",
         "src/lib/instagram.functions.ts",
         "src/routes/api/public/instagram-webhook.ts",
         "src/lib/messaging/webhook-handlers/instagram.handler.ts",

@@ -25,6 +25,7 @@ export interface ChatProviderPayload {
   };
   contacts?: unknown[];
   reply_to_message_id?: string;
+  local_file_path?: string;
 }
 
 export interface EnqueueChatMessageInput {
@@ -243,6 +244,15 @@ async function dispatch(job: ChatOutboxRow): Promise<DispatchResult> {
     };
   } catch (error) {
     if (error instanceof DispatchError) throw error;
+    const retryable = (error as { retryable?: boolean } | null)?.retryable;
+    const responsePayload = (error as { responsePayload?: unknown } | null)?.responsePayload;
+    if (retryable === false) {
+      throw new DispatchError(
+        error instanceof Error ? error.message : "Falha no envio.",
+        false,
+        responsePayload ?? null,
+      );
+    }
     throw networkDispatchError(error);
   }
 }
@@ -513,6 +523,57 @@ export async function processChatOutboxBatch(): Promise<number> {
     }),
   );
   return jobs.length;
+}
+
+export async function requeueFailedChatMessage(input: {
+  tenantId: string;
+  messageId: string;
+}) {
+  const messages = (await db.query(
+    `SELECT id, status
+     FROM direct_messages
+     WHERE id = ? AND tenant_id = ?
+     LIMIT 1`,
+    [input.messageId, input.tenantId],
+  )) as Array<{ id: string; status: string | null }>;
+  const message = messages[0];
+  if (!message || message.status !== "failed") {
+    throw new Error("Só é possível reenviar mensagens que falharam.");
+  }
+
+  const outboxRows = (await db.query(
+    `SELECT id, recipient
+     FROM chat_message_outbox
+     WHERE tenant_id = ? AND message_id = ? AND status = 'failed'
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [input.tenantId, input.messageId],
+  )) as Array<{ id: string; recipient: string }>;
+  const outbox = outboxRows[0];
+  if (!outbox) {
+    throw new Error("Não há item de fila com falha para esta mensagem.");
+  }
+
+  await db.query(
+    `UPDATE chat_message_outbox
+     SET status = 'pending', next_attempt_at = NOW(), last_error = NULL,
+         locked_at = NULL, locked_by = NULL
+     WHERE id = ? AND tenant_id = ? AND status = 'failed'`,
+    [outbox.id, input.tenantId],
+  );
+  await db.query(
+    `UPDATE direct_messages
+     SET status = 'queued'
+     WHERE id = ? AND tenant_id = ? AND status = 'failed'`,
+    [input.messageId, input.tenantId],
+  );
+  await publishChatRealtimeEvent({
+    type: "message.queued",
+    tenant_id: input.tenantId,
+    contact_phone: outbox.recipient,
+    message_id: input.messageId,
+    status: "queued",
+  });
 }
 
 interface OutboxWorkerState {

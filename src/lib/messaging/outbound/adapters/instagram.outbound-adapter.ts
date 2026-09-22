@@ -3,8 +3,9 @@
 import db from "@/lib/db";
 import { getChannelConnection, requireActiveChannel, resolveChannelAccessToken, type ChannelConnection } from "@/lib/messaging/channel-connection.service";
 import type { IOutboundAdapter, OutboundMessageContext, OutboundSendResult } from "../types";
-import { buildInstagramOutboundPayload, resolveInstagramAuthMode } from "./instagram.payload-builder";
-import { InstagramClient } from "./instagram.api";
+import { buildInstagramOutboundPayload, resolveInstagramAuthMode, type InstagramOutboundPayloadData } from "./instagram.payload-builder";
+import { InstagramClient, InstagramClientError } from "./instagram.api";
+import { applyInstagramSignedMediaLinks } from "@/lib/instagram-signed-media";
 
 export class InstagramOutboundAdapter implements IOutboundAdapter {
   readonly provider = "instagram" as const;
@@ -21,7 +22,14 @@ export class InstagramOutboundAdapter implements IOutboundAdapter {
     );
     const decision = await assertInstagramHumanSend(context.tenantId, context.contactPhone);
 
-    const payload = buildInstagramOutboundPayload(context.providerRecipientId || "", context.payload as any, {
+    const outboundPayload = applyInstagramSignedMediaLinks(
+      context.payload as Record<string, unknown>,
+      context.tenantId,
+    );
+    const payload = buildInstagramOutboundPayload(
+      context.providerRecipientId || "",
+      outboundPayload as InstagramOutboundPayloadData,
+      {
       replyToMessageId: context.payload.reply_to_message_id,
       useHumanAgentTag: credentials.authMode === "facebook_login" && decision.useHumanAgentTag,
       authMode: credentials.authMode,
@@ -38,8 +46,11 @@ export class InstagramOutboundAdapter implements IOutboundAdapter {
     try {
       result = await client.send({ payload });
     } catch (error) {
-      const body = (error as { body?: unknown })?.body;
-      const friendly = friendlyInstagramSendError(body);
+      const body =
+        error instanceof InstagramClientError
+          ? error.body
+          : (error as { body?: unknown })?.body;
+      const friendly = friendlyInstagramSendError(body) || (error instanceof Error ? error.message : "Falha no Instagram.");
       await recordInstagramAttention({
         tenantId: context.tenantId,
         contactPhone: context.contactPhone,
@@ -49,8 +60,27 @@ export class InstagramOutboundAdapter implements IOutboundAdapter {
         igAccountId: credentials.igUserId,
         metaBody: body,
       });
-      const wrapped = new Error(friendly);
-      (wrapped as Error & { retryable?: boolean }).retryable = false;
+      const wrapped = new Error(friendly) as Error & {
+        retryable?: boolean;
+        responsePayload?: unknown;
+      };
+      wrapped.retryable = false;
+      wrapped.responsePayload = {
+        httpStatus: error instanceof InstagramClientError ? error.status : null,
+        body,
+      };
+      throw wrapped;
+    }
+
+    if (
+      ["image", "audio", "video", "document", "sticker"].includes(context.type) &&
+      !result.providerMessageId
+    ) {
+      const wrapped = new Error(
+        "O Instagram aceitou a requisição, mas não devolveu message_id.",
+      ) as Error & { retryable?: boolean; responsePayload?: unknown };
+      wrapped.retryable = false;
+      wrapped.responsePayload = result.body;
       throw wrapped;
     }
 

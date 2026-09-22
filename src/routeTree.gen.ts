@@ -59,6 +59,7 @@ import { Route as ApiStorageFileRouteImport } from './routes/api/storage/file'
 import { Route as ApiSitemapXmlRouteImport } from './routes/api/sitemap.xml'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp-webhook'
 import { Route as ApiPublicInstagramWebhookRouteImport } from './routes/api/public/instagram-webhook'
+import { Route as ApiPublicInstagramMediaRouteImport } from './routes/api/public/instagram-media'
 import { Route as ApiPublicFacebookWebhookRouteImport } from './routes/api/public/facebook-webhook'
 import { Route as ApiLicensesHealthRouteImport } from './routes/api/licenses/health'
 import { Route as ApiInstagramMediaUploadRouteImport } from './routes/api/instagram/media-upload'
@@ -369,6 +370,11 @@ const ApiPublicInstagramWebhookRoute =
     path: '/api/public/instagram-webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicInstagramMediaRoute = ApiPublicInstagramMediaRouteImport.update({
+  id: '/api/public/instagram-media',
+  path: '/api/public/instagram-media',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicFacebookWebhookRoute =
   ApiPublicFacebookWebhookRouteImport.update({
     id: '/api/public/facebook-webhook',
@@ -730,6 +736,7 @@ export interface FileRoutesByFullPath {
   '/api/instagram/media-upload': typeof ApiInstagramMediaUploadRoute
   '/api/licenses/health': typeof ApiLicensesHealthRoute
   '/api/public/facebook-webhook': typeof ApiPublicFacebookWebhookRoute
+  '/api/public/instagram-media': typeof ApiPublicInstagramMediaRoute
   '/api/public/instagram-webhook': typeof ApiPublicInstagramWebhookRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/sitemap/xml': typeof ApiSitemapXmlRoute
@@ -836,6 +843,7 @@ export interface FileRoutesByTo {
   '/api/instagram/media-upload': typeof ApiInstagramMediaUploadRoute
   '/api/licenses/health': typeof ApiLicensesHealthRoute
   '/api/public/facebook-webhook': typeof ApiPublicFacebookWebhookRoute
+  '/api/public/instagram-media': typeof ApiPublicInstagramMediaRoute
   '/api/public/instagram-webhook': typeof ApiPublicInstagramWebhookRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/sitemap/xml': typeof ApiSitemapXmlRoute
@@ -944,6 +952,7 @@ export interface FileRoutesById {
   '/api/instagram/media-upload': typeof ApiInstagramMediaUploadRoute
   '/api/licenses/health': typeof ApiLicensesHealthRoute
   '/api/public/facebook-webhook': typeof ApiPublicFacebookWebhookRoute
+  '/api/public/instagram-media': typeof ApiPublicInstagramMediaRoute
   '/api/public/instagram-webhook': typeof ApiPublicInstagramWebhookRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/sitemap/xml': typeof ApiSitemapXmlRoute
@@ -1052,6 +1061,7 @@ export interface FileRouteTypes {
     | '/api/instagram/media-upload'
     | '/api/licenses/health'
     | '/api/public/facebook-webhook'
+    | '/api/public/instagram-media'
     | '/api/public/instagram-webhook'
     | '/api/public/whatsapp-webhook'
     | '/api/sitemap/xml'
@@ -1158,6 +1168,7 @@ export interface FileRouteTypes {
     | '/api/instagram/media-upload'
     | '/api/licenses/health'
     | '/api/public/facebook-webhook'
+    | '/api/public/instagram-media'
     | '/api/public/instagram-webhook'
     | '/api/public/whatsapp-webhook'
     | '/api/sitemap/xml'
@@ -1265,6 +1276,7 @@ export interface FileRouteTypes {
     | '/api/instagram/media-upload'
     | '/api/licenses/health'
     | '/api/public/facebook-webhook'
+    | '/api/public/instagram-media'
     | '/api/public/instagram-webhook'
     | '/api/public/whatsapp-webhook'
     | '/api/sitemap/xml'
@@ -1348,6 +1360,7 @@ export interface RootRouteChildren {
   ApiInstagramMediaUploadRoute: typeof ApiInstagramMediaUploadRoute
   ApiLicensesHealthRoute: typeof ApiLicensesHealthRoute
   ApiPublicFacebookWebhookRoute: typeof ApiPublicFacebookWebhookRoute
+  ApiPublicInstagramMediaRoute: typeof ApiPublicInstagramMediaRoute
   ApiPublicInstagramWebhookRoute: typeof ApiPublicInstagramWebhookRoute
   ApiPublicWhatsappWebhookRoute: typeof ApiPublicWhatsappWebhookRoute
   ApiSitemapXmlRoute: typeof ApiSitemapXmlRoute
@@ -1733,6 +1746,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/instagram-webhook'
       fullPath: '/api/public/instagram-webhook'
       preLoaderRoute: typeof ApiPublicInstagramWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/instagram-media': {
+      id: '/api/public/instagram-media'
+      path: '/api/public/instagram-media'
+      fullPath: '/api/public/instagram-media'
+      preLoaderRoute: typeof ApiPublicInstagramMediaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/facebook-webhook': {
@@ -2316,6 +2336,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiInstagramMediaUploadRoute: ApiInstagramMediaUploadRoute,
   ApiLicensesHealthRoute: ApiLicensesHealthRoute,
   ApiPublicFacebookWebhookRoute: ApiPublicFacebookWebhookRoute,
+  ApiPublicInstagramMediaRoute: ApiPublicInstagramMediaRoute,
   ApiPublicInstagramWebhookRoute: ApiPublicInstagramWebhookRoute,
   ApiPublicWhatsappWebhookRoute: ApiPublicWhatsappWebhookRoute,
   ApiSitemapXmlRoute: ApiSitemapXmlRoute,

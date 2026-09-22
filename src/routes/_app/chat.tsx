@@ -6,6 +6,7 @@ import {
   getChatContactDetails,
   getChatMessages,
   sendDirectMessage,
+  retryFailedDirectMessage,
   markMessagesAsRead,
   sendWhatsAppTypingIndicator,
   getConfiguredChannels,
@@ -1556,6 +1557,7 @@ function ChatPage() {
   const fetchContactDetails = useServerFn(getChatContactDetails);
   const fetchMessages = useServerFn(getChatMessages);
   const sendMessage = useServerFn(sendDirectMessage);
+  const retryFailedMessage = useServerFn(retryFailedDirectMessage);
   const sendGroupMsg = useServerFn(sendGroupMessage);
   const saveContactProfilePhoto = useServerFn(updateContactProfilePhoto);
   const fetchContactPhoto = useServerFn(autoFetchContactPhoto);
@@ -4227,7 +4229,13 @@ function ChatPage() {
         throw new Error(sendRes.error || "Falha ao enviar mensagem de mídia.");
       }
 
-      toast.success(`${file.name} enviado com sucesso!`, { id: toastId });
+      if (sendRes.status === "sent" && sendRes.wamid) {
+        toast.success(`${file.name} enviado com sucesso!`, { id: toastId });
+      } else {
+        toast.message("Mídia na fila. O envio só será confirmado quando o Instagram responder.", {
+          id: toastId,
+        });
+      }
       qc.invalidateQueries({ queryKey: ["chat-messages", selectedPhone] });
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
       setSelectedContact((prev) =>
@@ -6616,8 +6624,14 @@ function ChatPage() {
                                         failed: "Falha ao enviar",
                                       };
 
-                                      const renderStatus = (status: string) => {
-                                        const title = statusLabels[status] || "Enviando...";
+                                      const renderStatus = (status: string, message?: { id?: string; metadata?: any }) => {
+                                        const sendError =
+                                          typeof message?.metadata?.send_error === "string"
+                                            ? message.metadata.send_error
+                                            : "";
+                                        const title = sendError
+                                          ? `${statusLabels[status] || "Enviando..."}: ${sendError}`
+                                          : statusLabels[status] || "Enviando...";
                                         let icon: React.ReactNode = <Clock className="h-3 w-3 opacity-60" />;
                                         if (status === "read") {
                                           icon = <CheckCheck className="h-3.5 w-3.5 text-sky-400 stroke-[2.5]" />;
@@ -6627,6 +6641,27 @@ function ChatPage() {
                                           icon = <Check className="h-3.5 w-3.5 opacity-70 stroke-[2.2]" />;
                                         } else if (status === "failed") {
                                           icon = <AlertCircle className="h-3.5 w-3.5 text-destructive" />;
+                                          return (
+                                            <button
+                                              type="button"
+                                              title={`${title}. Clique para tentar novamente.`}
+                                              aria-label="Tentar enviar novamente"
+                                              className="inline-flex items-center"
+                                              onClick={() => {
+                                                if (!message?.id) return;
+                                                void retryFailedMessage({ data: { message_id: message.id } })
+                                                  .then(() => {
+                                                    toast.message("Mensagem reenviada para a fila.");
+                                                    qc.invalidateQueries({ queryKey: ["chat-messages", selectedPhone] });
+                                                  })
+                                                  .catch((err: unknown) => {
+                                                    toast.error(getErrorMessage(err) || "Não foi possível reenviar.");
+                                                  });
+                                              }}
+                                            >
+                                              {icon}
+                                            </button>
+                                          );
                                         }
                                         return (
                                           <span title={title} aria-label={title} className="inline-flex items-center">
@@ -6803,7 +6838,7 @@ function ChatPage() {
                                                     })}
                                                   </span>
                                                   {isOutgoing &&
-                                                    renderStatus(msg.status ?? "")}
+                                                    renderStatus(msg.status ?? "", msg)}
                                                 </div>
                                               </div>
                                             )}
@@ -6881,7 +6916,7 @@ function ChatPage() {
                                                     })}
                                                   </span>
                                                   {isOutgoing &&
-                                                    renderStatus(msg.status ?? "")}
+                                                    renderStatus(msg.status ?? "", msg)}
                                                 </div>
                                               </div>
                                             )}
@@ -7124,7 +7159,7 @@ function ChatPage() {
                                                   minute: "2-digit",
                                                 })}
                                               </span>
-                                              {isOutgoing && renderStatus(msg.status ?? "")}
+                                              {isOutgoing && renderStatus(msg.status ?? "", msg)}
                                             </div>
                                           )}
                                         </div>

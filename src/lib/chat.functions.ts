@@ -4,7 +4,7 @@ import { z } from "zod";
 import crypto from "crypto";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { buildWhatsAppBotMessage, type WhatsAppBotStep } from "@/lib/meta-whatsapp-message";
-import { enqueueChatOutboxMessage } from "@/lib/chat-outbox.server";
+import { enqueueChatOutboxMessage, requeueFailedChatMessage } from "@/lib/chat-outbox.server";
 import { publishChatRealtimeEvent } from "@/lib/chat-realtime.server";
 import { resolveSharedContactsData } from "@/lib/chat-message-content";
 import { getChannelConnection, requireActiveChannel, listChannelConnectionsForTenant, type ChannelConnection } from "@/lib/messaging/channel-connection.service";
@@ -1299,6 +1299,7 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
         location: data.location,
         contacts: data.contacts,
         reply_to_message_id: targetReplyToId,
+        local_file_path: data.local_media?.path,
       },
     });
 
@@ -1397,4 +1398,14 @@ export const getConfiguredChannels = createServerFn({ method: "GET" })
         ...(webchatRows.length > 0 ? ["webchat"] : []),
       ] as Array<"all" | "whatsapp" | "instagram" | "messenger" | "webchat">,
     };
+  });
+
+export const retryFailedDirectMessage = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) => z.object({ message_id: z.string().min(1) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const tenantId = await resolveEffectiveUserId(context.userId);
+    await requeueFailedChatMessage({ tenantId, messageId: data.message_id });
+    return { ok: true as const, status: "queued" as const };
   });
