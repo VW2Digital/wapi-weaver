@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import crypto from "crypto";
 import db from "@/lib/db";
 import { processApprovedPayment } from "@/lib/subscription-helpers";
-import { getMercadoPagoConfig, getPaymentDetails } from "@/lib/mercadopago";
+import { getMercadoPagoConfig, getPaymentDetails, isMercadoPagoDashboardUrlTest, mercadoPagoWebhookAck } from "@/lib/mercadopago";
 import { getPlatformWebhookSecret } from "@/lib/payment-gateway-admin";
 
 function getEventDetails(body: any, url: URL): { id: string; type: string } {
@@ -63,6 +63,7 @@ export const Route = createFileRoute("/api/webhooks/mercadopago")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        try {
         const url = new URL(request.url);
         const signature = request.headers.get("x-signature") || "";
         const requestId = request.headers.get("x-request-id") || "";
@@ -78,10 +79,12 @@ export const Route = createFileRoute("/api/webhooks/mercadopago")({
 
         if (!resourceId) {
           console.warn("[MercadoPago Webhook] Received webhook without a resource ID.");
-          return new Response(JSON.stringify({ message: "No resource ID found" }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
+          return mercadoPagoWebhookAck("No resource ID found");
+        }
+
+        if (isMercadoPagoDashboardUrlTest(resourceId)) {
+          console.log(`[MercadoPago Webhook] Dashboard URL test acknowledged for ${resourceId}`);
+          return mercadoPagoWebhookAck("Notification acknowledged; dashboard URL test.");
         }
 
         // Signature is optional in the admin UI. Prefer env, then the saved platform secret.
@@ -138,8 +141,8 @@ export const Route = createFileRoute("/api/webhooks/mercadopago")({
           if (!existingEvent) {
             await db.query(
               `INSERT INTO billing_webhook_events (
-                id, provider, environment, event_id, event_type, resource_id, request_id, payload_hash, payload, status, attempts, processing_started_at
-              ) VALUES (?, 'mercadopago', 'sandbox', ?, ?, ?, ?, ?, ?, 'processing', 1, NOW())`,
+                id, provider, environment, event_id, event_type, resource_id, request_id, payload_hash, payload, payload_json, status, attempts, processing_started_at
+              ) VALUES (?, 'mercadopago', 'sandbox', ?, ?, ?, ?, ?, ?, ?, 'processing', 1, NOW())`,
               [
                 eventUuid,
                 eventId,
@@ -148,6 +151,7 @@ export const Route = createFileRoute("/api/webhooks/mercadopago")({
                 requestId || null,
                 payloadHash,
                 JSON.stringify(sanitizedBody),
+                JSON.stringify(sanitizedBody || {}),
               ]
             );
           }
@@ -270,8 +274,10 @@ export const Route = createFileRoute("/api/webhooks/mercadopago")({
           const message = String(e?.message || e || "");
           const unknownPayment =
             statusCode === 400 ||
+            statusCode === 401 ||
+            statusCode === 403 ||
             statusCode === 404 ||
-            /not found|does not exist|resource not found|Failed to fetch payment details/i.test(message);
+            /not found|does not exist|resource not found|Failed to fetch payment details|No active credentials/i.test(message);
 
           try {
             await db.query(
@@ -287,21 +293,18 @@ export const Route = createFileRoute("/api/webhooks/mercadopago")({
             /* ignore log update */
           }
 
-          // Mercado Pago's dashboard test uses a fake payment id (e.g. 1234564).
-          // Acknowledge it so the URL test succeeds; keep 500 only for real infra failures.
-          if (unknownPayment) {
-            return new Response(
-              JSON.stringify({ success: true, message: "Notification acknowledged; payment id not found." }),
-              { status: 200, headers: { "Content-Type": "application/json" } },
-            );
-          }
-
-          return new Response(JSON.stringify({ error: "Ocorreu uma falha no processamento interno da notificação." }), {
-            status: 500,
-            headers: { "Content-Type": "application/json" },
-          });
+          return mercadoPagoWebhookAck(
+            unknownPayment
+              ? "Notification acknowledged; payment id not found."
+              : "Notification received; processing logged.",
+          );
+        }
+        } catch (e: any) {
+          console.error("[MercadoPago Webhook] Unhandled error:", e?.message || e);
+          return mercadoPagoWebhookAck("Notification received");
         }
       },
+      GET: async () => mercadoPagoWebhookAck("Webhook endpoint online"),
     },
   },
 });

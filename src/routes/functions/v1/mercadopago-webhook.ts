@@ -10,7 +10,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import crypto from "crypto";
 import db from "@/lib/db";
 import { processApprovedPayment } from "@/lib/subscription-helpers";
-import { getMercadoPagoConfig, getPaymentDetails } from "@/lib/mercadopago";
+import { getMercadoPagoConfig, getPaymentDetails, isMercadoPagoDashboardUrlTest, mercadoPagoWebhookAck } from "@/lib/mercadopago";
 
 function getEventDetails(body: any, url: URL): { id: string; type: string } {
   if (body?.data?.id) {
@@ -46,10 +46,12 @@ export const Route = createFileRoute("/functions/v1/mercadopago-webhook")({
 
         if (!resourceId) {
           console.warn("[MercadoPago Alt Webhook] Received webhook without a resource ID.");
-          return new Response(JSON.stringify({ message: "No resource ID found" }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
+          return mercadoPagoWebhookAck("No resource ID found");
+        }
+
+        if (isMercadoPagoDashboardUrlTest(resourceId)) {
+          console.log(`[MercadoPago Alt Webhook] Dashboard URL test acknowledged for ${resourceId}`);
+          return mercadoPagoWebhookAck("Notification acknowledged; dashboard URL test.");
         }
 
         const eventId = `mp-alt:${resourceId}:${eventType}`;
@@ -136,8 +138,8 @@ export const Route = createFileRoute("/functions/v1/mercadopago-webhook")({
           } else {
             await db.query(
               `INSERT INTO billing_webhook_events (
-                id, provider, environment, event_id, event_type, resource_id, request_id, payload_hash, payload, status, attempts, processing_started_at
-              ) VALUES (?, 'mercadopago', 'sandbox', ?, ?, ?, ?, ?, ?, 'processing', 1, NOW())`,
+                id, provider, environment, event_id, event_type, resource_id, request_id, payload_hash, payload, payload_json, status, attempts, processing_started_at
+              ) VALUES (?, 'mercadopago', 'sandbox', ?, ?, ?, ?, ?, ?, ?, 'processing', 1, NOW())`,
               [
                 eventUuid,
                 eventId,
@@ -146,6 +148,7 @@ export const Route = createFileRoute("/functions/v1/mercadopago-webhook")({
                 requestId || null,
                 payloadHash,
                 JSON.stringify(sanitizedBody),
+                JSON.stringify(sanitizedBody || {}),
               ]
             );
           }
@@ -157,10 +160,7 @@ export const Route = createFileRoute("/functions/v1/mercadopago-webhook")({
             });
           }
           console.error("[MercadoPago Alt Webhook] Error registering event:", err);
-          return new Response(JSON.stringify({ error: "Database error" }), {
-            status: 500,
-            headers: { "Content-Type": "application/json" },
-          });
+          // Keep processing the payment even if the event row could not be stored.
         }
 
         if (eventType !== "payment") {
@@ -276,11 +276,9 @@ export const Route = createFileRoute("/functions/v1/mercadopago-webhook")({
           }
         })();
 
-        return new Response(JSON.stringify({ success: true, message: "Webhook received" }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+        return mercadoPagoWebhookAck("Webhook received");
       },
+      GET: async () => mercadoPagoWebhookAck("Webhook endpoint online"),
     },
   },
 });

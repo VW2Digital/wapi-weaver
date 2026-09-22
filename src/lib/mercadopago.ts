@@ -212,6 +212,18 @@ export async function getPaymentDetails(config: MercadoPagoConfig, paymentId: st
   return response.json();
 }
 
+/** Fake ids used by Mercado Pago's dashboard "test URL" button. */
+export function isMercadoPagoDashboardUrlTest(resourceId: string): boolean {
+  return resourceId === "1234564" || resourceId === "123456";
+}
+
+export function mercadoPagoWebhookAck(message: string) {
+  return new Response(JSON.stringify({ success: true, message }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 /**
  * If the local invoice is still pending, ask Mercado Pago for the live payment status
  * and provision the subscription when it is already approved. Used by PIX polling

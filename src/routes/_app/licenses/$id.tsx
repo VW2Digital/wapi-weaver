@@ -24,7 +24,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, Trash2, Globe, CheckCircle, XCircle, Database } from "lucide-react";
+import {
+  ArrowLeft,
+  Loader2,
+  Trash2,
+  Globe,
+  CreditCard,
+  Calendar,
+  Receipt,
+} from "lucide-react";
 import { useConfirm } from "@/components/confirm-dialog";
 import { useRoles } from "@/hooks/use-roles";
 import { hasMasterRole } from "@/lib/roles";
@@ -34,6 +42,77 @@ import {
   deleteActivation,
   listPlans,
 } from "@/lib/license-admin.functions";
+
+function formatDateTime(value?: string | Date | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("pt-BR");
+}
+
+function formatDate(value?: string | Date | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("pt-BR");
+}
+
+function formatMoney(amount: number | string | null | undefined, currency = "BRL") {
+  const value = Number(amount);
+  if (!Number.isFinite(value)) return "—";
+  return value.toLocaleString("pt-BR", { style: "currency", currency: currency || "BRL" });
+}
+
+function subscriptionStatusLabel(status?: string | null) {
+  const map: Record<string, string> = {
+    trial: "Período de teste",
+    active: "Ativa",
+    expiring: "A vencer",
+    pending_payment: "Aguardando pagamento",
+    past_due: "Pagamento atrasado",
+    suspended: "Suspensa",
+    cancelled: "Cancelada",
+  };
+  return status ? map[status] || status : "Sem assinatura";
+}
+
+function paymentStatusLabel(status?: string | null) {
+  const map: Record<string, string> = {
+    approved: "Aprovado",
+    pending: "Pendente",
+    in_process: "Em processamento",
+    authorized: "Autorizado",
+    rejected: "Recusado",
+    failed: "Falhou",
+    cancelled: "Cancelado",
+    refunded: "Estornado",
+    expired: "Expirado",
+  };
+  return status ? map[status] || status : "—";
+}
+
+function paymentMethodLabel(method?: string | null) {
+  const map: Record<string, string> = {
+    pix: "PIX",
+    credit_card: "Cartão de crédito",
+    debit_card: "Cartão de débito",
+    account_money: "Saldo Mercado Pago",
+    ticket: "Boleto",
+  };
+  return method ? map[method] || method : "—";
+}
+
+function billingCycleLabel(interval?: string | null, count?: number | null, cycle?: string | null) {
+  if (cycle === "monthly" || interval === "month") {
+    return count && count > 1 ? `A cada ${count} meses` : "Mensal";
+  }
+  if (cycle === "yearly" || interval === "year") {
+    return count && count > 1 ? `A cada ${count} anos` : "Anual";
+  }
+  if (interval === "week") return "Semanal";
+  if (interval === "day") return count && count > 1 ? `A cada ${count} dias` : "Diário";
+  return "—";
+}
 
 function LicenseDetailPage() {
   const { id } = Route.useParams();
@@ -63,26 +142,26 @@ function LicenseDetailPage() {
   });
 
   const availablePlans = useMemo(() => {
-    const defaultPlans = [
-      { slug: "basic", name: "Básico" },
-      { slug: "premium", name: "Premium" },
-      { slug: "enterprise", name: "Enterprise" },
-    ];
-    if (!plansData?.plans?.length) return defaultPlans;
-
-    const map = new Map<string, string>();
-    for (const p of defaultPlans) {
-      map.set(p.slug, p.name);
+    const plans = (plansData?.plans || []).map((p: any) => ({
+      value: String(p.slug || p.id),
+      id: String(p.id),
+      slug: String(p.slug || p.id),
+      name: String(p.name || p.slug || p.id),
+    }));
+    const current = data?.subscription?.plan_id || data?.license?.plan;
+    if (
+      current &&
+      !plans.some((p) => p.id === String(current) || p.slug === String(current) || p.value === String(current))
+    ) {
+      plans.push({
+        value: String(current),
+        id: String(current),
+        slug: String(current),
+        name: data?.subscription?.plan_name || String(current),
+      });
     }
-    for (const p of plansData.plans) {
-      const slug = (p.slug || p.id).toLowerCase();
-      if (!map.has(slug)) {
-        map.set(slug, p.name || slug);
-      }
-    }
-
-    return Array.from(map.entries()).map(([slug, name]) => ({ slug, name }));
-  }, [plansData]);
+    return plans;
+  }, [plansData, data]);
 
   // Edit fields state
   const [clientName, setClientName] = useState("");
@@ -95,23 +174,34 @@ function LicenseDetailPage() {
   useEffect(() => {
     if (data?.license) {
       const lic = data.license;
+      const sub = data.subscription;
       setClientName(lic.client_name || "");
       setClientEmail(lic.client_email || "");
-      setPlan(lic.plan || "basic");
       setStatus(lic.status || "active");
       setNotes(lic.notes || "");
 
-      if (lic.expires_at) {
-        const d = new Date(lic.expires_at);
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, "0");
-        const dd = String(d.getDate()).padStart(2, "0");
-        setExpiresAt(`${yyyy}-${mm}-${dd}`);
+      const planKey = sub?.plan_id || lic.plan || "";
+      const match = availablePlans.find(
+        (p) => p.id === String(planKey) || p.slug === String(planKey) || p.value === String(planKey),
+      );
+      setPlan(match?.value || String(planKey || ""));
+
+      const expiresSource = sub?.expires_at || lic.expires_at;
+      if (expiresSource) {
+        const d = new Date(expiresSource);
+        if (!Number.isNaN(d.getTime())) {
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, "0");
+          const dd = String(d.getDate()).padStart(2, "0");
+          setExpiresAt(`${yyyy}-${mm}-${dd}`);
+        } else {
+          setExpiresAt("");
+        }
       } else {
         setExpiresAt("");
       }
     }
-  }, [data]);
+  }, [data, availablePlans]);
 
   const updateMutation = useMutation({
     mutationFn: (payload: any) => updateLicenseMut({ data: payload }),
@@ -162,15 +252,23 @@ function LicenseDetailPage() {
     }
   };
 
-  const { license, activations, logs } = data ?? {};
+  const license = data?.license;
+  const subscription = data?.subscription;
+  const planLabel =
+    subscription?.plan_name ||
+    availablePlans.find((p) => p.value === plan || p.id === license?.plan)?.name ||
+    license?.plan ||
+    "—";
 
   usePageHeader({
-    title: license?.license_key_preview ?? "",
-    subtitle: license ? `Cliente: ${license.client_name}` : "",
+    title: license?.client_name || license?.client_email || license?.license_key_preview || "",
+    subtitle: license
+      ? `${license.client_email || "Sem e-mail"} · ${planLabel} · ${subscriptionStatusLabel(subscription?.status)}`
+      : "",
     action: license ? (
       <div className="flex items-center gap-2">
         <Badge variant="outline" className="capitalize">
-          {license.plan}
+          {subscriptionStatusLabel(subscription?.status)}
         </Badge>
         <Button variant="outline" size="icon" asChild>
           <Link to="/licenses">
@@ -224,7 +322,7 @@ function LicenseDetailPage() {
   }
 
   // Após os guards, data está garantido — desestrutura sem opcional para satisfazer o TypeScript
-  const { activations: acts, logs: logEntries } = data;
+  const { activations: acts, subscription: sub, payments: paymentEntries = [] } = data;
 
   return (
     <div className="space-y-8 p-6 pb-16">
@@ -273,13 +371,13 @@ function LicenseDetailPage() {
 
               <div className="grid gap-2">
                 <Label htmlFor="plan">Plano</Label>
-                <Select value={plan} onValueChange={setPlan}>
+                <Select value={plan || undefined} onValueChange={setPlan}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Selecione o plano" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availablePlans.map((p: { slug: string; name: string }) => (
-                      <SelectItem key={p.slug} value={p.slug}>
+                    {availablePlans.map((p) => (
+                      <SelectItem key={p.id} value={p.value}>
                         {p.name}
                       </SelectItem>
                     ))}
@@ -310,8 +408,88 @@ function LicenseDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Activations & Logs Section */}
         <div className="md:col-span-2 space-y-6">
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>Assinatura</CardTitle>
+              <CardDescription>
+                Situação comercial deste cliente, com vigência e plano efetivos.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!license.tenant_id ? (
+                <p className="text-sm text-muted-foreground">
+                  Este cadastro ainda não está vinculado a um usuário. Sem tenant não há assinatura nem
+                  pagamentos para exibir.
+                </p>
+              ) : !sub ? (
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma assinatura encontrada para este cliente.
+                </p>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Status</p>
+                    <Badge variant="outline">{subscriptionStatusLabel(sub.status)}</Badge>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Plano</p>
+                    <p className="text-sm font-medium">{sub.plan_name || planLabel}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Ciclo</p>
+                    <p className="text-sm font-medium">
+                      {billingCycleLabel(
+                        sub.billing?.billing_interval,
+                        sub.billing?.billing_interval_count,
+                        sub.billing?.billing_cycle,
+                      )}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Valor do plano</p>
+                    <p className="text-sm font-medium">
+                      {sub.billing
+                        ? formatMoney(
+                            Number(sub.billing.price) || Number(sub.billing.price_cents) / 100,
+                            sub.billing.currency,
+                          )
+                        : "—"}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Início</p>
+                    <p className="text-sm font-medium flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                      {formatDate(sub.current_period_start || sub.starts_at)}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Expira em</p>
+                    <p className="text-sm font-medium flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                      {formatDate(sub.expires_at || sub.current_period_end)}
+                    </p>
+                  </div>
+                  {sub.status === "trial" ? (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Teste até</p>
+                      <p className="text-sm font-medium">{formatDateTime(sub.trial_ends_at)}</p>
+                    </div>
+                  ) : null}
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Último pagamento</p>
+                    <p className="text-sm font-medium">{formatDateTime(sub.last_payment_at)}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Próxima cobrança</p>
+                    <p className="text-sm font-medium">{formatDateTime(sub.next_billing_at)}</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Active Activations */}
           <Card className="shadow-sm">
             <CardHeader>
@@ -370,55 +548,73 @@ function LicenseDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Validation Logs */}
           <Card className="shadow-sm">
             <CardHeader>
-              <CardTitle>Histórico de Validações</CardTitle>
-              <CardDescription>Logs das requisições mais recentes.</CardDescription>
+              <CardTitle>Histórico de pagamentos</CardTitle>
+              <CardDescription>Faturas e transações do Mercado Pago deste cliente.</CardDescription>
             </CardHeader>
             <CardContent>
-              {!logEntries.length ? (
+              {!license.tenant_id ? (
                 <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
-                  <Database className="h-8 w-8 mb-2 opacity-40" />
-                  Nenhuma validação gravada.
+                  <Receipt className="h-8 w-8 mb-2 opacity-40" />
+                  Sem tenant vinculado para listar pagamentos.
+                </div>
+              ) : !paymentEntries.length ? (
+                <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
+                  <CreditCard className="h-8 w-8 mb-2 opacity-40" />
+                  Nenhum pagamento registrado.
                 </div>
               ) : (
-                <div className="border rounded-lg overflow-hidden max-h-[300px] overflow-y-auto">
+                <div className="border rounded-lg overflow-hidden max-h-[360px] overflow-y-auto">
                   <Table>
                     <TableHeader className="sticky top-0 bg-background z-10">
                       <TableRow>
-                        <TableHead>Data/Hora</TableHead>
-                        <TableHead>Resultado</TableHead>
-                        <TableHead>IP</TableHead>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Fatura</TableHead>
+                        <TableHead>Método</TableHead>
+                        <TableHead>Valor</TableHead>
+                        <TableHead>Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {logEntries.map((log) => {
-                        const date = new Date(log.created_at).toLocaleString();
-                        const isSuccess = log.result === "success" || log.result === "active";
+                      {paymentEntries.map((payment: any) => {
+                        const paid = payment.status === "approved";
+                        const failed =
+                          payment.status === "rejected" ||
+                          payment.status === "failed" ||
+                          payment.status === "cancelled" ||
+                          payment.status === "expired";
                         return (
-                          <TableRow key={log.id}>
-                            <TableCell className="text-sm whitespace-nowrap">{date}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-1.5">
-                                {isSuccess ? (
-                                  <CheckCircle className="h-4 w-4 text-green-500" />
-                                ) : (
-                                  <XCircle className="h-4 w-4 text-red-500" />
-                                )}
-                                <span
-                                  className={
-                                    isSuccess
-                                      ? "text-green-600 text-xs font-semibold"
-                                      : "text-red-600 text-xs font-semibold"
-                                  }
-                                >
-                                  {log.result}
-                                </span>
+                          <TableRow key={payment.id}>
+                            <TableCell className="text-sm whitespace-nowrap">
+                              {formatDateTime(payment.approved_at || payment.created_at)}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              <div className="font-medium">
+                                {payment.billing_plan_name || payment.description || "Assinatura"}
+                              </div>
+                              <div className="text-xs text-muted-foreground font-mono">
+                                {payment.invoice_number || payment.provider_payment_id || payment.id}
                               </div>
                             </TableCell>
-                            <TableCell className="text-sm font-mono">
-                              {log.ip_address || "N/A"}
+                            <TableCell className="text-sm">
+                              {paymentMethodLabel(payment.payment_method)}
+                            </TableCell>
+                            <TableCell className="text-sm font-medium">
+                              {formatMoney(payment.amount, payment.currency)}
+                            </TableCell>
+                            <TableCell>
+                              <span
+                                className={
+                                  paid
+                                    ? "text-green-600 text-xs font-semibold"
+                                    : failed
+                                      ? "text-red-600 text-xs font-semibold"
+                                      : "text-amber-600 text-xs font-semibold"
+                                }
+                              >
+                                {paymentStatusLabel(payment.status)}
+                              </span>
                             </TableCell>
                           </TableRow>
                         );

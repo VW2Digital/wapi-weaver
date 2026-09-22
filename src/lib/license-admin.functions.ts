@@ -276,22 +276,85 @@ export const getLicenseDetail = createServerFn({ method: "GET" })
     const license = licenseRows[0];
     license.features_json = parseJson(license.features_json);
 
-    // Get activations
     const activations = (await db.query(
       "SELECT * FROM license_activations WHERE license_id = ? ORDER BY activated_at DESC",
       [input.id],
     )) as any[];
 
-    // Get logs
-    const logs = (await db.query(
-      "SELECT * FROM license_validation_logs WHERE license_id = ? ORDER BY created_at DESC LIMIT 100",
-      [input.id],
-    )) as any[];
+    let subscription: any = null;
+    let payments: any[] = [];
+    const tenantId = license.tenant_id ? String(license.tenant_id) : "";
+
+    if (tenantId) {
+      const subRows = (await db.query(
+        `SELECT
+           s.id,
+           s.tenant_id,
+           s.plan_id,
+           s.status,
+           s.starts_at,
+           s.expires_at,
+           s.grace_period_ends_at,
+           s.last_payment_at,
+           s.next_billing_at,
+           s.current_period_start,
+           s.current_period_end,
+           s.trial_started_at,
+           s.trial_ends_at,
+           s.auto_renew,
+           sp.name AS plan_name,
+           sp.slug AS plan_slug
+         FROM subscriptions s
+         LEFT JOIN subscription_plans sp ON sp.id = s.plan_id
+         WHERE s.tenant_id = ?
+         LIMIT 1`,
+        [tenantId],
+      )) as any[];
+      subscription = subRows[0] || null;
+
+      if (subscription?.plan_id) {
+        const priceRows = (await db.query(
+          `SELECT name, price, price_cents, currency, billing_interval, billing_interval_count, billing_cycle
+           FROM billing_plans
+           WHERE subscription_plan_id = ? AND is_active = 1
+           ORDER BY sort_order ASC, created_at ASC
+           LIMIT 1`,
+          [subscription.plan_id],
+        )) as any[];
+        subscription.billing = priceRows[0] || null;
+      }
+
+      payments = (await db.query(
+        `SELECT
+           p.id,
+           p.status,
+           p.payment_method,
+           p.amount,
+           p.currency,
+           p.provider,
+           p.provider_payment_id,
+           p.approved_at,
+           p.created_at,
+           p.status_detail,
+           i.invoice_number,
+           i.status AS invoice_status,
+           i.description,
+           bp.name AS billing_plan_name
+         FROM billing_payments p
+         INNER JOIN billing_invoices i ON i.id = p.invoice_id AND i.tenant_id = p.tenant_id
+         LEFT JOIN billing_plans bp ON bp.id = i.plan_id
+         WHERE p.tenant_id = ?
+         ORDER BY COALESCE(p.approved_at, p.created_at) DESC, p.created_at DESC
+         LIMIT 50`,
+        [tenantId],
+      )) as any[];
+    }
 
     return {
       license,
       activations,
-      logs,
+      subscription,
+      payments,
     };
   });
 
