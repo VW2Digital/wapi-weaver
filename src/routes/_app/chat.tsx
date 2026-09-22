@@ -6066,7 +6066,10 @@ function ChatPage() {
                 <div
                   ref={messagesScrollRef}
                   onScroll={updateJumpToLatest}
-                  className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 relative bg-transparent pb-36 md:pb-40"
+                  className={cn(
+                    "flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 relative bg-transparent",
+                    isInstagramChat ? "pb-56 md:pb-60" : "pb-44 md:pb-48",
+                  )}
                 >
                   {(() => {
                     let lastDateStr = "";
@@ -7192,7 +7195,7 @@ function ChatPage() {
                 </div>
 
                 {/* Caixa de Texto de Envio */}
-                <div className="absolute bottom-0 inset-x-0 z-10 pointer-events-none flex flex-col px-2.5 pb-2.5 pt-4 sm:px-4 sm:pb-4 md:px-6 md:pb-6 bg-gradient-to-t from-background/90 via-background/40 to-transparent">
+                <div className="absolute bottom-0 inset-x-0 z-10 pointer-events-none flex flex-col px-2.5 pb-2.5 pt-8 sm:px-4 sm:pb-4 sm:pt-10 md:px-6 md:pb-6 md:pt-12 bg-gradient-to-t from-background via-background/80 to-transparent">
                   {showJumpToLatest ? (
                     <div className="mb-2 flex justify-center">
                       <Button
