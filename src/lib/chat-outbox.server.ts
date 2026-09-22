@@ -122,22 +122,57 @@ function errorMessage(body: MetaResponseBody, fallback: string): string {
 
 
 
-function buildMessengerPayload(recipientId: string, data: ChatProviderPayload) {
-  const payload: Record<string, unknown> = { recipient: { id: recipientId } };
-  if (data.type === "text") {
-    payload.message = { text: data.text?.body || "" };
-  } else if (data.type === "reaction") {
-    payload.sender_action = "react";
-    payload.payload = data.reaction;
-  } else if (["image", "audio", "video", "document"].includes(data.type)) {
-    const media = data[data.type as "image" | "audio" | "video" | "document"];
-    payload.message = {
-      attachment: {
-        type: data.type === "document" ? "file" : data.type,
-        payload: media?.id ? { attachment_id: media.id } : { url: media?.link },
-      },
-    };
+export function normalizeMessengerPsid(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = String(raw).trim();
+  if (!trimmed) return null;
+  return trimmed.startsWith("fb_") ? trimmed.slice(3) : trimmed;
+}
+
+function applyMessengerReplyTo(
+  message: Record<string, unknown>,
+  data: ChatProviderPayload,
+): Record<string, unknown> {
+  if (data.reply_to_message_id) {
+    message.reply_to = { mid: data.reply_to_message_id };
   }
+  return message;
+}
+
+export function buildMessengerPayload(recipientId: string, data: ChatProviderPayload) {
+  const psid = normalizeMessengerPsid(recipientId);
+  const payload: Record<string, unknown> = { recipient: { id: psid || recipientId } };
+
+  if (data.type === "reaction") {
+    payload.sender_action = data.reaction?.emoji ? "react" : "unreact";
+    payload.payload = {
+      message_id: data.reaction?.message_id || "",
+      ...(data.reaction?.emoji ? { reaction: data.reaction.emoji } : {}),
+    };
+    return payload;
+  }
+
+  payload.messaging_type = "RESPONSE";
+
+  if (data.type === "text") {
+    payload.message = applyMessengerReplyTo({ text: data.text?.body || "" }, data);
+  } else if (["image", "audio", "video", "document", "sticker"].includes(data.type)) {
+    const media = data[data.type as "image" | "audio" | "video" | "document" | "sticker"];
+    const attachmentType = data.type === "document" ? "file" : data.type === "sticker" ? "image" : data.type;
+    const attachmentPayload = media?.id
+      ? { attachment_id: media.id }
+      : { url: media?.link, is_reusable: true };
+    payload.message = applyMessengerReplyTo(
+      {
+        attachment: {
+          type: attachmentType,
+          payload: attachmentPayload,
+        },
+      },
+      data,
+    );
+  }
+
   return payload;
 }
 
@@ -182,27 +217,37 @@ function networkDispatchError(error: unknown): DispatchError {
 
 
 export async function dispatchMessenger(job: ChatOutboxRow): Promise<DispatchResult> {
+  const recipientId = normalizeMessengerPsid(job.provider_recipient_id) || normalizeMessengerPsid(job.recipient);
+  const ownerIds = [...new Set([job.user_id, job.tenant_id].filter(Boolean))];
+  const pageId = job.provider_account_id || null;
+  const placeholders = ownerIds.map(() => "?").join(", ");
   const pages = (await db.query(
     `SELECT page_id, page_access_token
-     FROM facebook_pages WHERE user_id = ? AND status = 'active' LIMIT 1`,
-    [job.user_id],
+     FROM facebook_pages
+     WHERE status = 'active'
+       AND user_id IN (${placeholders})
+       ${pageId ? "AND page_id = ?" : ""}
+     ORDER BY updated_at DESC
+     LIMIT 1`,
+    pageId ? [...ownerIds, pageId] : ownerIds,
   )) as Array<{ page_id: string; page_access_token: string }>;
   const page = pages[0];
-  if (!page || !job.provider_recipient_id) {
+  if (!page || !recipientId) {
     throw new DispatchError("Página ou destinatário do Messenger indisponível.", false);
   }
 
+  const graphVersion = recentMetaVersion(
+    process.env.META_GRAPH_VERSION || process.env.META_GRAPH_API_VERSION,
+  );
   const response = await fetch(
-    `https://graph.facebook.com/${recentMetaVersion(process.env.META_GRAPH_API_VERSION)}/${page.page_id}/messages`,
+    `https://graph.facebook.com/${graphVersion}/me/messages`,
     {
       method: "POST",
       headers: {
         Authorization: `Bearer ${page.page_access_token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(
-        buildMessengerPayload(job.provider_recipient_id, parsePayload(job.payload)),
-      ),
+      body: JSON.stringify(buildMessengerPayload(recipientId, parsePayload(job.payload))),
     },
   );
   const body = await parseResponse(response);

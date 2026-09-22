@@ -37,6 +37,13 @@
         "database/migrations/056_instagram_human_attention.sql"
       ]
     },
+    "messenger": {
+      "enabled": true,
+      "since": "USER_MESSENGER_PLATFORM_API",
+      "patterns": [
+        "src/routes/api/public/meta-webhook.$publicId.ts"
+      ]
+    },
     "webchat": {
       "enabled": false,
       "since": "WEBCHAT_PRECHAT_PHONE_FEATURE_REFROZEN",

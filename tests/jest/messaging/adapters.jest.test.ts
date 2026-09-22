@@ -234,6 +234,43 @@ describe("Messaging Adapters", () => {
       expect(events[0].provider).toBe("messenger");
       expect(events[0].eventType).toBe("message.received");
       expect(events[0].externalEventId).toBe("mid.456");
+      expect(events[0].payload).toMatchObject({
+        direction: "incoming",
+        sender: { externalId: "SENDER_PSID" },
+        recipient: { externalId: "PAGE_ID" },
+      });
+    });
+
+    it("maps page echoes to the contact PSID, not the page id", () => {
+      const payload = {
+        object: "page",
+        entry: [
+          {
+            id: "PAGE_ID",
+            messaging: [
+              {
+                sender: { id: "PAGE_ID" },
+                recipient: { id: "SENDER_PSID" },
+                timestamp: 1699999999,
+                message: { mid: "mid.echo", text: "Resposta", is_echo: true },
+              },
+            ],
+          },
+        ],
+      };
+
+      const { events } = messengerAdapter.normalize(payload);
+      const message = events[0].payload as {
+        direction: string;
+        sender: { externalId: string; metadata?: { recipientId?: string } };
+        recipient: { externalId: string };
+      };
+
+      expect(events[0].eventType).toBe("message.echo");
+      expect(message.direction).toBe("outgoing");
+      expect(message.sender.externalId).toBe("SENDER_PSID");
+      expect(message.sender.metadata?.recipientId).toBe("PAGE_ID");
+      expect(message.recipient.externalId).toBe("PAGE_ID");
     });
   });
 });

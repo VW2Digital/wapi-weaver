@@ -1132,10 +1132,24 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
       providerRecipientId = externalId;
       providerAccountId = resolvedChannel?.externalAccountId || null;
     } else if (isMessenger) {
-      // 1. Busca página do Facebook conectada
+      const tenantId = context.tenantId;
+      const messengerChannels = await listChannelConnectionsForTenant(tenantId, "messenger");
+      const activeMessengerChannel = messengerChannels.find((c) => c.status === "active");
+      if (activeMessengerChannel) {
+        resolvedChannel = activeMessengerChannel;
+        resolvedChannelConnectionId = activeMessengerChannel.id;
+      }
+
       const fbPages = (await db.query(
-        `SELECT page_id, page_access_token FROM facebook_pages WHERE user_id = ? AND status = 'active' LIMIT 1`,
-        [effectiveUserId],
+        `SELECT page_id, page_access_token
+         FROM facebook_pages
+         WHERE status = 'active' AND (user_id = ? OR user_id = ?)
+         ${activeMessengerChannel?.externalAccountId ? "AND page_id = ?" : ""}
+         ORDER BY updated_at DESC
+         LIMIT 1`,
+        activeMessengerChannel?.externalAccountId
+          ? [effectiveUserId, tenantId, activeMessengerChannel.externalAccountId]
+          : [effectiveUserId, tenantId],
       )) as FacebookPageRow[];
       const page = fbPages?.[0];
 
@@ -1143,18 +1157,17 @@ export const sendDirectMessage = createServerFn({ method: "POST" })
         return { ok: false, error: "Nenhuma página do Facebook conectada." };
       }
 
-      // 2. Busca o external_contact_id
       const contacts = (await db.query(
         `SELECT external_contact_id FROM contacts
          WHERE (user_id = ? OR tenant_id = ?) AND phone_e164 = ? LIMIT 1`,
-        [effectiveUserId, effectiveUserId, digits],
+        [effectiveUserId, tenantId, digits],
       )) as ExternalContactRow[];
       const externalId = contacts?.[0]?.external_contact_id;
       if (!externalId) {
-        return { ok: false, error: "Contato do Messenger sem external_contact_id." };
+        return { ok: false, error: "Contato do Messenger sem PSID (external_contact_id)." };
       }
 
-      providerRecipientId = externalId;
+      providerRecipientId = externalId.startsWith("fb_") ? externalId.slice(3) : externalId;
       providerAccountId = resolvedChannel?.externalAccountId || page.page_id;
     } else {
       // Envio via WhatsApp

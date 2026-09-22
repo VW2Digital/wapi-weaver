@@ -154,17 +154,36 @@ async function listMessengerSignatureSecrets(resourceId: string): Promise<Webhoo
     [resourceId],
   )) as Array<{ user_id: string | null }>;
   const tenantIds = [...new Set(pages.map((page) => page.user_id).filter((id): id is string => Boolean(id)))];
-  if (tenantIds.length === 0) return found;
+  if (tenantIds.length > 0) {
+    const placeholders = tenantIds.map(() => "?").join(", ");
+    const connections = (await db.query(
+      `SELECT tenant_id, app_id, app_secret_encrypted
+       FROM meta_app_connections
+       WHERE tenant_id IN (${placeholders})`,
+      tenantIds,
+    )) as Array<{ tenant_id: string | null; app_id: string | null; app_secret_encrypted: string | null }>;
+    await pushConnectionSecrets(connections, push);
+  }
 
-  const placeholders = tenantIds.map(() => "?").join(", ");
-  const connections = (await db.query(
-    `SELECT tenant_id, app_id, app_secret_encrypted
-     FROM meta_app_connections
-     WHERE tenant_id IN (${placeholders})`,
-    tenantIds,
+  const sharedConnections = (await db.query(
+    `SELECT mac.tenant_id, mac.app_id, mac.app_secret_encrypted
+     FROM meta_app_connections mac
+     JOIN user_roles ur
+       ON ur.user_id = mac.tenant_id
+      AND ur.role IN ('admin_master', 'adminmaster')
+     WHERE mac.status = 'active'`,
   )) as Array<{ tenant_id: string | null; app_id: string | null; app_secret_encrypted: string | null }>;
+  await pushConnectionSecrets(sharedConnections, push);
 
-  await pushConnectionSecrets(connections, push);
+  const channelConnections = (await db.query(
+    `SELECT mac.tenant_id, mac.app_id, mac.app_secret_encrypted
+     FROM channel_connections cc
+     JOIN meta_app_connections mac ON mac.id = cc.meta_app_connection_id
+     WHERE cc.provider = 'messenger' AND cc.external_account_id = ?`,
+    [resourceId],
+  )) as Array<{ tenant_id: string | null; app_id: string | null; app_secret_encrypted: string | null }>;
+  await pushConnectionSecrets(channelConnections, push);
+
   return found;
 }
 

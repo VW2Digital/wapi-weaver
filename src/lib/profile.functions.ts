@@ -36,6 +36,69 @@ function getMetaErrorMessage(body: unknown, fallback: string) {
   return getStringField(errorRecord, "message") ?? fallback;
 }
 
+const MESSENGER_SUBSCRIBED_FIELDS =
+  "messages,messaging_postbacks,message_echoes,message_deliveries,message_reads,messaging_optins,messaging_referrals,message_reactions";
+
+async function upsertMessengerChannelConnection(input: {
+  tenantId: string;
+  pageId: string;
+  pageName: string | null;
+  pageAccessToken: string;
+  metaAppConnectionId?: string | null;
+}) {
+  const metaAppConnectionId =
+    input.metaAppConnectionId && input.metaAppConnectionId !== "platform"
+      ? input.metaAppConnectionId
+      : null;
+  let encryptedToken: string | null = null;
+  try {
+    const { encryptMetaCredential } = await import("./encryption");
+    encryptedToken = encryptMetaCredential(input.pageAccessToken);
+  } catch {
+    encryptedToken = null;
+  }
+
+  const { default: db } = await import("./db");
+  const existing = (await db.query(
+    `SELECT id FROM channel_connections
+     WHERE tenant_id = ? AND provider = 'messenger' AND external_account_id = ?
+     LIMIT 1`,
+    [input.tenantId, input.pageId],
+  )) as Array<{ id: string }>;
+
+  if (existing[0]) {
+    await db.query(
+      `UPDATE channel_connections
+       SET status = 'active',
+           display_name = COALESCE(?, display_name),
+           access_token_encrypted = COALESCE(?, access_token_encrypted),
+           meta_app_connection_id = COALESCE(?, meta_app_connection_id),
+           connected_at = COALESCE(connected_at, NOW()),
+           disconnected_at = NULL,
+           updated_at = NOW()
+       WHERE id = ? AND tenant_id = ?`,
+      [input.pageName, encryptedToken, metaAppConnectionId, existing[0].id, input.tenantId],
+    );
+    return;
+  }
+
+  await db.query(
+    `INSERT INTO channel_connections (
+       id, tenant_id, meta_app_connection_id, provider, status,
+       external_account_id, display_name, metadata, access_token_encrypted,
+       connected_at, created_at, updated_at
+     ) VALUES (?, ?, ?, 'messenger', 'active', ?, ?, NULL, ?, NOW(), NOW(), NOW())`,
+    [
+      crypto.randomUUID(),
+      input.tenantId,
+      metaAppConnectionId,
+      input.pageId,
+      input.pageName,
+      encryptedToken,
+    ],
+  );
+}
+
 async function isMasterUser(userId: string): Promise<boolean> {
   const rows = await query<Array<{ role: string }>>(
     "SELECT role FROM user_roles WHERE user_id = ?",
@@ -2821,7 +2884,7 @@ export const onboardMessengerFacebookLogin = createServerFn({ method: "POST" })
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({
-            subscribed_fields: "messages,messaging_postbacks,message_deliveries,message_reads",
+            subscribed_fields: MESSENGER_SUBSCRIBED_FIELDS,
             access_token: pageToken,
           }),
         },
@@ -2840,6 +2903,13 @@ export const onboardMessengerFacebookLogin = createServerFn({ method: "POST" })
            webhook_subscribed = VALUES(webhook_subscribed)`,
         [id, tenantId, pageId, pageName, pageToken, webhookSubscribed ? 1 : 0],
       );
+      await upsertMessengerChannelConnection({
+        tenantId,
+        pageId,
+        pageName,
+        pageAccessToken: pageToken,
+        metaAppConnectionId: conn.id,
+      });
       connected.push({ pageId, pageName, webhookSubscribed });
     }
 
@@ -2893,6 +2963,12 @@ export const connectFacebookPage = createServerFn({ method: "POST" })
        ON DUPLICATE KEY UPDATE page_name = VALUES(page_name), page_access_token = VALUES(page_access_token), status = 'active', webhook_subscribed = 1`,
       [id, context.tenantId, data.page_id, data.page_name, data.page_access_token],
     );
+    await upsertMessengerChannelConnection({
+      tenantId: context.tenantId,
+      pageId: data.page_id,
+      pageName: data.page_name,
+      pageAccessToken: data.page_access_token,
+    });
     return { ok: true };
   });
 

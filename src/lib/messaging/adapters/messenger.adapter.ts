@@ -120,15 +120,24 @@ export class MessengerAdapter extends BaseMessagingAdapter {
             continue;
           }
           const { type, body, attachments } = resolveMessengerMessageType(message);
+          const isEcho = Boolean(message.is_echo);
+          const contactExternalId = isEcho ? recipientId : senderId;
+          const channelExternalId = isEcho ? senderId : recipientId;
+          const messageContactName = isEcho
+            ? `Facebook User (${contactExternalId})`
+            : contactName;
           const canonicalMessage: CanonicalMessage = {
             providerMessageId: mid,
-            direction: message.is_echo ? "outgoing" : "incoming",
+            direction: isEcho ? "outgoing" : "incoming",
             type,
             body,
             attachments,
             providerTimestamp: item.timestamp ?? null,
-            sender: buildIdentity(senderId, { name: contactName }),
-            recipient: buildIdentity(recipientId),
+            sender: buildIdentity(contactExternalId, {
+              name: messageContactName,
+              metadata: { recipientId: channelExternalId },
+            }),
+            recipient: buildIdentity(channelExternalId),
             raw: item,
           };
 
@@ -136,7 +145,7 @@ export class MessengerAdapter extends BaseMessagingAdapter {
             buildEventBase(
               this.provider,
               "",
-              message.is_echo ? "message.echo" : "message.received",
+              isEcho ? "message.echo" : "message.received",
               mid,
               pageId,
               canonicalMessage,

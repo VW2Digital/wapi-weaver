@@ -116,13 +116,25 @@ export const Route = createFileRoute("/api/public/meta-webhook/$publicId")({
           return new Response(`missing resource id for provider ${provider}`, { status: 400 });
         }
 
-        const channel = await getChannelConnectionByExternalAccount(
+        let channel = await getChannelConnectionByExternalAccount(
           connection.tenantId,
           provider,
           resourceId,
         );
 
-        if (!channel) {
+        let messengerLegacyPage = false;
+        if (!channel && provider === "messenger") {
+          const { default: db } = await import("@/lib/db");
+          const pages = (await db.query(
+            `SELECT page_id FROM facebook_pages
+             WHERE page_id = ? AND user_id = ? AND status = 'active'
+             LIMIT 1`,
+            [resourceId, connection.tenantId],
+          )) as Array<{ page_id: string }>;
+          messengerLegacyPage = Boolean(pages[0]);
+        }
+
+        if (!channel && !messengerLegacyPage) {
           await logWebhookDelivery({
             provider,
             tenantId: connection.tenantId,
@@ -135,7 +147,7 @@ export const Route = createFileRoute("/api/public/meta-webhook/$publicId")({
           return new Response(`Channel not found for resource ${resourceId}`, { status: 404 });
         }
 
-        if (channel.tenantId !== connection.tenantId) {
+        if (channel && channel.tenantId !== connection.tenantId) {
           await logWebhookDelivery({
             provider,
             tenantId: connection.tenantId,
@@ -148,7 +160,7 @@ export const Route = createFileRoute("/api/public/meta-webhook/$publicId")({
           return new Response("Forbidden (Asset Cross-Tenant Mismatch)", { status: 403 });
         }
 
-        if (channel.metaAppConnectionId && channel.metaAppConnectionId !== connection.connectionId) {
+        if (channel?.metaAppConnectionId && channel.metaAppConnectionId !== connection.connectionId) {
           await logWebhookDelivery({
             provider,
             tenantId: connection.tenantId,
@@ -161,7 +173,7 @@ export const Route = createFileRoute("/api/public/meta-webhook/$publicId")({
           return new Response("Forbidden (Meta App Mismatch)", { status: 403 });
         }
 
-        if (channel.status !== "active") {
+        if (channel && channel.status !== "active") {
           await logWebhookDelivery({
             provider,
             tenantId: connection.tenantId,
@@ -180,7 +192,7 @@ export const Route = createFileRoute("/api/public/meta-webhook/$publicId")({
           ev.tenantId = connection.tenantId;
           ev.userId = connection.tenantId;
           ev.channelResourceId = resourceId;
-          ev.channelConnectionId = channel.id;
+          ev.channelConnectionId = channel?.id ?? null;
           ev.metaAppConnectionId = connection.connectionId;
         }
 

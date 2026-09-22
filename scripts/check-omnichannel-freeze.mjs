@@ -107,6 +107,15 @@ function isUnfrozen(file, manifest) {
     }
   }
 
+  if (unfreeze.messenger?.enabled) {
+    const patterns = Array.isArray(unfreeze.messenger.patterns)
+      ? unfreeze.messenger.patterns
+      : [];
+    if (patterns.some((p) => matchesPattern(file, p))) {
+      return true;
+    }
+  }
+
   return false;
 }
 
