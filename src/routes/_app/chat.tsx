@@ -4229,13 +4229,7 @@ function ChatPage() {
         throw new Error(sendRes.error || "Falha ao enviar mensagem de mídia.");
       }
 
-      if (sendRes.status === "sent" && sendRes.wamid) {
-        toast.success(`${file.name} enviado com sucesso!`, { id: toastId });
-      } else {
-        toast.message("Mídia na fila. O envio só será confirmado quando o Instagram responder.", {
-          id: toastId,
-        });
-      }
+      toast.dismiss(toastId);
       qc.invalidateQueries({ queryKey: ["chat-messages", selectedPhone] });
       qc.invalidateQueries({ queryKey: ["chat-contacts"] });
       setSelectedContact((prev) =>
