@@ -1,7 +1,7 @@
 {
   "enabled": true,
-  "baselineCommit": "301eb1b83bd42992acc411af9852875794241d62",
-  "baselineShort": "301eb1b",
+  "baselineCommit": "1482421a0e8deaf7b0bee2a8fb583738d4d71525",
+  "baselineShort": "1482421",
   "protectedProviders": ["whatsapp", "instagram"],
   "requireExplicitUnfreeze": true,
   "unfreeze": {
