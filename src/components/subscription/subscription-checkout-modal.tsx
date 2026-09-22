@@ -496,8 +496,8 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="top-4 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-1.5rem)] translate-y-0 flex-col gap-0 overflow-hidden rounded-2xl border border-border bg-card p-0 text-card-foreground shadow-2xl sm:top-6 sm:max-w-[760px]">
-        <DialogHeader className="shrink-0 border-b border-border/60 px-5 pb-4 pe-14 pt-5">
+      <DialogContent className="top-4 flex h-auto max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-[calc(100%-1rem)] translate-y-0 flex-col gap-0 overflow-hidden rounded-2xl border border-border bg-card p-0 text-card-foreground shadow-2xl sm:top-6 sm:max-w-xl">
+        <DialogHeader className="shrink-0 border-b border-border/60 px-4 pb-3 pe-12 pt-4 sm:px-5 sm:pb-4 sm:pt-5">
           <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
             <Sparkles className="h-5 w-5 text-[#F23869]" />
             Renovar Assinatura Bliv
@@ -508,7 +508,7 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
         </DialogHeader>
 
         {errorMessage && (
-          <div className="mx-5 mt-4 flex shrink-0 items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive">
+          <div className="mx-4 mt-4 flex shrink-0 items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive sm:mx-5">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             <span>{errorMessage}</span>
           </div>
@@ -516,7 +516,7 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
 
         {/* ── PIX SUCCESS ─────────────────────────────────────────────── */}
         {pixData ? (
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
             <div className="rounded-2xl border border-border bg-muted/40 p-4 flex flex-col items-center text-center space-y-3">
               <Badge variant="success">
                 PIX Gerado com Sucesso
@@ -532,8 +532,8 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
               {pixData.copiaCola && (
                 <div className="w-full space-y-1 text-left">
                   <Label className="text-xs text-muted-foreground">Código Pix Copia e Cola</Label>
-                  <div className="flex gap-2">
-                    <Input readOnly value={pixData.copiaCola} className="font-mono text-xs text-muted-foreground bg-background rounded-xl" />
+                  <div className="flex min-w-0 gap-2">
+                    <Input readOnly value={pixData.copiaCola} className="min-w-0 rounded-xl bg-background font-mono text-xs text-muted-foreground" />
                     <Button type="button" onClick={handleCopyPix} className="bg-brand-gradient text-white rounded-xl font-semibold shrink-0">
                       {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                       <span className="ml-1 text-xs">{copied ? "Copiado!" : "Copiar"}</span>
@@ -585,8 +585,8 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
 
         /* ── MAIN FORM ───────────────────────────────────────────────── */
         ) : (
-          <div className="grid min-h-0 flex-1 grid-cols-1 items-start gap-5 overflow-y-auto overscroll-contain px-5 py-4 lg:grid-cols-2 lg:gap-6">
-            <div className="space-y-5 lg:pr-6 lg:border-r lg:border-border/60">
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
+            <div className="min-w-0 space-y-5">
 
             {/* Step 1: Operational Plan */}
             <div className="space-y-2">
@@ -603,14 +603,14 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
                       <div
                         key={op.id}
                         onClick={() => setSelectedOpPlanId(op.id)}
-                        className={`cursor-pointer rounded-xl border p-3 transition-all flex flex-col justify-between ${
+                        className={`flex min-w-0 cursor-pointer flex-col justify-between rounded-xl border p-3 transition-all ${
                           isSelected ? "border-primary bg-primary/10 shadow-sm ring-1 ring-primary" : "border-border/60 hover:border-border hover:bg-muted/30"
                         }`}
                       >
-                        <div>
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="font-bold text-sm text-foreground">{op.name}</span>
-                            {isSelected && <Badge className="bg-brand-gradient text-white text-[9px] px-1.5 py-0 border-0">Ativo</Badge>}
+                        <div className="min-w-0">
+                          <div className="flex min-w-0 items-center justify-between gap-2">
+                            <span className="truncate font-bold text-sm text-foreground">{op.name}</span>
+                            {isSelected && <Badge className="shrink-0 border-0 bg-brand-gradient px-1.5 py-0 text-[9px] text-white">Ativo</Badge>}
                           </div>
                           {op.description && <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">{op.description}</p>}
                         </div>
@@ -634,26 +634,26 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 2. Escolha o Período de Duração
               </Label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 gap-2.5">
                 {availableCycles.map((c: any) => {
                   const isSelected = selectedCommercialPlanId === c.id;
                   return (
                     <div
                       key={c.id}
                       onClick={() => setSelectedCommercialPlanId(c.id)}
-                      className={`cursor-pointer rounded-xl border p-3.5 transition-all flex items-center justify-between ${
+                      className={`flex min-w-0 cursor-pointer items-center justify-between gap-3 rounded-xl border p-3.5 transition-all ${
                         isSelected ? "border-primary bg-primary/10 shadow-sm ring-1 ring-primary" : "border-border/60 hover:border-border hover:bg-muted/30"
                       }`}
                     >
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="h-3.5 w-3.5 text-primary" />
-                          <span className="font-bold text-xs sm:text-sm">{c.name}</span>
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5 shrink-0 text-primary" />
+                          <span className="truncate font-bold text-sm">{c.name}</span>
                         </div>
-                        <span className="text-[11px] text-muted-foreground block">Validade: {c.duration_days || 30} dias</span>
+                        <span className="block text-[11px] text-muted-foreground">Validade: {c.duration_days || 30} dias</span>
                       </div>
-                      <div className="text-right">
-                        <span className="font-black text-sm sm:text-base text-foreground block">
+                      <div className="shrink-0 text-right">
+                        <span className="block whitespace-nowrap text-sm font-black tabular-nums text-foreground">
                           R$ {Number(c.price || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                         </span>
                       </div>
@@ -665,7 +665,7 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
 
             </div>
 
-            <div className="space-y-4 min-w-0">
+            <div className="min-w-0 space-y-4">
             {/* Step 3: Payment Method */}
             <div className="space-y-2">
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -675,36 +675,36 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("card")}
-                  className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-center transition-all ${
+                  className={`flex min-w-0 flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-3 text-center transition-all ${
                     paymentMethod === "card" ? "border-primary bg-primary/10 text-foreground font-semibold" : "border-border/60 text-muted-foreground hover:bg-muted/40"
                   }`}
                 >
-                  <CreditCard className="h-5 w-5 text-primary" />
-                  <span className="text-xs">
-                    {isTransparentMode ? "Cartão de Crédito" : "Mercado Pago / Cartão"}
+                  <CreditCard className="h-5 w-5 shrink-0 text-primary" />
+                  <span className="text-center text-xs leading-tight">
+                    {isTransparentMode ? "Cartão" : "Mercado Pago"}
                   </span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("pix")}
-                  className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-center transition-all ${
+                  className={`flex min-w-0 flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-3 text-center transition-all ${
                     paymentMethod === "pix" ? "border-emerald-500 bg-emerald-500/10 text-foreground font-semibold" : "border-border/60 text-muted-foreground hover:bg-muted/40"
                   }`}
                 >
-                  <QrCode className="h-5 w-5 text-emerald-500" />
-                  <span className="text-xs">PIX Instantâneo</span>
+                  <QrCode className="h-5 w-5 shrink-0 text-emerald-500" />
+                  <span className="text-center text-xs leading-tight">Pix</span>
                 </button>
               </div>
             </div>
 
             {/* ── Transparent Card Form ─────────────────────────────── */}
             {paymentMethod === "card" && isTransparentMode && (
-              <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                  <Lock className="h-3.5 w-3.5" />
-                  <span>Pagamento seguro via Mercado Pago</span>
+              <div className="min-w-0 space-y-3 overflow-hidden rounded-xl border border-border bg-muted/30 p-3 sm:p-4">
+                <div className="mb-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                  <Lock className="h-3.5 w-3.5 shrink-0" />
+                  <span className="min-w-0 truncate">Pagamento seguro via Mercado Pago</span>
                   {detectedMethod && (
-                    <Badge className="ml-auto text-[10px] px-2 py-0 border border-border/60 bg-background text-foreground font-medium">
+                    <Badge className="ml-auto shrink-0 border border-border/60 bg-background px-2 py-0 text-[10px] font-medium text-foreground">
                       {detectedMethod.name}
                     </Badge>
                   )}
@@ -718,7 +718,7 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
                     value={cardNumber}
                     onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
                     maxLength={19}
-                    className="font-mono tracking-widest rounded-xl bg-background"
+                    className="min-w-0 rounded-xl bg-background font-mono tracking-widest"
                     inputMode="numeric"
                   />
                 </div>
@@ -730,24 +730,24 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
                     placeholder="NOME COMO NO CARTÃO"
                     value={cardName}
                     onChange={(e) => setCardName(e.target.value.toUpperCase())}
-                    className="uppercase rounded-xl bg-background"
+                    className="min-w-0 rounded-xl bg-background uppercase"
                   />
                 </div>
 
                 {/* Expiry + CVV */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Validade (MM/AA)</Label>
+                <div className="grid min-w-0 grid-cols-2 gap-3">
+                  <div className="min-w-0 space-y-1">
+                    <Label className="text-xs text-muted-foreground">Validade</Label>
                     <Input
                       placeholder="MM/AA"
                       value={cardExpiry}
                       onChange={(e) => setCardExpiry(formatExpiry(e.target.value))}
                       maxLength={5}
                       inputMode="numeric"
-                      className="font-mono rounded-xl bg-background"
+                      className="min-w-0 rounded-xl bg-background font-mono"
                     />
                   </div>
-                  <div className="space-y-1">
+                  <div className="min-w-0 space-y-1">
                     <Label className="text-xs text-muted-foreground">CVV</Label>
                     <Input
                       placeholder="•••"
@@ -756,13 +756,13 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
                       maxLength={4}
                       inputMode="numeric"
                       type="password"
-                      className="font-mono rounded-xl bg-background"
+                      className="min-w-0 rounded-xl bg-background font-mono"
                     />
                   </div>
                 </div>
 
                 {/* CPF */}
-                <div className="space-y-1">
+                <div className="min-w-0 space-y-1">
                   <Label className="text-xs text-muted-foreground">CPF do Titular</Label>
                   <Input
                     placeholder="000.000.000-00"
@@ -770,7 +770,7 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
                     onChange={(e) => setCpf(formatCPF(e.target.value))}
                     maxLength={14}
                     inputMode="numeric"
-                    className="font-mono rounded-xl bg-background"
+                    className="min-w-0 rounded-xl bg-background font-mono"
                   />
                 </div>
 
@@ -782,7 +782,7 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
                       value={installments}
                       onChange={(e) => setInstallments(Number(e.target.value))}
                       disabled={isLoadingInstallments}
-                      className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm appearance-none pr-8 focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="w-full min-w-0 appearance-none rounded-xl border border-input bg-background px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     >
                       {installmentOptions.length > 0 ? installmentOptions.map((option) => (
                         <option key={option.installments} value={option.installments}>
@@ -814,11 +814,11 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
         )}
 
         {!pixData && !cardResult && (
-          <div className="shrink-0 border-t border-border/60 bg-card px-5 py-4">
+          <div className="sticky bottom-0 z-10 shrink-0 border-t border-border/60 bg-card px-4 py-3 sm:px-5 sm:py-4">
             <Button
               disabled={isSubmitting || !selectedCommercialPlanId || !gatewayReady || transparentMisconfigured}
               onClick={handleCheckout}
-              className="w-full rounded-xl bg-brand-gradient py-5 font-bold text-white shadow-lg shadow-[#F23869]/20 transition-all hover:opacity-95 active:scale-[0.99]"
+              className="h-11 w-full rounded-xl bg-brand-gradient font-bold text-white shadow-lg shadow-[#F23869]/20 transition-all hover:opacity-95 active:scale-[0.99]"
             >
               {isSubmitting ? (
                 <span className="flex items-center gap-2">
