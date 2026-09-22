@@ -5,12 +5,23 @@ import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { recordAudit } from "./audit.functions";
 import crypto from "crypto";
 import { hasCompanyAdminRole, hasMasterRole, isMaster } from "./roles";
+import { encryptMetaCredential } from "./encryption";
 
 type DebugJsonPrimitive = string | number | boolean | null;
 type DebugJsonValue = DebugJsonPrimitive | DebugJsonObject | DebugJsonValue[];
 
 interface DebugJsonObject {
   [key: string]: DebugJsonValue;
+}
+
+async function assertAdminMaster(userId: string) {
+  const { default: db } = await import("./db");
+  const rows = (await db.query("SELECT role FROM user_roles WHERE user_id = ?", [
+    userId,
+  ])) as Array<{ role: string }>;
+  if (!hasMasterRole(rows.map(({ role }) => role))) {
+    throw new Error("Acesso restrito ao administrador master.");
+  }
 }
 
 function toDebugJsonValue(value: unknown): DebugJsonValue {
@@ -46,7 +57,9 @@ export const getCurrentUserRoles = createServerFn({ method: "GET" })
       context.userId,
     ])) as Array<{ role: string }>;
     const roles = (rows ?? []).map((r) => r.role);
-    const isOwner = Boolean(context.userId && context.tenantId && context.userId === context.tenantId);
+    const isOwner = Boolean(
+      context.userId && context.tenantId && context.userId === context.tenantId,
+    );
     const finalRoles =
       isOwner && !roles.includes("admin") && !roles.includes("admin_master")
         ? [...roles, "admin"]
@@ -64,7 +77,7 @@ export const getPlatformSettings = createServerFn({ method: "GET" })
     const { data, error } = await context.db
       .from("platform_settings")
       .select(
-        "meta_app_id, meta_config_id, meta_graph_version, updated_at, meta_app_secret, head_tags, body_tags, cron_secret, seo_title, seo_description, license_key",
+        "meta_app_id, meta_config_id, meta_graph_version, updated_at, meta_app_secret, head_tags, body_tags, cron_secret, seo_title, seo_description, license_key, business_account_id, meta_system_user_id, meta_system_user_token_encrypted, system_user_token, meta_extended_credit_line_id",
       )
       .eq("id", 1)
       .maybeSingle();
@@ -75,6 +88,12 @@ export const getPlatformSettings = createServerFn({ method: "GET" })
       meta_config_id: data.meta_config_id ?? "",
       meta_graph_version: data.meta_graph_version ?? "v26.0",
       meta_app_secret_set: !!data.meta_app_secret,
+      business_account_id: (data as any).business_account_id ?? "",
+      meta_system_user_id: (data as any).meta_system_user_id ?? "",
+      meta_system_user_token_set: Boolean(
+        (data as any).meta_system_user_token_encrypted || (data as any).system_user_token,
+      ),
+      meta_extended_credit_line_id: (data as any).meta_extended_credit_line_id ?? "",
       head_tags: (data as any).head_tags ?? "",
       body_tags: (data as any).body_tags ?? "",
       cron_secret: (data as any).cron_secret ?? "",
@@ -140,6 +159,25 @@ const settingsSchema = z.object({
     .max(64)
     .regex(/^[0-9]*$/, "Config ID deve conter apenas dígitos")
     .optional(),
+  business_account_id: z
+    .string()
+    .trim()
+    .max(100)
+    .regex(/^[0-9]*$/, "Business Portfolio ID deve conter apenas dígitos")
+    .optional(),
+  meta_system_user_id: z
+    .string()
+    .trim()
+    .max(100)
+    .regex(/^[0-9]*$/, "System User ID deve conter apenas dígitos")
+    .optional(),
+  meta_system_user_token: z.string().trim().max(4096).optional(),
+  meta_extended_credit_line_id: z
+    .string()
+    .trim()
+    .max(100)
+    .regex(/^[0-9]*$/, "Extended Credit Line ID deve conter apenas dígitos")
+    .optional(),
   meta_graph_version: z
     .string()
     .trim()
@@ -164,6 +202,14 @@ export const updatePlatformSettings = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => settingsSchema.parse(d))
   .handler(async ({ data, context }) => {
+    if (
+      data.business_account_id !== undefined ||
+      data.meta_system_user_id !== undefined ||
+      data.meta_system_user_token !== undefined ||
+      data.meta_extended_credit_line_id !== undefined
+    ) {
+      await assertAdminMaster(context.userId);
+    }
     const update: Record<string, any> = {
       updated_at: new Date().toISOString(),
       updated_by: context.userId,
@@ -174,6 +220,16 @@ export const updatePlatformSettings = createServerFn({ method: "POST" })
       update.meta_app_secret = data.meta_app_secret;
     if (data.meta_config_id !== undefined && data.meta_config_id !== "")
       update.meta_config_id = data.meta_config_id;
+    if (data.business_account_id !== undefined && data.business_account_id !== "")
+      update.business_account_id = data.business_account_id;
+    if (data.meta_system_user_id !== undefined && data.meta_system_user_id !== "")
+      update.meta_system_user_id = data.meta_system_user_id;
+    if (data.meta_system_user_token !== undefined && data.meta_system_user_token !== "") {
+      update.meta_system_user_token_encrypted = encryptMetaCredential(data.meta_system_user_token);
+      update.system_user_token = null;
+    }
+    if (data.meta_extended_credit_line_id !== undefined && data.meta_extended_credit_line_id !== "")
+      update.meta_extended_credit_line_id = data.meta_extended_credit_line_id;
     if (data.meta_graph_version) update.meta_graph_version = data.meta_graph_version;
     if (data.seo_title !== undefined) update.seo_title = data.seo_title || null;
     if (data.seo_description !== undefined) update.seo_description = data.seo_description || null;
@@ -490,7 +546,7 @@ export const getLicenseStatus = createServerFn({ method: "GET" })
       isAccessAllowed,
       graceDaysRemaining: 0,
       hasGraceStarted: false,
-      status: isAccessAllowed ? "active" : (sub.status || "expired"),
+      status: isAccessAllowed ? "active" : sub.status || "expired",
     };
   });
 
@@ -540,10 +596,8 @@ export const getMyPlan = createServerFn({ method: "GET" })
     }
 
     // O nome exibível: usa billing_plans.name se encontrou, senão capitaliza o campo plan
-    const planName = planDetails?.name
-      ?? (lic.plan
-        ? lic.plan.charAt(0).toUpperCase() + lic.plan.slice(1)
-        : null);
+    const planName =
+      planDetails?.name ?? (lic.plan ? lic.plan.charAt(0).toUpperCase() + lic.plan.slice(1) : null);
 
     return {
       plan_name: planName,

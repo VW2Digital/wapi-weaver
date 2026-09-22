@@ -262,14 +262,7 @@
     "updated_at",
     "deleted_at"
   ],
-  "campaign_logs": [
-    "id",
-    "campaign_id",
-    "contact_number",
-    "status",
-    "error_message",
-    "created_at"
-  ],
+  "campaign_logs": ["id", "campaign_id", "contact_number", "status", "error_message", "created_at"],
   "campaign_messages": [
     "id",
     "tenant_id",
@@ -403,10 +396,7 @@
     "created_at",
     "updated_at"
   ],
-  "contact_groups": [
-    "contact_id",
-    "group_id"
-  ],
+  "contact_groups": ["contact_id", "group_id"],
   "contact_identities": [
     "id",
     "tenant_id",
@@ -421,12 +411,7 @@
     "created_at",
     "updated_at"
   ],
-  "contact_tags": [
-    "contact_id",
-    "tag_id",
-    "user_id",
-    "tenant_id"
-  ],
+  "contact_tags": ["contact_id", "tag_id", "user_id", "tenant_id"],
   "contacts": [
     "id",
     "tenant_id",
@@ -473,11 +458,7 @@
     "unassigned_at",
     "is_active"
   ],
-  "conversation_tags": [
-    "contact_number",
-    "tag_id",
-    "user_id"
-  ],
+  "conversation_tags": ["contact_number", "tag_id", "user_id"],
   "custom_fields": [
     "id",
     "user_id",
@@ -533,13 +514,7 @@
     "end_time",
     "active"
   ],
-  "ds_agent_folders": [
-    "id",
-    "tenant_id",
-    "name",
-    "created_at",
-    "updated_at"
-  ],
+  "ds_agent_folders": ["id", "tenant_id", "name", "created_at", "updated_at"],
   "ds_agent_followups": [
     "id",
     "agent_id",
@@ -574,23 +549,8 @@
     "storage_path",
     "uploaded_at"
   ],
-  "ds_agent_knowledge_links": [
-    "id",
-    "agent_id",
-    "tenant_id",
-    "url",
-    "status",
-    "created_at"
-  ],
-  "ds_agent_logs": [
-    "id",
-    "tenant_id",
-    "agent_id",
-    "level",
-    "message",
-    "details",
-    "created_at"
-  ],
+  "ds_agent_knowledge_links": ["id", "agent_id", "tenant_id", "url", "status", "created_at"],
+  "ds_agent_logs": ["id", "tenant_id", "agent_id", "level", "message", "details", "created_at"],
   "ds_agent_sessions": [
     "id",
     "tenant_id",
@@ -708,21 +668,8 @@
     "created_at",
     "updated_at"
   ],
-  "facebook_webhook_events": [
-    "id",
-    "user_id",
-    "raw",
-    "processed",
-    "received_at"
-  ],
-  "groups": [
-    "id",
-    "user_id",
-    "name",
-    "description",
-    "created_at",
-    "updated_at"
-  ],
+  "facebook_webhook_events": ["id", "user_id", "raw", "processed", "received_at"],
+  "groups": ["id", "user_id", "name", "description", "created_at", "updated_at"],
   "incoming_webhook_events": [
     "id",
     "incoming_webhook_id",
@@ -896,27 +843,9 @@
     "stripe_subscription_id",
     "ai_tokens_used"
   ],
-  "list_contacts": [
-    "list_id",
-    "contact_id",
-    "user_id",
-    "added_at",
-    "tenant_id"
-  ],
-  "lists": [
-    "id",
-    "tenant_id",
-    "user_id",
-    "name",
-    "description",
-    "created_at",
-    "updated_at"
-  ],
-  "message_tags": [
-    "message_id",
-    "tag_id",
-    "user_id"
-  ],
+  "list_contacts": ["list_id", "contact_id", "user_id", "added_at", "tenant_id"],
+  "lists": ["id", "tenant_id", "user_id", "name", "description", "created_at", "updated_at"],
+  "message_tags": ["message_id", "tag_id", "user_id"],
   "messaging_events": [
     "id",
     "tenant_id",
@@ -1077,12 +1006,7 @@
     "old_status",
     "new_status"
   ],
-  "opportunity_tags": [
-    "opportunity_id",
-    "tag_id",
-    "user_id",
-    "tenant_id"
-  ],
+  "opportunity_tags": ["opportunity_id", "tag_id", "user_id", "tenant_id"],
   "outgoing_webhook_logs": [
     "id",
     "outgoing_webhook_id",
@@ -1168,6 +1092,9 @@
     "business_account_id",
     "webhook_verify_token",
     "system_user_token",
+    "meta_system_user_id",
+    "meta_system_user_token_encrypted",
+    "meta_extended_credit_line_id",
     "created_at"
   ],
   "profiles": [
@@ -1248,14 +1175,7 @@
     "created_at",
     "updated_at"
   ],
-  "schema_backups": [
-    "id",
-    "created_by",
-    "source",
-    "sql",
-    "size_bytes",
-    "created_at"
-  ],
+  "schema_backups": ["id", "created_by", "source", "sql", "size_bytes", "created_at"],
   "subscription_events": [
     "id",
     "tenant_id",
@@ -1323,31 +1243,9 @@
     "trial_consumed_at",
     "activated_at"
   ],
-  "tags": [
-    "id",
-    "tenant_id",
-    "user_id",
-    "name",
-    "color",
-    "created_at",
-    "icon"
-  ],
-  "team_members": [
-    "id",
-    "team_id",
-    "user_id",
-    "role",
-    "joined_at"
-  ],
-  "teams": [
-    "id",
-    "tenant_id",
-    "user_id",
-    "name",
-    "description",
-    "auto_assign_mode",
-    "created_at"
-  ],
+  "tags": ["id", "tenant_id", "user_id", "name", "color", "created_at", "icon"],
+  "team_members": ["id", "team_id", "user_id", "role", "joined_at"],
+  "teams": ["id", "tenant_id", "user_id", "name", "description", "auto_assign_mode", "created_at"],
   "templates": [
     "id",
     "tenant_id",
@@ -1369,19 +1267,8 @@
     "created_at",
     "updated_at"
   ],
-  "user_roles": [
-    "id",
-    "user_id",
-    "role",
-    "created_at"
-  ],
-  "users": [
-    "id",
-    "email",
-    "password_hash",
-    "created_at",
-    "updated_at"
-  ],
+  "user_roles": ["id", "user_id", "role", "created_at"],
+  "users": ["id", "email", "password_hash", "created_at", "updated_at"],
   "webchat_sessions": [
     "id",
     "tenant_id",
@@ -1481,6 +1368,44 @@
     "error_message",
     "created_at",
     "updated_at"
+  ],
+  "whatsapp_partner_accounts": [
+    "id",
+    "tenant_id",
+    "channel_connection_id",
+    "meta_app_connection_id",
+    "customer_business_id",
+    "waba_id",
+    "phone_number_id",
+    "business_token_encrypted",
+    "billing_mode",
+    "payment_status",
+    "primary_funding_id",
+    "credit_allocation_id",
+    "partner_status",
+    "system_user_assigned",
+    "migration_type",
+    "migration_status",
+    "flow_finish_type",
+    "last_error",
+    "last_synced_at",
+    "created_at",
+    "updated_at"
+  ],
+  "whatsapp_partner_operations": [
+    "id",
+    "tenant_id",
+    "partner_account_id",
+    "operation_type",
+    "idempotency_key",
+    "status",
+    "request_json",
+    "response_json",
+    "meta_trace_id",
+    "error_message",
+    "created_at",
+    "updated_at",
+    "completed_at"
   ],
   "whatsapp_calls": [
     "id",

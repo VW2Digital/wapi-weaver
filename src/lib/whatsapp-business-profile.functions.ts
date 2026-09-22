@@ -196,13 +196,25 @@ export const updateWhatsAppBusinessProfile = createServerFn({ method: "POST" })
 
 export const onboardWhatsApp = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((d) => z.object({
-    code: z.string(),
-    waba_id: z.string().optional(),
-    phone_number_id: z.string().optional(),
-    is_coexistence: z.boolean().optional(),
-    meta_app_connection_id: z.string(),
-  }).parse(d))
+  .validator((d) =>
+    z
+      .object({
+        code: z.string(),
+        waba_id: z.string().optional(),
+        phone_number_id: z.string().optional(),
+        is_coexistence: z.boolean().optional(),
+        meta_app_connection_id: z.string(),
+        customer_business_id: z.string().optional(),
+        flow_finish_type: z.string().max(80).optional(),
+        migration_type: z.enum(["new", "coexistence", "obo", "grant_only", "phone"]).optional(),
+        registration_pin: z
+          .string()
+          .regex(/^\d{6}$/)
+          .optional(),
+        billing_mode: z.enum(["customer_payment", "shared_credit"]).optional(),
+      })
+      .parse(d),
+  )
   .handler(async ({ context, data }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
@@ -221,24 +233,37 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
     );
     const connRows = masterUser
       ? await db.query<
-          { app_id: string; app_secret_encrypted: string; graph_version: string }[]
+          {
+            connection_id: string;
+            app_id: string;
+            app_secret_encrypted: string;
+            graph_version: string;
+          }[]
         >(
-          "SELECT app_id, app_secret_encrypted, graph_version FROM meta_app_connections WHERE id = ? AND tenant_id = ? LIMIT 1",
+          "SELECT id AS connection_id, app_id, app_secret_encrypted, graph_version FROM meta_app_connections WHERE id = ? AND tenant_id = ? LIMIT 1",
           [connectionId, effectiveUserId],
         )
       : [];
-    let conn: {
-      app_id: string;
-      app_secret_encrypted?: string;
-      app_secret_plain?: string;
-      graph_version: string;
-    } | undefined = connRows?.[0];
+    let conn:
+      | {
+          app_id: string;
+          connection_id?: string;
+          app_secret_encrypted?: string;
+          app_secret_plain?: string;
+          graph_version: string;
+        }
+      | undefined = connRows?.[0];
 
     if (!conn && connectionId !== "platform") {
       const sharedRows = await db.query<
-        { app_id: string; app_secret_encrypted: string; graph_version: string }[]
+        {
+          connection_id: string;
+          app_id: string;
+          app_secret_encrypted: string;
+          graph_version: string;
+        }[]
       >(
-        `SELECT mac.app_id, mac.app_secret_encrypted, mac.graph_version
+        `SELECT mac.id AS connection_id, mac.app_id, mac.app_secret_encrypted, mac.graph_version
          FROM meta_app_connections mac
          JOIN user_roles ur
            ON ur.user_id = mac.tenant_id
@@ -265,6 +290,7 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
       if (platform?.meta_app_id && platform?.meta_app_secret) {
         conn = {
           app_id: platform.meta_app_id,
+          connection_id: undefined,
           app_secret_plain: platform.meta_app_secret,
           graph_version: platform.meta_graph_version || "v26.0",
         };
@@ -295,35 +321,31 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
       const tokenUrl = `https://graph.facebook.com/${GRAPH_VERSION}/oauth/access_token?client_id=${APP_ID}&client_secret=${APP_SECRET}&code=${data.code}`;
       const tokenResp = await fetch(tokenUrl);
       const tokenData = await tokenResp.json();
-      
+
       if (!tokenResp.ok) {
         throw new Error(tokenData.error?.message || "Erro ao obter access token.");
       }
-      
-      const accessToken = tokenData.access_token;
-      let wabaId = data.waba_id;
-      let phoneNumberId = data.phone_number_id;
 
-      // 2. Tentar buscar os IDs se o frontend não enviou (usando token de debug ou chamada direta)
-      // Nota: o ideal é o frontend enviar. Se não enviou e precisar, podemos chamar a Graph API.
-      if (!wabaId || !phoneNumberId) {
-        // Exemplo: debug_token para achar os accounts (se aplicável), mas o ideal é que venha do frontend.
-        // O fluxo do frontend passará os IDs.
-        if (!wabaId || !phoneNumberId) {
-           throw new Error("waba_id e phone_number_id são obrigatórios. O frontend não os enviou.");
-        }
+      const accessToken = tokenData.access_token;
+      const wabaId = data.waba_id;
+      const phoneNumberId = data.phone_number_id;
+
+      if (!wabaId) {
+        throw new Error("waba_id é obrigatório. O Embedded Signup não retornou a WABA.");
       }
 
       // 3. Registrar o número para uso na Cloud API (coexistência ignora o registro, pois já está registrado)
-      if (!data.is_coexistence) {
+      if (phoneNumberId && !data.is_coexistence) {
         const registerUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/register`;
+        const registerBody: Record<string, string> = { messaging_product: "whatsapp" };
+        if (data.registration_pin) registerBody.pin = data.registration_pin;
         const registerResp = await fetch(registerUrl, {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${accessToken}`,
-            "Content-Type": "application/json"
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
           },
-          body: JSON.stringify({ messaging_product: 'whatsapp' })
+          body: JSON.stringify(registerBody),
         });
         if (!registerResp.ok) {
           const err = await registerResp.json();
@@ -336,8 +358,8 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
       const subscribeResp = await fetch(subscribeUrl, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${accessToken}`
-        }
+          Authorization: `Bearer ${accessToken}`,
+        },
       });
       if (!subscribeResp.ok) {
         const err = await subscribeResp.json();
@@ -345,18 +367,18 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
       }
 
       // 4.5. Se for coexistência, solicitar sincronização inicial (smb_app_data)
-      if (data.is_coexistence) {
+      if (data.is_coexistence && phoneNumberId) {
         const syncUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/smb_app_data`;
         const syncResp = await fetch(syncUrl, {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${accessToken}`,
-            "Content-Type": "application/json"
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             history_sync: true, // Configuração base (você pode optar por history_sync: false se não quiser mensagens antigas)
-            contacts_sync: true
-          })
+            contacts_sync: true,
+          }),
         });
         if (!syncResp.ok) {
           const err = await syncResp.json();
@@ -369,13 +391,32 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
       await db.query(
         `UPDATE profiles SET 
           whatsapp_access_token = ?, 
-          whatsapp_phone_number_id = ?, 
+          whatsapp_phone_number_id = COALESCE(?, whatsapp_phone_number_id),
           whatsapp_waba_id = ? 
         WHERE id = ?`,
-        [accessToken, phoneNumberId, wabaId, effectiveUserId]
+        [accessToken, phoneNumberId, wabaId, effectiveUserId],
       );
 
-      return { success: true, waba_id: wabaId, phone_number_id: phoneNumberId };
+      const { finalizeWhatsAppPartnerOnboarding } = await import("./whatsapp-partner.functions");
+      const partner = await finalizeWhatsAppPartnerOnboarding({
+        tenantId: context.tenantId,
+        metaAppConnectionId: conn.connection_id || null,
+        customerBusinessId: data.customer_business_id || null,
+        wabaId,
+        phoneNumberId: phoneNumberId || null,
+        businessToken: accessToken,
+        flowFinishType: data.flow_finish_type || null,
+        migrationType: data.migration_type,
+        billingMode: data.billing_mode || "customer_payment",
+      });
+
+      return {
+        success: true,
+        waba_id: wabaId,
+        phone_number_id: phoneNumberId,
+        requires_phone_selection: !phoneNumberId,
+        partner,
+      };
     } catch (e: any) {
       console.error("Erro no onboardWhatsApp:", e.message);
       return { success: false, message: e.message || "Erro desconhecido no onboard." };

@@ -89,6 +89,7 @@ export async function processOnce() {
     console.warn("[Queue] Queue processing suspended due to invalid or missing license.");
     return { processed: 0 };
   }
+  const { default: db } = await import("@/lib/db");
 
   // 0a. Recupera mensagens travadas em "sending" há > 5min → volta a "pending"
   const stuckCutoff = new Date(Date.now() - STUCK_SENDING_MINUTES * 60_000).toISOString();
@@ -528,7 +529,6 @@ export async function processOnce() {
     }
 
     // Recompute campaign totals + maybe mark done
-    const { default: db } = await import("@/lib/db");
     for (const cid of campIds) {
       const rows = (await db.query(
         "SELECT status, COUNT(*) as count FROM campaign_messages WHERE campaign_id = ? GROUP BY status",

@@ -1717,6 +1717,9 @@ CREATE TABLE IF NOT EXISTS `platform_settings` (
   `business_account_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `webhook_verify_token` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `system_user_token` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `meta_system_user_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `meta_system_user_token_encrypted` text COLLATE utf8mb4_unicode_ci,
+  `meta_extended_credit_line_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `updated_by` (`updated_by`),
@@ -2146,6 +2149,58 @@ CREATE TABLE IF NOT EXISTS `webhook_field_mappings` (
   CONSTRAINT `webhook_field_mappings_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `webhook_field_mappings_ibfk_2` FOREIGN KEY (`webhook_id`) REFERENCES `incoming_webhooks` (`id`) ON DELETE CASCADE,
   CONSTRAINT `webhook_field_mappings_ibfk_3` FOREIGN KEY (`custom_field_id`) REFERENCES `contact_custom_fields` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `whatsapp_partner_accounts` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `channel_connection_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `meta_app_connection_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `customer_business_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `waba_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `phone_number_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `business_token_encrypted` text COLLATE utf8mb4_unicode_ci,
+  `billing_mode` enum('customer_payment','shared_credit') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'customer_payment',
+  `payment_status` enum('pending','action_required','ready','error') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `primary_funding_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `credit_allocation_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `partner_status` enum('pending','active','revoked','error') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `system_user_assigned` tinyint(1) NOT NULL DEFAULT '0',
+  `migration_type` enum('new','coexistence','obo','grant_only','phone') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'new',
+  `migration_status` enum('not_required','pending','completed','action_required','error') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'not_required',
+  `flow_finish_type` varchar(80) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `last_error` text COLLATE utf8mb4_unicode_ci,
+  `last_synced_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_whatsapp_partner_waba` (`waba_id`),
+  KEY `idx_whatsapp_partner_tenant` (`tenant_id`),
+  KEY `idx_whatsapp_partner_channel` (`channel_connection_id`),
+  KEY `idx_whatsapp_partner_status` (`partner_status`,`payment_status`,`migration_status`),
+  CONSTRAINT `fk_whatsapp_partner_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_whatsapp_partner_channel` FOREIGN KEY (`channel_connection_id`) REFERENCES `channel_connections` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `whatsapp_partner_operations` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `partner_account_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `operation_type` enum('onboarding','payment_check','credit_share','system_user_assign','migration') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `idempotency_key` varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` enum('pending','processing','completed','action_required','failed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `request_json` json DEFAULT NULL,
+  `response_json` json DEFAULT NULL,
+  `meta_trace_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `error_message` text COLLATE utf8mb4_unicode_ci,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `completed_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_whatsapp_partner_operation` (`tenant_id`,`idempotency_key`),
+  KEY `idx_whatsapp_partner_operations_account` (`tenant_id`,`partner_account_id`,`created_at`),
+  CONSTRAINT `fk_whatsapp_partner_operation_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_whatsapp_partner_operation_account` FOREIGN KEY (`partner_account_id`) REFERENCES `whatsapp_partner_accounts` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `whatsapp_business_profile_logs` (
