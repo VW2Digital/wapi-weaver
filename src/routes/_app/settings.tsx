@@ -187,9 +187,7 @@ export const Route = createFileRoute("/_app/settings")({
     s: typeof search.s === "string" ? search.s : undefined,
     oauth_error: typeof search.oauth_error === "string" ? search.oauth_error : undefined,
     oauth_error_description:
-      typeof search.oauth_error_description === "string"
-        ? search.oauth_error_description
-        : undefined,
+      typeof search.oauth_error_description === "string" ? search.oauth_error_description : undefined,
   }),
   component: SettingsLayout,
 });
@@ -412,9 +410,7 @@ function CrmIngestSection({
 
   // Build dynamic curl example using real field keys
   const curlExample = useMemo(() => {
-    const activeFields = (fields as any[]).filter(
-      (f) => f.is_active !== 0 && f.is_active !== false,
-    );
+    const activeFields = (fields as any[]).filter((f) => f.is_active !== 0 && f.is_active !== false);
     const customFieldsObj =
       activeFields.length > 0
         ? activeFields.reduce(
@@ -472,7 +468,9 @@ function CrmIngestSection({
             <Database className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="font-display text-lg font-semibold">Integração de Contatos via API</h2>
+            <h2 className="font-display text-lg font-semibold">
+              Integração de Contatos via API
+            </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Envie contatos diretamente do seu CRM, automação (n8n, Zapier, Make) ou sistema
               próprio. Os campos personalizados criados na sua conta são aceitos automaticamente.
@@ -567,8 +565,7 @@ function CrmIngestSection({
             <Loader2 className="h-4 w-4 animate-spin" />
             Carregando campos...
           </div>
-        ) : (fields as any[]).filter((f) => f.is_active !== 0 && f.is_active !== false).length ===
-          0 ? (
+        ) : (fields as any[]).filter((f) => f.is_active !== 0 && f.is_active !== false).length === 0 ? (
           <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
             <ListChecks className="h-8 w-8 mx-auto mb-2 opacity-30" />
             <p className="font-medium">Nenhum campo personalizado criado ainda.</p>
@@ -873,7 +870,10 @@ function SettingsPage() {
           });
           return;
         }
-        const metaError = response?.error_message || response?.errorCode || response?.status;
+        const metaError =
+          response?.error_message ||
+          response?.errorCode ||
+          response?.status;
         toast.error(
           metaError
             ? `Login da Meta não retornou código (${metaError}). Verifique o Config ID do Embedded Signup.`
@@ -1052,7 +1052,12 @@ function SettingsPage() {
     });
   const headerAction = useMemo(
     () => (
-      <Button variant="outline" size="sm" asChild className="gap-2 cursor-pointer">
+      <Button
+        variant="outline"
+        size="sm"
+        asChild
+        className="gap-2 cursor-pointer"
+      >
         <Link
           to={activeSection ? "/settings" : "/chat"}
           search={
@@ -1256,15 +1261,15 @@ function SettingsPage() {
         name: "WebChat",
         description: "Widget para o seu site",
         installed: webchatCount > 0,
-        statusLabel:
-          webchatCount > 0 ? `${webchatCount} ${webchatCount === 1 ? "widget" : "widgets"}` : null,
+        statusLabel: webchatCount > 0 ? `${webchatCount} ${webchatCount === 1 ? "widget" : "widgets"}` : null,
         accentClass: "bg-slate-800",
         icon: <MessageCircle className="h-10 w-10 text-white" />,
         onOpen: () => navigate({ to: "/webchat" }),
       },
     ];
 
-    const filtered = appsFilter === "installed" ? apps.filter((app) => app.installed) : apps;
+    const filtered =
+      appsFilter === "installed" ? apps.filter((app) => app.installed) : apps;
 
     return [...filtered].sort((a, b) => {
       if (appsSort === "status") {
@@ -1481,25 +1486,25 @@ function SettingsPage() {
               <div className="rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden divide-y divide-border">
                 {/* Ferramentas Avançadas — apenas admin_master */}
                 {isAdminMaster && (
-                  <button
-                    onClick={() => setActiveSection("advanced")}
-                    className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                        <Settings className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h5 className="font-semibold text-sm text-foreground">
-                          Ferramentas Avançadas
-                        </h5>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Sandbox avançada, logs e comandos do sistema.
-                        </p>
-                      </div>
+                <button
+                  onClick={() => setActiveSection("advanced")}
+                  className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group cursor-pointer"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                      <Settings className="h-5 w-5" />
                     </div>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
-                  </button>
+                    <div>
+                      <h5 className="font-semibold text-sm text-foreground">
+                        Ferramentas Avançadas
+                      </h5>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Sandbox avançada, logs e comandos do sistema.
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+                </button>
                 )}
 
                 {/* Geral & Legal */}
@@ -1910,9 +1915,7 @@ function SettingsPage() {
                             form.hasAccessToken
                           )
                         }
-                        webhookComplete={
-                          isAdminMaster ? !!(form.whatsapp_verify_token && form.hasAppSecret) : true
-                        }
+                        webhookComplete={!!(form.whatsapp_verify_token && form.hasAppSecret)}
                         testComplete={!!testResult?.ok}
                       >
                         {(step) => (
@@ -1989,665 +1992,636 @@ function SettingsPage() {
                                   </Button>
                                 </div>
 
-                                {isAdminMaster && (
-                                  <>
-                                    <div className="grid gap-6 md:grid-cols-2">
-                                      <Field
-                                        label="ID do Número de Telefone"
-                                        sublabel="(Phone Number ID)"
-                                        digitsOnly
-                                        value={form.whatsapp_phone_number_id}
-                                        onChange={(v) => {
-                                          const { error } = validateMetaId(v, "Phone Number ID");
-                                          setErrors((e) => ({
-                                            ...e,
-                                            whatsapp_phone_number_id: error,
-                                          }));
-                                          setForm({ ...form, whatsapp_phone_number_id: v });
-                                        }}
-                                        placeholder="Ex: 106500000000000"
-                                        hint={
-                                          "📍 Onde encontrar: No painel da Meta → WhatsApp → Configuração da API. Fica listado como 'ID do número de telefone' (um código longo de 15 dígitos).\n👉 Copie clicando no botão ao lado do ID no painel da Meta.\n🚨 ATENÇÃO: NÃO coloque seu número de telefone aqui! Digite o ID gerado pelo Facebook."
-                                        }
-                                        success={
-                                          validateMetaId(
-                                            String(form.whatsapp_phone_number_id ?? ""),
-                                            "Phone Number ID",
-                                          ).ok
-                                            ? `Formato correto · ${String(form.whatsapp_phone_number_id).length} dígitos`
-                                            : null
-                                        }
-                                        error={errors.whatsapp_phone_number_id}
-                                        copyLabel="Phone Number ID"
-                                        metaUrl="https://business.facebook.com/wa/manage/phone-numbers/"
-                                      />
+                                <div className="grid gap-6 md:grid-cols-2">
+                                  <Field
+                                    label="ID do Número de Telefone"
+                                    sublabel="(Phone Number ID)"
+                                    digitsOnly
+                                    value={form.whatsapp_phone_number_id}
+                                    onChange={(v) => {
+                                      const { error } = validateMetaId(v, "Phone Number ID");
+                                      setErrors((e) => ({ ...e, whatsapp_phone_number_id: error }));
+                                      setForm({ ...form, whatsapp_phone_number_id: v });
+                                    }}
+                                    placeholder="Ex: 106500000000000"
+                                    hint={
+                                      "📍 Onde encontrar: No painel da Meta → WhatsApp → Configuração da API. Fica listado como 'ID do número de telefone' (um código longo de 15 dígitos).\n👉 Copie clicando no botão ao lado do ID no painel da Meta.\n🚨 ATENÇÃO: NÃO coloque seu número de telefone aqui! Digite o ID gerado pelo Facebook."
+                                    }
+                                    success={
+                                      validateMetaId(
+                                        String(form.whatsapp_phone_number_id ?? ""),
+                                        "Phone Number ID",
+                                      ).ok
+                                        ? `Formato correto · ${String(form.whatsapp_phone_number_id).length} dígitos`
+                                        : null
+                                    }
+                                    error={errors.whatsapp_phone_number_id}
+                                    copyLabel="Phone Number ID"
+                                    metaUrl="https://business.facebook.com/wa/manage/phone-numbers/"
+                                  />
 
-                                      <Field
-                                        label="ID da Conta WhatsApp Business"
-                                        sublabel="(WABA ID)"
-                                        digitsOnly
-                                        value={form.whatsapp_waba_id}
-                                        onChange={(v) => {
-                                          const { error } = validateMetaId(v, "WABA ID");
-                                          setErrors((e) => ({ ...e, whatsapp_waba_id: error }));
-                                          setForm({ ...form, whatsapp_waba_id: v });
-                                        }}
-                                        placeholder="Ex: 112300000000000"
-                                        hint={
-                                          "📍 Onde encontrar: No painel da Meta → WhatsApp → Configuração da API. Fica listado logo abaixo do Phone Number ID como 'ID da conta do WhatsApp Business'.\n🚨 CUIDADO: Este ID identifica a sua CONTA de negócios inteira, não um número específico. É diferente do Phone Number ID."
-                                        }
-                                        success={
-                                          validateMetaId(
-                                            String(form.whatsapp_waba_id ?? ""),
-                                            "WABA ID",
-                                          ).ok
-                                            ? `Formato correto · ${String(form.whatsapp_waba_id).length} dígitos`
-                                            : null
-                                        }
-                                        error={errors.whatsapp_waba_id}
-                                        copyLabel="WABA ID"
-                                        metaUrl="https://business.facebook.com/wa/manage/account/"
-                                      />
+                                  <Field
+                                    label="ID da Conta WhatsApp Business"
+                                    sublabel="(WABA ID)"
+                                    digitsOnly
+                                    value={form.whatsapp_waba_id}
+                                    onChange={(v) => {
+                                      const { error } = validateMetaId(v, "WABA ID");
+                                      setErrors((e) => ({ ...e, whatsapp_waba_id: error }));
+                                      setForm({ ...form, whatsapp_waba_id: v });
+                                    }}
+                                    placeholder="Ex: 112300000000000"
+                                    hint={
+                                      "📍 Onde encontrar: No painel da Meta → WhatsApp → Configuração da API. Fica listado logo abaixo do Phone Number ID como 'ID da conta do WhatsApp Business'.\n🚨 CUIDADO: Este ID identifica a sua CONTA de negócios inteira, não um número específico. É diferente do Phone Number ID."
+                                    }
+                                    success={
+                                      validateMetaId(String(form.whatsapp_waba_id ?? ""), "WABA ID")
+                                        .ok
+                                        ? `Formato correto · ${String(form.whatsapp_waba_id).length} dígitos`
+                                        : null
+                                    }
+                                    error={errors.whatsapp_waba_id}
+                                    copyLabel="WABA ID"
+                                    metaUrl="https://business.facebook.com/wa/manage/account/"
+                                  />
 
-                                      <Field
-                                        label="Meta App ID (ID do Aplicativo Meta)"
-                                        sublabel="(Necessário para Foto de Perfil)"
-                                        digitsOnly
-                                        value={form.whatsapp_app_id}
-                                        onChange={(v) => {
-                                          const { error } = validateMetaId(v, "Meta App ID");
-                                          setErrors((e) => ({ ...e, whatsapp_app_id: error }));
-                                          setForm({ ...form, whatsapp_app_id: v });
-                                        }}
-                                        placeholder="Ex: 123456789012345"
-                                        hint={
-                                          "📍 Onde encontrar: developers.facebook.com → Meus Apps → selecione o seu App → copie o ID do aplicativo no topo da página.\n🔒 Necessário para realizar o upload e atualização da imagem de perfil no WhatsApp."
-                                        }
-                                        success={
-                                          validateMetaId(
-                                            String(form.whatsapp_app_id ?? ""),
-                                            "Meta App ID",
-                                          ).ok
-                                            ? `Formato correto · ${String(form.whatsapp_app_id).length} dígitos`
-                                            : null
-                                        }
-                                        error={errors.whatsapp_app_id}
-                                        copyLabel="Meta App ID"
-                                        metaUrl="https://developers.facebook.com/apps/"
-                                      />
+                                  <Field
+                                    label="Meta App ID (ID do Aplicativo Meta)"
+                                    sublabel="(Necessário para Foto de Perfil)"
+                                    digitsOnly
+                                    value={form.whatsapp_app_id}
+                                    onChange={(v) => {
+                                      const { error } = validateMetaId(v, "Meta App ID");
+                                      setErrors((e) => ({ ...e, whatsapp_app_id: error }));
+                                      setForm({ ...form, whatsapp_app_id: v });
+                                    }}
+                                    placeholder="Ex: 123456789012345"
+                                    hint={
+                                      "📍 Onde encontrar: developers.facebook.com → Meus Apps → selecione o seu App → copie o ID do aplicativo no topo da página.\n🔒 Necessário para realizar o upload e atualização da imagem de perfil no WhatsApp."
+                                    }
+                                    success={
+                                      validateMetaId(
+                                        String(form.whatsapp_app_id ?? ""),
+                                        "Meta App ID",
+                                      ).ok
+                                        ? `Formato correto · ${String(form.whatsapp_app_id).length} dígitos`
+                                        : null
+                                    }
+                                    error={errors.whatsapp_app_id}
+                                    copyLabel="Meta App ID"
+                                    metaUrl="https://developers.facebook.com/apps/"
+                                  />
 
-                                      <Field
-                                        label="ID da Conta de Negócios (Business ID)"
-                                        sublabel="(Meta Business ID)"
-                                        digitsOnly
-                                        value={form.whatsapp_business_id}
-                                        onChange={(v) => {
-                                          const { error } = validateMetaId(v, "Business ID");
-                                          setErrors((e) => ({ ...e, whatsapp_business_id: error }));
-                                          setForm({ ...form, whatsapp_business_id: v });
-                                        }}
-                                        placeholder="Ex: 104500000000000"
-                                        hint={
-                                          "📍 Onde encontrar: Acesse o painel Meta Business Suite (business.facebook.com) → Configurações da empresa → Informações da empresa. O código está listado como 'ID do Gerenciador de Negócios'."
-                                        }
-                                        success={
-                                          validateMetaId(
-                                            String(form.whatsapp_business_id ?? ""),
-                                            "Business ID",
-                                          ).ok
-                                            ? `Formato correto · ${String(form.whatsapp_business_id).length} dígitos`
-                                            : null
-                                        }
-                                        error={errors.whatsapp_business_id}
-                                        copyLabel="Business ID"
-                                        metaUrl="https://business.facebook.com/settings/info"
-                                      />
+                                  <Field
+                                    label="ID da Conta de Negócios (Business ID)"
+                                    sublabel="(Meta Business ID)"
+                                    digitsOnly
+                                    value={form.whatsapp_business_id}
+                                    onChange={(v) => {
+                                      const { error } = validateMetaId(v, "Business ID");
+                                      setErrors((e) => ({ ...e, whatsapp_business_id: error }));
+                                      setForm({ ...form, whatsapp_business_id: v });
+                                    }}
+                                    placeholder="Ex: 104500000000000"
+                                    hint={
+                                      "📍 Onde encontrar: Acesse o painel Meta Business Suite (business.facebook.com) → Configurações da empresa → Informações da empresa. O código está listado como 'ID do Gerenciador de Negócios'."
+                                    }
+                                    success={
+                                      validateMetaId(
+                                        String(form.whatsapp_business_id ?? ""),
+                                        "Business ID",
+                                      ).ok
+                                        ? `Formato correto · ${String(form.whatsapp_business_id).length} dígitos`
+                                        : null
+                                    }
+                                    error={errors.whatsapp_business_id}
+                                    copyLabel="Business ID"
+                                    metaUrl="https://business.facebook.com/settings/info"
+                                  />
 
-                                      <div className="md:col-span-2 border-t pt-4 mt-2 space-y-3">
-                                        <h3 className="font-display text-sm font-semibold flex items-center gap-2">
-                                          <Lock className="h-4 w-4 text-primary" />
-                                          Registrar Número na Meta (Verificação de 2 Fases)
-                                        </h3>
-                                        <p className="text-xs text-muted-foreground leading-relaxed font-medium">
-                                          Se este número ainda não está ativo na Meta Cloud API,
-                                          insira o PIN de 6 dígitos abaixo para registrá-lo. Isso
-                                          habilitará o envio de mensagens.
-                                        </p>
-                                        <div className="flex flex-col sm:flex-row gap-3 items-end">
-                                          <div className="flex-1 space-y-1.5">
-                                            <div className="flex items-center justify-between">
-                                              <Label htmlFor="whatsapp_pin_setup">
-                                                PIN de Segurança (2FA - 6 dígitos)
-                                              </Label>
-                                              <button
-                                                type="button"
-                                                className="text-xs text-primary hover:underline font-medium"
-                                                onClick={() => {
-                                                  const pin = Math.floor(
-                                                    100000 + Math.random() * 900000,
-                                                  ).toString();
-                                                  setFormPin(pin);
-                                                  toast.success(`PIN gerado: ${pin}`);
-                                                }}
-                                              >
-                                                Gerar PIN Aleatório
-                                              </button>
-                                            </div>
-                                            <div className="relative">
-                                              <Input
-                                                id="whatsapp_pin_setup"
-                                                type={showSetupPin ? "text" : "password"}
-                                                placeholder="Ex: 123456"
-                                                value={formPin}
-                                                onChange={(e) =>
-                                                  setFormPin(
-                                                    e.target.value.replace(/\D/g, "").slice(0, 6),
-                                                  )
-                                                }
-                                                className="font-mono text-center tracking-widest text-sm pr-10"
-                                                maxLength={6}
-                                              />
-                                              <button
-                                                type="button"
-                                                onClick={() => setShowSetupPin(!showSetupPin)}
-                                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground"
-                                              >
-                                                {showSetupPin ? (
-                                                  <EyeOff className="h-4 w-4" />
-                                                ) : (
-                                                  <Eye className="h-4 w-4" />
-                                                )}
-                                              </button>
-                                            </div>
-                                          </div>
-                                          <Button
-                                            type="button"
-                                            variant="secondary"
-                                            onClick={() => {
-                                              if (!form.whatsapp_phone_number_id) {
-                                                toast.error(
-                                                  "Preencha o ID do Número de Telefone primeiro.",
-                                                );
-                                                return;
-                                              }
-                                              if (formPin.length !== 6) {
-                                                toast.error("O PIN deve ter exatamente 6 dígitos.");
-                                                return;
-                                              }
-                                              saveMut.mutate(
-                                                {
-                                                  whatsapp_phone_number_id:
-                                                    form.whatsapp_phone_number_id,
-                                                  whatsapp_waba_id: form.whatsapp_waba_id,
-                                                  whatsapp_business_id: form.whatsapp_business_id,
-                                                  whatsapp_business_phone:
-                                                    form.whatsapp_business_phone,
-                                                  whatsapp_access_token: form.whatsapp_access_token,
-                                                  whatsapp_app_id: form.whatsapp_app_id || null,
-                                                  rate_limit_per_second: form.rate_limit_per_second,
-                                                  meta_graph_version:
-                                                    form.meta_graph_version || "v26.0",
-                                                },
-                                                {
-                                                  onSuccess: () => {
-                                                    registerMainPhoneMut.mutate({
-                                                      phoneId: form.whatsapp_phone_number_id!,
-                                                      pin: formPin,
-                                                    });
-                                                  },
-                                                },
-                                              );
-                                            }}
-                                            disabled={
-                                              registerMainPhoneMut.isPending || saveMut.isPending
-                                            }
-                                          >
-                                            {registerMainPhoneMut.isPending ? (
-                                              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                                            ) : null}
-                                            Registrar Número na Meta
-                                          </Button>
-                                        </div>
-                                      </div>
-
-                                      <div className="md:col-span-2 space-y-3">
-                                        <div className="flex items-center justify-between gap-2">
-                                          <Label className="flex items-center gap-2">
-                                            <span className="font-semibold">
-                                              Token de Acesso Permanente (System User Token)
-                                            </span>
-                                            <TooltipProvider>
-                                              <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                  <button
-                                                    type="button"
-                                                    aria-label="Informações importantes sobre o token permanente"
-                                                    className="inline-flex text-amber-600 transition-colors hover:text-amber-500"
-                                                  >
-                                                    <Info className="h-4 w-4" />
-                                                  </button>
-                                                </TooltipTrigger>
-                                                <TooltipContent
-                                                  side="bottom"
-                                                  className="block max-w-md space-y-2 bg-popover p-4 text-popover-foreground shadow-xl"
-                                                >
-                                                  <p className="font-semibold">
-                                                    Super Importante: Não use o Token Temporário!
-                                                  </p>
-                                                  <p>
-                                                    O painel da Meta oferece um token que expira em
-                                                    24 horas. Se você usar esse token, o sistema vai
-                                                    parar de funcionar amanhã! Você deve gerar um{" "}
-                                                    <strong>Token Permanente</strong> seguindo o
-                                                    passo a passo abaixo:
-                                                  </p>
-                                                  <ol className="list-decimal space-y-1 pl-4">
-                                                    <li>
-                                                      Vá em{" "}
-                                                      <strong>Configurações do Negócio</strong> →{" "}
-                                                      <strong>Usuários do Sistema</strong> (System
-                                                      Users).
-                                                    </li>
-                                                    <li>
-                                                      Clique em <strong>Adicionar</strong>, crie um
-                                                      usuário com função de{" "}
-                                                      <strong>Administrador</strong> (Admin).
-                                                    </li>
-                                                    <li>
-                                                      Selecione este usuário criado e clique em{" "}
-                                                      <strong>Gerar Novo Token</strong>.
-                                                    </li>
-                                                    <li>
-                                                      Selecione o seu aplicativo na lista e marque
-                                                      obrigatoriamente as permissões:{" "}
-                                                      <code>whatsapp_business_messaging</code> e{" "}
-                                                      <code>whatsapp_business_management</code>.
-                                                    </li>
-                                                    <li>
-                                                      Defina a expiração como{" "}
-                                                      <strong>Sem Expiração (Never)</strong>.
-                                                    </li>
-                                                    <li>
-                                                      Gere o token, copie o código longo (começa com{" "}
-                                                      <code>EAA...</code>) e cole abaixo.
-                                                    </li>
-                                                  </ol>
-                                                </TooltipContent>
-                                              </Tooltip>
-                                            </TooltipProvider>
+                                  <div className="md:col-span-2 border-t pt-4 mt-2 space-y-3">
+                                    <h3 className="font-display text-sm font-semibold flex items-center gap-2">
+                                      <Lock className="h-4 w-4 text-primary" />
+                                      Registrar Número na Meta (Verificação de 2 Fases)
+                                    </h3>
+                                    <p className="text-xs text-muted-foreground leading-relaxed font-medium">
+                                      Se este número ainda não está ativo na Meta Cloud API, insira
+                                      o PIN de 6 dígitos abaixo para registrá-lo. Isso habilitará o
+                                      envio de mensagens.
+                                    </p>
+                                    <div className="flex flex-col sm:flex-row gap-3 items-end">
+                                      <div className="flex-1 space-y-1.5">
+                                        <div className="flex items-center justify-between">
+                                          <Label htmlFor="whatsapp_pin_setup">
+                                            PIN de Segurança (2FA - 6 dígitos)
                                           </Label>
-                                          <div className="flex gap-2">
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              onClick={handleCopyAccessToken}
-                                              title="Copiar Access Token"
-                                            >
-                                              <Copy className="mr-1.5 h-3.5 w-3.5" /> Copiar
-                                            </Button>
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              asChild
-                                              title="Abrir na Meta"
-                                            >
-                                              <a
-                                                href="https://business.facebook.com/settings/system-users"
-                                                target="_blank"
-                                                rel="noreferrer"
-                                              >
-                                                <ExternalLink className="mr-1.5 h-3.5 w-3.5" />{" "}
-                                                Configurações do Negócio
-                                              </a>
-                                            </Button>
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              onClick={() => handleDebugToken()}
-                                              disabled={
-                                                debugTokenMut.isPending ||
-                                                (!(form.whatsapp_access_token ?? "").trim() &&
-                                                  !form.hasAccessToken)
-                                              }
-                                              title="Verificar validade e permissões do token"
-                                            >
-                                              {debugTokenMut.isPending ? (
-                                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                              ) : (
-                                                <KeyRound className="mr-1.5 h-3.5 w-3.5" />
-                                              )}
-                                              Testar Validade do Token
-                                            </Button>
-                                          </div>
+                                          <button
+                                            type="button"
+                                            className="text-xs text-primary hover:underline font-medium"
+                                            onClick={() => {
+                                              const pin = Math.floor(
+                                                100000 + Math.random() * 900000,
+                                              ).toString();
+                                              setFormPin(pin);
+                                              toast.success(`PIN gerado: ${pin}`);
+                                            }}
+                                          >
+                                            Gerar PIN Aleatório
+                                          </button>
                                         </div>
-
-                                        {(() => {
-                                          const tokenValue = form.whatsapp_access_token ?? "";
-                                          const v = validateAccessToken(tokenValue);
-                                          const isStoredTokenHidden =
-                                            form.hasAccessToken && !showAccessToken;
-                                          const displayedTokenValue = isStoredTokenHidden
-                                            ? PROFILE_MASKED_SECRET
-                                            : tokenValue;
-                                          return (
-                                            <>
-                                              <div className="relative">
-                                                <Textarea
-                                                  rows={4}
-                                                  value={displayedTokenValue}
-                                                  readOnly={isStoredTokenHidden}
-                                                  onChange={(e) =>
-                                                    setForm({
-                                                      ...form,
-                                                      whatsapp_access_token: e.target.value,
-                                                    })
-                                                  }
-                                                  placeholder="Cole o token permanente longo aqui (EAA...)"
-                                                  className={cn(
-                                                    "pr-11 font-mono text-xs leading-relaxed",
-                                                    v.error &&
-                                                      "border-destructive focus-visible:ring-destructive",
-                                                    !v.error &&
-                                                      v.ok &&
-                                                      "border-success/60 focus-visible:ring-success",
-                                                  )}
-                                                />
-                                                <button
-                                                  type="button"
-                                                  onClick={toggleAccessTokenVisibility}
-                                                  disabled={
-                                                    revealAccessTokenMut.isPending ||
-                                                    (!tokenValue && !form.hasAccessToken)
-                                                  }
-                                                  aria-label={
-                                                    showAccessToken
-                                                      ? "Ocultar token"
-                                                      : "Mostrar token"
-                                                  }
-                                                  title={
-                                                    showAccessToken
-                                                      ? "Ocultar token"
-                                                      : "Mostrar token"
-                                                  }
-                                                  className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                                                >
-                                                  {revealAccessTokenMut.isPending ? (
-                                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                                  ) : showAccessToken ? (
-                                                    <EyeOff className="h-4 w-4" />
-                                                  ) : (
-                                                    <Eye className="h-4 w-4" />
-                                                  )}
-                                                </button>
-                                              </div>
-                                              {isStoredTokenHidden ? (
-                                                <p className="flex items-center gap-1.5 text-xs text-success font-medium">
-                                                  <Check className="h-3.5 w-3.5" />
-                                                  Token salvo. Clique no olho para visualizar a
-                                                  credencial.
-                                                </p>
-                                              ) : v.error ? (
-                                                <p className="flex items-start gap-1.5 text-xs text-destructive">
-                                                  <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                                                  <span>{v.error}</span>
-                                                </p>
-                                              ) : v.warning ? (
-                                                <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
-                                                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                                                  <span>{v.warning}</span>
-                                                </p>
-                                              ) : v.ok ? (
-                                                <p className="flex items-center gap-1.5 text-xs text-success font-medium">
-                                                  <Check className="h-3.5 w-3.5" />
-                                                  Token formatado corretamente (
-                                                  {tokenValue.trim().length} caracteres)
-                                                </p>
-                                              ) : null}
-
-                                              {debugResult && (
-                                                <div className="rounded-lg border bg-muted/40 p-4 space-y-2 text-xs">
-                                                  <div className="flex justify-between items-center border-b pb-2">
-                                                    <span className="font-semibold text-foreground">
-                                                      Diagnóstico do Token (Meta API)
-                                                    </span>
-                                                    <Badge
-                                                      variant="secondary"
-                                                      className={cn(
-                                                        debugResult.is_valid
-                                                          ? "bg-success/15 text-success hover:bg-success/20 border-none"
-                                                          : "bg-destructive/15 text-destructive hover:bg-destructive/20 border-none",
-                                                      )}
-                                                    >
-                                                      {debugResult.is_valid ? "Válido" : "Inválido"}
-                                                    </Badge>
-                                                  </div>
-                                                  <div className="grid gap-2 grid-cols-1 sm:grid-cols-2">
-                                                    <p className="text-muted-foreground">
-                                                      ID do App:{" "}
-                                                      <span className="font-mono text-foreground font-medium">
-                                                        {debugResult.app_id}
-                                                      </span>
-                                                    </p>
-                                                    <p className="text-muted-foreground">
-                                                      Aplicação:{" "}
-                                                      <span className="text-foreground font-medium">
-                                                        {debugResult.application}
-                                                      </span>
-                                                    </p>
-                                                    <p className="text-muted-foreground">
-                                                      Expira em:{" "}
-                                                      <span className="text-foreground font-medium">
-                                                        {debugResult.expires_at === 0
-                                                          ? "Nunca"
-                                                          : new Date(
-                                                              debugResult.expires_at * 1000,
-                                                            ).toLocaleString()}
-                                                      </span>
-                                                    </p>
-                                                    <p className="text-muted-foreground">
-                                                      Tipo de Usuário:{" "}
-                                                      <span className="text-foreground font-medium">
-                                                        {debugResult.type}
-                                                      </span>
-                                                    </p>
-                                                  </div>
-                                                  {debugResult.scopes && (
-                                                    <div className="pt-2 border-t space-y-1">
-                                                      <p className="font-medium text-foreground">
-                                                        Permissões (Scopes):
-                                                      </p>
-                                                      <div className="flex flex-wrap gap-1">
-                                                        {debugResult.scopes.map((s: string) => (
-                                                          <Badge
-                                                            key={s}
-                                                            variant="outline"
-                                                            className={cn(
-                                                              [
-                                                                "whatsapp_business_messaging",
-                                                                "whatsapp_business_management",
-                                                              ].includes(s)
-                                                                ? "bg-success/10 text-success border-success/20"
-                                                                : "bg-muted text-muted-foreground",
-                                                            )}
-                                                          >
-                                                            {s}
-                                                          </Badge>
-                                                        ))}
-                                                      </div>
-                                                    </div>
-                                                  )}
-                                                </div>
-                                              )}
-                                            </>
-                                          );
-                                        })()}
+                                        <div className="relative">
+                                          <Input
+                                            id="whatsapp_pin_setup"
+                                            type={showSetupPin ? "text" : "password"}
+                                            placeholder="Ex: 123456"
+                                            value={formPin}
+                                            onChange={(e) =>
+                                              setFormPin(
+                                                e.target.value.replace(/\D/g, "").slice(0, 6),
+                                              )
+                                            }
+                                            className="font-mono text-center tracking-widest text-sm pr-10"
+                                            maxLength={6}
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => setShowSetupPin(!showSetupPin)}
+                                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground"
+                                          >
+                                            {showSetupPin ? (
+                                              <EyeOff className="h-4 w-4" />
+                                            ) : (
+                                              <Eye className="h-4 w-4" />
+                                            )}
+                                          </button>
+                                        </div>
                                       </div>
-                                    </div>
-                                    <div className="mt-5 flex flex-wrap gap-2">
                                       <Button
+                                        type="button"
+                                        variant="secondary"
                                         onClick={() => {
-                                          const nextErrors: Record<string, string | null> = {};
-                                          const err1 = validateDigitsField(
-                                            String(form.whatsapp_phone_number_id ?? ""),
-                                            "ID do número de telefone",
-                                          );
-                                          if (err1) nextErrors.whatsapp_phone_number_id = err1;
-                                          const err2 = validateDigitsField(
-                                            String(form.whatsapp_waba_id ?? ""),
-                                            "ID da conta WhatsApp Business",
-                                          );
-                                          if (err2) nextErrors.whatsapp_waba_id = err2;
-
-                                          const appIdValue = String(
-                                            form.whatsapp_app_id ?? "",
-                                          ).trim();
-                                          if (appIdValue && /\D/.test(appIdValue)) {
-                                            nextErrors.whatsapp_app_id =
-                                              "App ID deve conter apenas dígitos.";
-                                          }
-
-                                          setErrors(nextErrors);
-                                          if (Object.keys(nextErrors).length > 0) {
-                                            toast.error("Corrija os erros antes de salvar.");
-                                            return;
-                                          }
-                                          saveMut.mutate({
-                                            whatsapp_phone_number_id: form.whatsapp_phone_number_id,
-                                            whatsapp_waba_id: form.whatsapp_waba_id,
-                                            whatsapp_business_id: form.whatsapp_business_id,
-                                            whatsapp_business_phone: form.whatsapp_business_phone,
-                                            whatsapp_access_token: form.whatsapp_access_token,
-                                            whatsapp_app_id: form.whatsapp_app_id || null,
-                                            rate_limit_per_second: form.rate_limit_per_second,
-                                          });
-                                        }}
-                                        disabled={saveMut.isPending}
-                                      >
-                                        Salvar e conectar
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        onClick={() => {
-                                          // Pré-validação: identifica EXATAMENTE quais campos faltam ou estão inválidos
-                                          const checks: {
-                                            key: string;
-                                            label: string;
-                                            problem: string | null;
-                                          }[] = [];
-                                          const phoneId = String(
-                                            form.whatsapp_phone_number_id ?? "",
-                                          ).trim();
-                                          const wabaId = String(form.whatsapp_waba_id ?? "").trim();
-                                          const token = String(
-                                            form.whatsapp_access_token ?? "",
-                                          ).trim();
-
-                                          checks.push({
-                                            key: "whatsapp_phone_number_id",
-                                            label: "ID do número de telefone",
-                                            problem: !phoneId
-                                              ? "está vazio"
-                                              : validateDigitsField(
-                                                  phoneId,
-                                                  "ID do número de telefone",
-                                                ),
-                                          });
-                                          checks.push({
-                                            key: "whatsapp_waba_id",
-                                            label: "ID da conta WhatsApp Business (WABA ID)",
-                                            problem: !wabaId
-                                              ? "está vazio"
-                                              : validateDigitsField(
-                                                  wabaId,
-                                                  "ID da conta WhatsApp Business",
-                                                ),
-                                          });
-                                          const tokenCheck = validateAccessToken(token);
-                                          checks.push({
-                                            key: "whatsapp_access_token",
-                                            label: "Token de acesso permanente",
-                                            problem:
-                                              !token && !form.hasAccessToken
-                                                ? "está vazio"
-                                                : token
-                                                  ? (tokenCheck.error ?? null)
-                                                  : null,
-                                          });
-
-                                          const missing = checks.filter((c) => c.problem);
-                                          if (missing.length > 0) {
-                                            const nextErrors: Record<string, string | null> = {
-                                              ...errors,
-                                            };
-                                            missing.forEach((m) => {
-                                              nextErrors[m.key] = m.problem!;
-                                            });
-                                            setErrors(nextErrors);
-                                            setPingResult({
-                                              ok: false,
-                                              error:
-                                                missing.length === 1
-                                                  ? `Falta preencher: ${missing[0].label}.`
-                                                  : `Faltam ${missing.length} campos para testar a conexão.`,
-                                              missingFields: missing.map((m) => ({
-                                                label: m.label,
-                                                problem: m.problem,
-                                              })),
-                                            });
+                                          if (!form.whatsapp_phone_number_id) {
                                             toast.error(
-                                              missing.length === 1
-                                                ? `Preencha: ${missing[0].label}`
-                                                : `${missing.length} campos pendentes`,
+                                              "Preencha o ID do Número de Telefone primeiro.",
                                             );
                                             return;
                                           }
-                                          setPingResult(null);
-                                          pingMut.mutate();
+                                          if (formPin.length !== 6) {
+                                            toast.error("O PIN deve ter exatamente 6 dígitos.");
+                                            return;
+                                          }
+                                          saveMut.mutate(
+                                            {
+                                              whatsapp_phone_number_id:
+                                                form.whatsapp_phone_number_id,
+                                              whatsapp_waba_id: form.whatsapp_waba_id,
+                                              whatsapp_business_id: form.whatsapp_business_id,
+                                              whatsapp_business_phone: form.whatsapp_business_phone,
+                                              whatsapp_access_token: form.whatsapp_access_token,
+                                              whatsapp_app_id: form.whatsapp_app_id || null,
+                                              rate_limit_per_second: form.rate_limit_per_second,
+                                              meta_graph_version:
+                                                form.meta_graph_version || "v26.0",
+                                            },
+                                            {
+                                              onSuccess: () => {
+                                                registerMainPhoneMut.mutate({
+                                                  phoneId: form.whatsapp_phone_number_id!,
+                                                  pin: formPin,
+                                                });
+                                              },
+                                            },
+                                          );
                                         }}
-                                        disabled={pingMut.isPending}
+                                        disabled={
+                                          registerMainPhoneMut.isPending || saveMut.isPending
+                                        }
                                       >
-                                        {pingMut.isPending ? "Testando…" : "Testar agora"}
+                                        {registerMainPhoneMut.isPending ? (
+                                          <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                                        ) : null}
+                                        Registrar Número na Meta
                                       </Button>
                                     </div>
-                                    <p className="mt-2 text-[11px] text-muted-foreground">
-                                      💡 Clique em <strong>"Testar agora"</strong> depois de salvar
-                                      — vamos verificar a conexão e dizer exatamente o que está
-                                      faltando, se faltar algo.
-                                    </p>
-                                    {pingResult && (
-                                      <ResultAlert
-                                        ok={!!pingResult.ok}
-                                        successContent={
-                                          <span>
-                                            Tudo certo! Conectado a{" "}
-                                            <strong>{pingResult.info?.verified_name}</strong> (
-                                            {pingResult.info?.display_phone_number}) · qualidade do
-                                            número: {pingResult.info?.quality_rating}
-                                          </span>
-                                        }
-                                        error={pingResult.error}
-                                        details={
-                                          pingResult.missingFields ? (
-                                            <div className="space-y-1">
-                                              <p className="font-medium">Campos com problema:</p>
-                                              <ul className="list-disc pl-5 space-y-0.5">
-                                                {pingResult.missingFields.map(
-                                                  (f: any, i: number) => (
-                                                    <li key={i}>
-                                                      <strong>{f.label}</strong> — {f.problem}
-                                                    </li>
-                                                  ),
-                                                )}
-                                              </ul>
-                                            </div>
+                                  </div>
+
+                                  <div className="md:col-span-2 space-y-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <Label className="flex items-center gap-2">
+                                        <span className="font-semibold">
+                                          Token de Acesso Permanente (System User Token)
+                                        </span>
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <button
+                                                type="button"
+                                                aria-label="Informações importantes sobre o token permanente"
+                                                className="inline-flex text-amber-600 transition-colors hover:text-amber-500"
+                                              >
+                                                <Info className="h-4 w-4" />
+                                              </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent
+                                              side="bottom"
+                                              className="block max-w-md space-y-2 bg-popover p-4 text-popover-foreground shadow-xl"
+                                            >
+                                              <p className="font-semibold">
+                                                Super Importante: Não use o Token Temporário!
+                                              </p>
+                                              <p>
+                                                O painel da Meta oferece um token que expira em 24
+                                                horas. Se você usar esse token, o sistema vai parar
+                                                de funcionar amanhã! Você deve gerar um{" "}
+                                                <strong>Token Permanente</strong> seguindo o passo a
+                                                passo abaixo:
+                                              </p>
+                                              <ol className="list-decimal space-y-1 pl-4">
+                                                <li>
+                                                  Vá em <strong>Configurações do Negócio</strong> →{" "}
+                                                  <strong>Usuários do Sistema</strong> (System
+                                                  Users).
+                                                </li>
+                                                <li>
+                                                  Clique em <strong>Adicionar</strong>, crie um
+                                                  usuário com função de{" "}
+                                                  <strong>Administrador</strong> (Admin).
+                                                </li>
+                                                <li>
+                                                  Selecione este usuário criado e clique em{" "}
+                                                  <strong>Gerar Novo Token</strong>.
+                                                </li>
+                                                <li>
+                                                  Selecione o seu aplicativo na lista e marque
+                                                  obrigatoriamente as permissões:{" "}
+                                                  <code>whatsapp_business_messaging</code> e{" "}
+                                                  <code>whatsapp_business_management</code>.
+                                                </li>
+                                                <li>
+                                                  Defina a expiração como{" "}
+                                                  <strong>Sem Expiração (Never)</strong>.
+                                                </li>
+                                                <li>
+                                                  Gere o token, copie o código longo (começa com{" "}
+                                                  <code>EAA...</code>) e cole abaixo.
+                                                </li>
+                                              </ol>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      </Label>
+                                      <div className="flex gap-2">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={handleCopyAccessToken}
+                                          title="Copiar Access Token"
+                                        >
+                                          <Copy className="mr-1.5 h-3.5 w-3.5" /> Copiar
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          asChild
+                                          title="Abrir na Meta"
+                                        >
+                                          <a
+                                            href="https://business.facebook.com/settings/system-users"
+                                            target="_blank"
+                                            rel="noreferrer"
+                                          >
+                                            <ExternalLink className="mr-1.5 h-3.5 w-3.5" />{" "}
+                                            Configurações do Negócio
+                                          </a>
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleDebugToken()}
+                                          disabled={
+                                            debugTokenMut.isPending ||
+                                            (!(form.whatsapp_access_token ?? "").trim() &&
+                                              !form.hasAccessToken)
+                                          }
+                                          title="Verificar validade e permissões do token"
+                                        >
+                                          {debugTokenMut.isPending ? (
+                                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                                           ) : (
-                                            (pingResult.details ?? pingResult.error)
-                                          )
-                                        }
-                                        fallback="Não conseguimos conectar. Confira se os dados acima foram copiados corretamente."
-                                      />
-                                    )}
-                                  </>
+                                            <KeyRound className="mr-1.5 h-3.5 w-3.5" />
+                                          )}
+                                          Testar Validade do Token
+                                        </Button>
+                                      </div>
+                                    </div>
+
+                                    {(() => {
+                                      const tokenValue = form.whatsapp_access_token ?? "";
+                                      const v = validateAccessToken(tokenValue);
+                                      const isStoredTokenHidden =
+                                        form.hasAccessToken && !showAccessToken;
+                                      const displayedTokenValue = isStoredTokenHidden
+                                        ? PROFILE_MASKED_SECRET
+                                        : tokenValue;
+                                      return (
+                                        <>
+                                          <div className="relative">
+                                            <Textarea
+                                              rows={4}
+                                              value={displayedTokenValue}
+                                              readOnly={isStoredTokenHidden}
+                                              onChange={(e) =>
+                                                setForm({
+                                                  ...form,
+                                                  whatsapp_access_token: e.target.value,
+                                                })
+                                              }
+                                              placeholder="Cole o token permanente longo aqui (EAA...)"
+                                              className={cn(
+                                                "pr-11 font-mono text-xs leading-relaxed",
+                                                v.error &&
+                                                  "border-destructive focus-visible:ring-destructive",
+                                                !v.error &&
+                                                  v.ok &&
+                                                  "border-success/60 focus-visible:ring-success",
+                                              )}
+                                            />
+                                            <button
+                                              type="button"
+                                              onClick={toggleAccessTokenVisibility}
+                                              disabled={revealAccessTokenMut.isPending || (!tokenValue && !form.hasAccessToken)}
+                                              aria-label={showAccessToken ? "Ocultar token" : "Mostrar token"}
+                                              title={showAccessToken ? "Ocultar token" : "Mostrar token"}
+                                              className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                                            >
+                                              {revealAccessTokenMut.isPending ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                              ) : showAccessToken ? (
+                                                <EyeOff className="h-4 w-4" />
+                                              ) : (
+                                                <Eye className="h-4 w-4" />
+                                              )}
+                                            </button>
+                                          </div>
+                                          {isStoredTokenHidden ? (
+                                            <p className="flex items-center gap-1.5 text-xs text-success font-medium">
+                                              <Check className="h-3.5 w-3.5" />
+                                              Token salvo. Clique no olho para visualizar a credencial.
+                                            </p>
+                                          ) : v.error ? (
+                                            <p className="flex items-start gap-1.5 text-xs text-destructive">
+                                              <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                              <span>{v.error}</span>
+                                            </p>
+                                          ) : v.warning ? (
+                                            <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                                              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                              <span>{v.warning}</span>
+                                            </p>
+                                          ) : v.ok ? (
+                                            <p className="flex items-center gap-1.5 text-xs text-success font-medium">
+                                              <Check className="h-3.5 w-3.5" />
+                                              Token formatado corretamente (
+                                              {tokenValue.trim().length} caracteres)
+                                            </p>
+                                          ) : null}
+
+                                          {debugResult && (
+                                            <div className="rounded-lg border bg-muted/40 p-4 space-y-2 text-xs">
+                                              <div className="flex justify-between items-center border-b pb-2">
+                                                <span className="font-semibold text-foreground">
+                                                  Diagnóstico do Token (Meta API)
+                                                </span>
+                                                <Badge
+                                                  variant="secondary"
+                                                  className={cn(
+                                                    debugResult.is_valid
+                                                      ? "bg-success/15 text-success hover:bg-success/20 border-none"
+                                                      : "bg-destructive/15 text-destructive hover:bg-destructive/20 border-none",
+                                                  )}
+                                                >
+                                                  {debugResult.is_valid ? "Válido" : "Inválido"}
+                                                </Badge>
+                                              </div>
+                                              <div className="grid gap-2 grid-cols-1 sm:grid-cols-2">
+                                                <p className="text-muted-foreground">
+                                                  ID do App:{" "}
+                                                  <span className="font-mono text-foreground font-medium">
+                                                    {debugResult.app_id}
+                                                  </span>
+                                                </p>
+                                                <p className="text-muted-foreground">
+                                                  Aplicação:{" "}
+                                                  <span className="text-foreground font-medium">
+                                                    {debugResult.application}
+                                                  </span>
+                                                </p>
+                                                <p className="text-muted-foreground">
+                                                  Expira em:{" "}
+                                                  <span className="text-foreground font-medium">
+                                                    {debugResult.expires_at === 0
+                                                      ? "Nunca"
+                                                      : new Date(
+                                                          debugResult.expires_at * 1000,
+                                                        ).toLocaleString()}
+                                                  </span>
+                                                </p>
+                                                <p className="text-muted-foreground">
+                                                  Tipo de Usuário:{" "}
+                                                  <span className="text-foreground font-medium">
+                                                    {debugResult.type}
+                                                  </span>
+                                                </p>
+                                              </div>
+                                              {debugResult.scopes && (
+                                                <div className="pt-2 border-t space-y-1">
+                                                  <p className="font-medium text-foreground">
+                                                    Permissões (Scopes):
+                                                  </p>
+                                                  <div className="flex flex-wrap gap-1">
+                                                    {debugResult.scopes.map((s: string) => (
+                                                      <Badge
+                                                        key={s}
+                                                        variant="outline"
+                                                        className={cn(
+                                                          [
+                                                            "whatsapp_business_messaging",
+                                                            "whatsapp_business_management",
+                                                          ].includes(s)
+                                                            ? "bg-success/10 text-success border-success/20"
+                                                            : "bg-muted text-muted-foreground",
+                                                        )}
+                                                      >
+                                                        {s}
+                                                      </Badge>
+                                                    ))}
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+                                          )}
+                                        </>
+                                      );
+                                    })()}
+                                  </div>
+                                </div>
+                                <div className="mt-5 flex flex-wrap gap-2">
+                                  <Button
+                                    onClick={() => {
+                                      const nextErrors: Record<string, string | null> = {};
+                                      const err1 = validateDigitsField(
+                                        String(form.whatsapp_phone_number_id ?? ""),
+                                        "ID do número de telefone",
+                                      );
+                                      if (err1) nextErrors.whatsapp_phone_number_id = err1;
+                                      const err2 = validateDigitsField(
+                                        String(form.whatsapp_waba_id ?? ""),
+                                        "ID da conta WhatsApp Business",
+                                      );
+                                      if (err2) nextErrors.whatsapp_waba_id = err2;
+
+                                      const appIdValue = String(form.whatsapp_app_id ?? "").trim();
+                                      if (appIdValue && /\D/.test(appIdValue)) {
+                                        nextErrors.whatsapp_app_id =
+                                          "App ID deve conter apenas dígitos.";
+                                      }
+
+                                      setErrors(nextErrors);
+                                      if (Object.keys(nextErrors).length > 0) {
+                                        toast.error("Corrija os erros antes de salvar.");
+                                        return;
+                                      }
+                                      saveMut.mutate({
+                                        whatsapp_phone_number_id: form.whatsapp_phone_number_id,
+                                        whatsapp_waba_id: form.whatsapp_waba_id,
+                                        whatsapp_business_id: form.whatsapp_business_id,
+                                        whatsapp_business_phone: form.whatsapp_business_phone,
+                                        whatsapp_access_token: form.whatsapp_access_token,
+                                        whatsapp_app_id: form.whatsapp_app_id || null,
+                                        rate_limit_per_second: form.rate_limit_per_second,
+                                      });
+                                    }}
+                                    disabled={saveMut.isPending}
+                                  >
+                                    Salvar e conectar
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                      // Pré-validação: identifica EXATAMENTE quais campos faltam ou estão inválidos
+                                      const checks: {
+                                        key: string;
+                                        label: string;
+                                        problem: string | null;
+                                      }[] = [];
+                                      const phoneId = String(
+                                        form.whatsapp_phone_number_id ?? "",
+                                      ).trim();
+                                      const wabaId = String(form.whatsapp_waba_id ?? "").trim();
+                                      const token = String(form.whatsapp_access_token ?? "").trim();
+
+                                      checks.push({
+                                        key: "whatsapp_phone_number_id",
+                                        label: "ID do número de telefone",
+                                        problem: !phoneId
+                                          ? "está vazio"
+                                          : validateDigitsField(
+                                              phoneId,
+                                              "ID do número de telefone",
+                                            ),
+                                      });
+                                      checks.push({
+                                        key: "whatsapp_waba_id",
+                                        label: "ID da conta WhatsApp Business (WABA ID)",
+                                        problem: !wabaId
+                                          ? "está vazio"
+                                          : validateDigitsField(
+                                              wabaId,
+                                              "ID da conta WhatsApp Business",
+                                            ),
+                                      });
+                                      const tokenCheck = validateAccessToken(token);
+                                      checks.push({
+                                        key: "whatsapp_access_token",
+                                        label: "Token de acesso permanente",
+                                        problem:
+                                          !token && !form.hasAccessToken
+                                            ? "está vazio"
+                                            : token
+                                              ? (tokenCheck.error ?? null)
+                                              : null,
+                                      });
+
+                                      const missing = checks.filter((c) => c.problem);
+                                      if (missing.length > 0) {
+                                        const nextErrors: Record<string, string | null> = {
+                                          ...errors,
+                                        };
+                                        missing.forEach((m) => {
+                                          nextErrors[m.key] = m.problem!;
+                                        });
+                                        setErrors(nextErrors);
+                                        setPingResult({
+                                          ok: false,
+                                          error:
+                                            missing.length === 1
+                                              ? `Falta preencher: ${missing[0].label}.`
+                                              : `Faltam ${missing.length} campos para testar a conexão.`,
+                                          missingFields: missing.map((m) => ({
+                                            label: m.label,
+                                            problem: m.problem,
+                                          })),
+                                        });
+                                        toast.error(
+                                          missing.length === 1
+                                            ? `Preencha: ${missing[0].label}`
+                                            : `${missing.length} campos pendentes`,
+                                        );
+                                        return;
+                                      }
+                                      setPingResult(null);
+                                      pingMut.mutate();
+                                    }}
+                                    disabled={pingMut.isPending}
+                                  >
+                                    {pingMut.isPending ? "Testando…" : "Testar agora"}
+                                  </Button>
+                                </div>
+                                <p className="mt-2 text-[11px] text-muted-foreground">
+                                  💡 Clique em <strong>"Testar agora"</strong> depois de salvar —
+                                  vamos verificar a conexão e dizer exatamente o que está faltando,
+                                  se faltar algo.
+                                </p>
+                                {pingResult && (
+                                  <ResultAlert
+                                    ok={!!pingResult.ok}
+                                    successContent={
+                                      <span>
+                                        Tudo certo! Conectado a{" "}
+                                        <strong>{pingResult.info?.verified_name}</strong> (
+                                        {pingResult.info?.display_phone_number}) · qualidade do
+                                        número: {pingResult.info?.quality_rating}
+                                      </span>
+                                    }
+                                    error={pingResult.error}
+                                    details={
+                                      pingResult.missingFields ? (
+                                        <div className="space-y-1">
+                                          <p className="font-medium">Campos com problema:</p>
+                                          <ul className="list-disc pl-5 space-y-0.5">
+                                            {pingResult.missingFields.map((f: any, i: number) => (
+                                              <li key={i}>
+                                                <strong>{f.label}</strong> — {f.problem}
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        </div>
+                                      ) : (
+                                        (pingResult.details ?? pingResult.error)
+                                      )
+                                    }
+                                    fallback="Não conseguimos conectar. Confira se os dados acima foram copiados corretamente."
+                                  />
                                 )}
                               </div>
                             )}
@@ -2791,7 +2765,7 @@ function SettingsPage() {
                               </div>
                             )}
 
-                            {step === 1 && isAdminMaster && (
+                            {step === 1 && (
                               <div className="space-y-4">
                                 <div className="flex items-start gap-3">
                                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
@@ -2876,10 +2850,7 @@ function SettingsPage() {
                                           type={showAppSecret ? "text" : "password"}
                                           value={form.whatsapp_app_secret ?? ""}
                                           onChange={(e) =>
-                                            setForm({
-                                              ...form,
-                                              whatsapp_app_secret: e.target.value,
-                                            })
+                                            setForm({ ...form, whatsapp_app_secret: e.target.value })
                                           }
                                           placeholder="Cole aqui o App Secret"
                                           className="pr-10 font-mono"
@@ -2889,19 +2860,10 @@ function SettingsPage() {
                                           onClick={toggleAppSecretVisibility}
                                           disabled={
                                             revealAppSecretMut.isPending ||
-                                            (!(form.whatsapp_app_secret ?? "").trim() &&
-                                              !form.hasAppSecret)
+                                            (!(form.whatsapp_app_secret ?? "").trim() && !form.hasAppSecret)
                                           }
-                                          aria-label={
-                                            showAppSecret
-                                              ? "Ocultar chave secreta"
-                                              : "Mostrar chave secreta"
-                                          }
-                                          title={
-                                            showAppSecret
-                                              ? "Ocultar chave secreta"
-                                              : "Mostrar chave secreta"
-                                          }
+                                          aria-label={showAppSecret ? "Ocultar chave secreta" : "Mostrar chave secreta"}
+                                          title={showAppSecret ? "Ocultar chave secreta" : "Mostrar chave secreta"}
                                           className="absolute inset-y-0 right-0 inline-flex w-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
                                         >
                                           {revealAppSecretMut.isPending ? (
@@ -2963,8 +2925,7 @@ function SettingsPage() {
                     <div>
                       <h2 className="font-display text-base font-semibold">Desconectar da Meta</h2>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        Remove IDs, token e segredos deste cliente. Conversas, contatos e fluxos
-                        serão mantidos.
+                        Remove IDs, token e segredos deste cliente. Conversas, contatos e fluxos serão mantidos.
                       </p>
                     </div>
                     <Button
@@ -2989,9 +2950,8 @@ function SettingsPage() {
                     <DialogHeader>
                       <DialogTitle>Apagar conexão com a Meta?</DialogTitle>
                       <DialogDescription>
-                        O Phone Number ID, WABA ID, App ID, Verify Token, Access Token e App Secret
-                        deste cliente serão removidos. O histórico de conversas e os fluxos não
-                        serão apagados.
+                        O Phone Number ID, WABA ID, App ID, Verify Token, Access Token e App Secret deste
+                        cliente serão removidos. O histórico de conversas e os fluxos não serão apagados.
                       </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
@@ -3066,23 +3026,11 @@ function SettingsPage() {
               </TabsContent>
 
               <TabsContent value="instagram" className="space-y-6 outline-none m-0 border-none p-0">
-                <InstagramSettingsTab
-                  form={form}
-                  setForm={setForm}
-                  saveMut={saveMut}
-                  revealAppSecretMut={revealAppSecretMut}
-                  isAdminMaster={isAdminMaster}
-                />
+                <InstagramSettingsTab form={form} setForm={setForm} saveMut={saveMut} revealAppSecretMut={revealAppSecretMut} />
               </TabsContent>
 
               <TabsContent value="facebook" className="space-y-6 outline-none m-0 border-none p-0">
-                <FacebookSettingsTab
-                  form={form}
-                  setForm={setForm}
-                  saveMut={saveMut}
-                  revealAppSecretMut={revealAppSecretMut}
-                  isAdminMaster={isAdminMaster}
-                />
+                <FacebookSettingsTab form={form} setForm={setForm} saveMut={saveMut} revealAppSecretMut={revealAppSecretMut} />
               </TabsContent>
 
               <TabsContent value="crm" className="outline-none">
@@ -5551,21 +5499,13 @@ function EventsDialogButton() {
                         className="flex w-full items-start gap-3 text-left hover:bg-muted/50 rounded-md p-2 -m-2"
                       >
                         <Badge
-                          variant={
-                            isRejected || isFailed
-                              ? "destructive"
-                              : ev.processed
-                                ? "secondary"
-                                : "outline"
-                          }
+                          variant={isRejected || isFailed ? "destructive" : ev.processed ? "secondary" : "outline"}
                           className="mt-0.5 shrink-0"
                         >
                           {status}
                         </Badge>
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm">
-                            {ev.error_message ? `⚠️ ${ev.error_message}` : summarize(ev.raw)}
-                          </div>
+                          <div className="truncate text-sm">{ev.error_message ? `⚠️ ${ev.error_message}` : summarize(ev.raw)}</div>
                           <div className="mt-0.5 text-xs text-muted-foreground">
                             {new Date(ev.received_at).toLocaleString()} • {ev.source}
                           </div>
@@ -7995,7 +7935,11 @@ function AdvancedToolsSection() {
   const uploadMediaMut = useMutation({
     mutationFn: async () => {
       if (!selectedFile) throw new Error("Selecione um arquivo primeiro.");
-      return uploadMetaMediaViaApi(activePhoneId, selectedFile, inferMetaMediaType(selectedFile));
+      return uploadMetaMediaViaApi(
+        activePhoneId,
+        selectedFile,
+        inferMetaMediaType(selectedFile),
+      );
     },
     onSuccess: (res: any) => {
       if (res.ok) {
@@ -8739,13 +8683,11 @@ function InstagramSettingsTab({
   setForm,
   saveMut,
   revealAppSecretMut,
-  isAdminMaster,
 }: {
   form: any;
   setForm: any;
   saveMut: any;
   revealAppSecretMut: any;
-  isAdminMaster: boolean;
 }) {
   const fetchIg = useServerFn(listInstagramAccounts);
   const connectIg = useServerFn(connectInstagramAccount);
@@ -8788,19 +8730,8 @@ function InstagramSettingsTab({
 
   useEffect(() => {
     if (primaryAccount) {
-      setIgUserId((prev) =>
-        prev
-          ? prev
-          : primaryAccount.instagram_business_account_id || primaryAccount.ig_user_id || "",
-      );
-      setPageName((prev) =>
-        prev
-          ? prev
-          : primaryAccount.page_name ||
-            primaryAccount.instagram_username ||
-            primaryAccount.username ||
-            "",
-      );
+      setIgUserId((prev) => (prev ? prev : (primaryAccount.instagram_business_account_id || primaryAccount.ig_user_id || "")));
+      setPageName((prev) => (prev ? prev : (primaryAccount.page_name || primaryAccount.instagram_username || primaryAccount.username || "")));
       if (primaryAccount.hasAccessToken) {
         setAccessToken((prev) => (prev ? prev : PROFILE_MASKED_SECRET));
       }
@@ -8812,16 +8743,17 @@ function InstagramSettingsTab({
 
   const resolveMetaApp = () => {
     const connections = embeddedSignupConnections || [];
-    return connections.find((c: any) => c.appId === "1783038629742610") || connections[0];
+    return (
+      connections.find((c: any) => c.appId === "1783038629742610") ||
+      connections[0]
+    );
   };
 
   const startInstagramFacebookLogin = () => {
     const selected = resolveMetaApp();
     const appId = selected?.appId || "";
     if (!appId) {
-      toast.error(
-        "Nenhuma Meta App Connection com App ID. Cadastre o app 1783038629742610 em Credenciais.",
-      );
+      toast.error("Nenhuma Meta App Connection com App ID. Cadastre o app 1783038629742610 em Credenciais.");
       return;
     }
     const redirectUri = `${window.location.origin}/api/public/meta/oauth/callback`;
@@ -8899,9 +8831,7 @@ function InstagramSettingsTab({
       if (!res.ok) {
         toast.error(`Falha no teste: ${res.error}`);
       } else {
-        const username = res.account?.username
-          ? `@${res.account.username}`
-          : res.account?.name || "Conta válida";
+        const username = res.account?.username ? `@${res.account.username}` : (res.account?.name || "Conta válida");
         toast.success(`Conexão com a Meta bem-sucedida! Conta: ${username}`);
       }
     } catch (err: any) {
@@ -8969,9 +8899,8 @@ function InstagramSettingsTab({
             <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border p-5">
               <p className="text-sm font-semibold text-foreground">Conexão via Facebook Login</p>
               <p className="text-xs text-muted-foreground text-center max-w-md">
-                Autoriza Páginas com Instagram Business (instagram_basic, pages_show_list e
-                mensagens). As credenciais do aplicativo são gerenciadas com segurança pela
-                plataforma.
+                Autoriza Páginas com Instagram Business (instagram_basic, pages_show_list e mensagens).
+                App Meta: 1783038629742610.
               </p>
               <Button
                 type="button"
@@ -8988,188 +8917,167 @@ function InstagramSettingsTab({
               </Button>
             </div>
 
-            {isAdminMaster && (
-              <>
-                {/* IDENTIFICAÇÃO DA CONTA */}
-                <div className="space-y-4">
-                  <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    Identificação da Conta
+            {/* IDENTIFICAÇÃO DA CONTA */}
+            <div className="space-y-4">
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Identificação da Conta
+              </Label>
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="ig_user_id" className="flex items-center gap-1.5">
+                    <Instagram className="w-3.5 h-3.5 text-[#E1306C]" />
+                    Instagram Business Account ID
                   </Label>
-                  <div className="space-y-4">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="ig_user_id" className="flex items-center gap-1.5">
-                        <Instagram className="w-3.5 h-3.5 text-[#E1306C]" />
-                        Instagram Business Account ID
-                      </Label>
-                      <Input
-                        id="ig_user_id"
-                        placeholder="Ex: 17841402098904658"
-                        value={igUserId}
-                        onChange={(e) => setIgUserId(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="page_name">Nome de exibição (opcional)</Label>
-                      <Input
-                        id="page_name"
-                        placeholder="Ex: @minha_clinica"
-                        value={pageName}
-                        onChange={(e) => setPageName(e.target.value)}
-                      />
-                    </div>
-                  </div>
+                  <Input
+                    id="ig_user_id"
+                    placeholder="Ex: 17841402098904658"
+                    value={igUserId}
+                    onChange={(e) => setIgUserId(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="page_name">Nome de exibição (opcional)</Label>
+                  <Input
+                    id="page_name"
+                    placeholder="Ex: @minha_clinica"
+                    value={pageName}
+                    onChange={(e) => setPageName(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="h-px bg-border/40 w-full" />
+
+            {/* CREDENCIAIS DA API META */}
+            <div className="space-y-4">
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Credenciais da API Meta
+              </Label>
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="access_token">Page Access Token</Label>
+                  <PasswordInput
+                    id="access_token"
+                    placeholder="EAA..."
+                    value={accessToken}
+                    onChange={(e) => setAccessToken(e.target.value)}
+                    className="font-mono text-xs"
+                    onVisibleChange={async (visible) => {
+                      if (visible && primaryAccount && isPersistedSecretMask(accessToken)) {
+                        try {
+                          const res = await revealIgToken({ data: { id: primaryAccount.id } });
+                          if (res?.token) {
+                            setAccessToken(res.token);
+                          }
+                        } catch (e: any) {
+                          toast.error("Erro ao carregar token: " + e.message);
+                        }
+                      }
+                    }}
+                  />
+                </div>
+                
+                <div className="space-y-1.5">
+                  <Label htmlFor="app_secret">App Secret</Label>
+                  <PasswordInput
+                    id="app_secret"
+                    value={form.whatsapp_app_secret ?? ""}
+                    onChange={(e) => setForm({ ...form, whatsapp_app_secret: e.target.value })}
+                    placeholder="Insira o App Secret"
+                    className="font-mono text-xs"
+                    onVisibleChange={(visible) => {
+                      if (visible && form.hasAppSecret && isPersistedSecretMask(form.whatsapp_app_secret ?? "")) {
+                        revealAppSecretMut.mutate();
+                      }
+                    }}
+                  />
                 </div>
 
-                <div className="h-px bg-border/40 w-full" />
-
-                {/* CREDENCIAIS DA API META */}
-                <div className="space-y-4">
-                  <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    Credenciais da API Meta
-                  </Label>
-                  <div className="space-y-4">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="access_token">Page Access Token</Label>
-                      <PasswordInput
-                        id="access_token"
-                        placeholder="EAA..."
-                        value={accessToken}
-                        onChange={(e) => setAccessToken(e.target.value)}
-                        className="font-mono text-xs"
-                        onVisibleChange={async (visible) => {
-                          if (visible && primaryAccount && isPersistedSecretMask(accessToken)) {
-                            try {
-                              const res = await revealIgToken({ data: { id: primaryAccount.id } });
-                              if (res?.token) {
-                                setAccessToken(res.token);
-                              }
-                            } catch (e: any) {
-                              toast.error("Erro ao carregar token: " + e.message);
-                            }
-                          }
-                        }}
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label htmlFor="app_secret">App Secret</Label>
-                      <PasswordInput
-                        id="app_secret"
-                        value={form.whatsapp_app_secret ?? ""}
-                        onChange={(e) => setForm({ ...form, whatsapp_app_secret: e.target.value })}
-                        placeholder="Insira o App Secret"
-                        className="font-mono text-xs"
-                        onVisibleChange={(visible) => {
-                          if (
-                            visible &&
-                            form.hasAppSecret &&
-                            isPersistedSecretMask(form.whatsapp_app_secret ?? "")
-                          ) {
-                            revealAppSecretMut.mutate();
-                          }
-                        }}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="verify_token">Verify Token</Label>
-                        <Input
-                          id="verify_token"
-                          value={form.whatsapp_verify_token ?? ""}
-                          onChange={(e) =>
-                            setForm({ ...form, whatsapp_verify_token: e.target.value })
-                          }
-                          placeholder="Ex: meu_token_secreto_123"
-                          className="font-mono text-xs"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="api_version">Versão da API</Label>
-                        <Select
-                          value={form.meta_graph_version || "v26.0"}
-                          onValueChange={(val) => setForm({ ...form, meta_graph_version: val })}
-                        >
-                          <SelectTrigger id="api_version" className="font-mono text-xs">
-                            <SelectValue placeholder="v26.0" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {["v26.0", "v25.0", "v24.0"].map((v) => (
-                              <SelectItem key={v} value={v}>
-                                {v}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="h-px bg-border/40 w-full" />
-
-                {/* WEBHOOK */}
-                <div className="space-y-4">
-                  <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    Webhook
-                  </Label>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label>URL do Webhook para a Meta</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        readOnly
-                        value={igWebhookUrl}
-                        className="font-mono text-xs bg-muted/40"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="shrink-0"
-                        onClick={() => {
-                          navigator.clipboard.writeText(igWebhookUrl);
-                          toast.success("URL de Callback copiada!");
-                        }}
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      Copie essa URL e cole no campo <strong>Webhook URL</strong> do painel de
-                      Webhooks do Instagram/Meta.
-                    </p>
+                    <Label htmlFor="verify_token">Verify Token</Label>
+                    <Input
+                      id="verify_token"
+                      value={form.whatsapp_verify_token ?? ""}
+                      onChange={(e) => setForm({ ...form, whatsapp_verify_token: e.target.value })}
+                      placeholder="Ex: meu_token_secreto_123"
+                      className="font-mono text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="api_version">Versão da API</Label>
+                    <Select
+                      value={form.meta_graph_version || "v26.0"}
+                      onValueChange={(val) => setForm({ ...form, meta_graph_version: val })}
+                    >
+                      <SelectTrigger id="api_version" className="font-mono text-xs">
+                        <SelectValue placeholder="v26.0" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {["v26.0", "v25.0", "v24.0"].map((v) => (
+                          <SelectItem key={v} value={v}>
+                            {v}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-              </>
-            )}
+              </div>
+            </div>
+
+            <div className="h-px bg-border/40 w-full" />
+
+            {/* WEBHOOK */}
+            <div className="space-y-4">
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Webhook
+              </Label>
+              <div className="space-y-1.5">
+                <Label>URL do Webhook para a Meta</Label>
+                <div className="flex gap-2">
+                  <Input readOnly value={igWebhookUrl} className="font-mono text-xs bg-muted/40" />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0"
+                    onClick={() => {
+                      navigator.clipboard.writeText(igWebhookUrl);
+                      toast.success("URL de Callback copiada!");
+                    }}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Copie essa URL e cole no campo <strong>Webhook URL</strong> do painel de Webhooks do Instagram/Meta.
+                </p>
+              </div>
+            </div>
           </div>
 
-          {isAdminMaster && (
-            <div className="px-6 py-4 bg-muted/20 border-t border-border/40 flex items-center justify-between">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleTest}
-                disabled={isTesting || isSubmitting}
-                className="gap-2"
-              >
-                {isTesting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Testar
-              </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting || saveMut.isPending || isTesting}
-                className="bg-primary hover:bg-primary/90 min-w-32"
-              >
-                {isSubmitting || saveMut.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <Check className="mr-2 h-4 w-4" /> Atualizar
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
+          <div className="px-6 py-4 bg-muted/20 border-t border-border/40 flex items-center justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleTest}
+              disabled={isTesting || isSubmitting}
+              className="gap-2"
+            >
+              {isTesting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Testar
+            </Button>
+            <Button type="submit" disabled={isSubmitting || saveMut.isPending || isTesting} className="bg-primary hover:bg-primary/90 min-w-32">
+              {isSubmitting || saveMut.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Check className="mr-2 h-4 w-4" /> Atualizar
+                </>
+              )}
+            </Button>
+          </div>
         </form>
       </Card>
 
@@ -9178,8 +9086,7 @@ function InstagramSettingsTab({
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-display text-base font-semibold">Contas Conectadas</h3>
           <Badge variant="outline" className="text-xs">
-            {(accounts as any[])?.length || 0}{" "}
-            {(accounts as any[])?.length === 1 ? "Conta" : "Contas"}
+            {(accounts as any[])?.length || 0} {(accounts as any[])?.length === 1 ? "Conta" : "Contas"}
           </Badge>
         </div>
         {isLoading ? (
@@ -9200,7 +9107,9 @@ function InstagramSettingsTab({
                     <span className="font-semibold text-sm text-foreground">
                       @{acc.instagram_username || acc.page_name || "Conta"}
                     </span>
-                    <Badge variant="success">Ativo</Badge>
+                    <Badge variant="success">
+                      Ativo
+                    </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground font-mono">
                     ID: {acc.instagram_business_account_id}
@@ -9209,9 +9118,7 @@ function InstagramSettingsTab({
                 <Button
                   size="sm"
                   variant="destructive"
-                  onClick={() =>
-                    handleDisconnect(acc.id, acc.instagram_username || acc.page_name || "Instagram")
-                  }
+                  onClick={() => handleDisconnect(acc.id, acc.instagram_username || acc.page_name || "Instagram")}
                   className="gap-1.5"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -9231,13 +9138,11 @@ function FacebookSettingsTab({
   setForm,
   saveMut,
   revealAppSecretMut,
-  isAdminMaster,
 }: {
   form: any;
   setForm: any;
   saveMut: any;
   revealAppSecretMut: any;
-  isAdminMaster: boolean;
 }) {
   const fetchFb = useServerFn(listFacebookPages);
   const connectFb = useServerFn(connectFacebookPage);
@@ -9284,9 +9189,7 @@ function FacebookSettingsTab({
     const selected = resolveMetaApp();
     const appId = selected?.appId || "";
     if (!appId) {
-      toast.error(
-        "Nenhuma Meta App Connection com App ID. Cadastre o app 1783038629742610 em Credenciais.",
-      );
+      toast.error("Nenhuma Meta App Connection com App ID. Cadastre o app 1783038629742610 em Credenciais.");
       return;
     }
     const redirectUri = `${window.location.origin}/api/public/meta/oauth/callback`;
@@ -9319,9 +9222,7 @@ function FacebookSettingsTab({
     })
       .then((res: any) => {
         const n = res?.connected?.length || 0;
-        const pendingWebhook = (res?.connected || []).some(
-          (page: any) => page.webhookSubscribed === false,
-        );
+        const pendingWebhook = (res?.connected || []).some((page: any) => page.webhookSubscribed === false);
         toast.success(
           n
             ? `Messenger conectado (${n} ${n === 1 ? "página" : "páginas"}).`
@@ -9381,9 +9282,7 @@ function FacebookSettingsTab({
   const fbWebhookUrl = `${origin}/api/public/facebook-webhook`;
 
   const credentialsComplete = !!(pages && pages.length > 0);
-  const webhookComplete = isAdminMaster
-    ? !!(form.whatsapp_verify_token && form.hasAppSecret)
-    : true;
+  const webhookComplete = !!(form.whatsapp_verify_token && form.hasAppSecret);
 
   return (
     <div className="space-y-6">
@@ -9402,12 +9301,10 @@ function FacebookSettingsTab({
                       Passo 1: Conectar sua Página do Facebook
                     </h2>
                     <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border p-5">
-                      <p className="text-sm font-semibold text-foreground">
-                        Conexão via Facebook Login
-                      </p>
+                      <p className="text-sm font-semibold text-foreground">Conexão via Facebook Login</p>
                       <p className="text-xs text-muted-foreground text-center max-w-md">
                         Autoriza as Páginas que você administra e inscreve o Messenger no webhook.
-                        As credenciais do aplicativo são gerenciadas com segurança pela plataforma.
+                        App Meta: 1783038629742610.
                       </p>
                       <Button
                         type="button"
@@ -9423,53 +9320,48 @@ function FacebookSettingsTab({
                         Conectar Messenger
                       </Button>
                     </div>
-                    {isAdminMaster && (
-                      <>
-                        <p className="text-sm text-muted-foreground">
-                          Ou informe manualmente as credenciais da Página geradas no Meta
-                          Developers.
-                        </p>
+                    <p className="text-sm text-muted-foreground">
+                      Ou informe manualmente as credenciais da Página geradas no Meta Developers.
+                    </p>
 
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <div className="space-y-1.5">
-                            <Label htmlFor="page_id">ID da Página do Facebook (Page ID)</Label>
-                            <Input
-                              id="page_id"
-                              placeholder="Ex: 10482930293049"
-                              value={pageId}
-                              onChange={(e) => setPageId(e.target.value)}
-                            />
-                          </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="page_id">ID da Página do Facebook (Page ID)</Label>
+                        <Input
+                          id="page_id"
+                          placeholder="Ex: 10482930293049"
+                          value={pageId}
+                          onChange={(e) => setPageId(e.target.value)}
+                        />
+                      </div>
 
-                          <div className="space-y-1.5">
-                            <Label htmlFor="page_name">Nome da Página (Exibição)</Label>
-                            <Input
-                              id="page_name"
-                              placeholder="Ex: Minha Empresa"
-                              value={pageName}
-                              onChange={(e) => setPageName(e.target.value)}
-                            />
-                          </div>
-                        </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="page_name">Nome da Página (Exibição)</Label>
+                        <Input
+                          id="page_name"
+                          placeholder="Ex: Minha Empresa"
+                          value={pageName}
+                          onChange={(e) => setPageName(e.target.value)}
+                        />
+                      </div>
+                    </div>
 
-                        <div className="space-y-1.5">
-                          <Label htmlFor="page_access_token">
-                            Token de Acesso da Página (Page Access Token)
-                          </Label>
-                          <Textarea
-                            id="page_access_token"
-                            rows={3}
-                            placeholder="EAA..."
-                            value={pageAccessToken}
-                            onChange={(e) => setPageAccessToken(e.target.value)}
-                          />
-                        </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="page_access_token">
+                        Token de Acesso da Página (Page Access Token)
+                      </Label>
+                      <Textarea
+                        id="page_access_token"
+                        rows={3}
+                        placeholder="EAA..."
+                        value={pageAccessToken}
+                        onChange={(e) => setPageAccessToken(e.target.value)}
+                      />
+                    </div>
 
-                        <Button type="submit" disabled={isSubmitting}>
-                          {isSubmitting ? "Conectando..." : "Conectar Página"}
-                        </Button>
-                      </>
-                    )}
+                    <Button type="submit" disabled={isSubmitting}>
+                      {isSubmitting ? "Conectando..." : "Conectar Página"}
+                    </Button>
                   </form>
                 </Card>
 
@@ -9504,7 +9396,7 @@ function FacebookSettingsTab({
               </div>
             )}
 
-            {step === 1 && isAdminMaster && (
+            {step === 1 && (
               <Card className="p-6 space-y-6">
                 <div>
                   <h2 className="font-display text-lg font-semibold">
@@ -9565,11 +9457,7 @@ function FacebookSettingsTab({
                         onChange={(e) => setForm({ ...form, whatsapp_app_secret: e.target.value })}
                         placeholder="Insira o App Secret"
                         onVisibleChange={(visible) => {
-                          if (
-                            visible &&
-                            form.hasAppSecret &&
-                            isPersistedSecretMask(form.whatsapp_app_secret ?? "")
-                          ) {
+                          if (visible && form.hasAppSecret && isPersistedSecretMask(form.whatsapp_app_secret ?? "")) {
                             revealAppSecretMut.mutate();
                           }
                         }}

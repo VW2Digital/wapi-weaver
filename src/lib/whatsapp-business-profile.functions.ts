@@ -196,17 +196,13 @@ export const updateWhatsAppBusinessProfile = createServerFn({ method: "POST" })
 
 export const onboardWhatsApp = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((d) =>
-    z
-      .object({
-        code: z.string(),
-        waba_id: z.string().optional(),
-        phone_number_id: z.string().optional(),
-        is_coexistence: z.boolean().optional(),
-        meta_app_connection_id: z.string(),
-      })
-      .parse(d),
-  )
+  .validator((d) => z.object({
+    code: z.string(),
+    waba_id: z.string().optional(),
+    phone_number_id: z.string().optional(),
+    is_coexistence: z.boolean().optional(),
+    meta_app_connection_id: z.string(),
+  }).parse(d))
   .handler(async ({ context, data }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
     const effectiveUserId = await resolveEffectiveUserId(context.userId);
@@ -216,78 +212,22 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
       throw new Error("META_APP_CONNECTION_NOT_RESOLVED: meta_app_connection_id é obrigatório.");
     }
 
-    const roleRows = await db.query<Array<{ role: string }>>(
-      "SELECT role FROM user_roles WHERE user_id = ?",
-      [context.userId],
+    const connRows = await db.query<{ app_id: string; app_secret_encrypted: string; graph_version: string }[]>(
+      "SELECT app_id, app_secret_encrypted, graph_version FROM meta_app_connections WHERE id = ? AND tenant_id = ? LIMIT 1",
+      [connectionId, effectiveUserId],
     );
-    const masterUser = roleRows.some(
-      ({ role }) => role === "admin_master" || role === "adminmaster",
-    );
-    const connRows = masterUser
-      ? await db.query<{ app_id: string; app_secret_encrypted: string; graph_version: string }[]>(
-          "SELECT app_id, app_secret_encrypted, graph_version FROM meta_app_connections WHERE id = ? AND tenant_id = ? LIMIT 1",
-          [connectionId, effectiveUserId],
-        )
-      : [];
-    let conn:
-      | {
-          app_id: string;
-          app_secret_encrypted?: string;
-          app_secret_plain?: string;
-          graph_version: string;
-        }
-      | undefined = connRows?.[0];
-
-    if (!conn && connectionId !== "platform") {
-      const sharedRows = await db.query<
-        { app_id: string; app_secret_encrypted: string; graph_version: string }[]
-      >(
-        `SELECT mac.app_id, mac.app_secret_encrypted, mac.graph_version
-         FROM meta_app_connections mac
-         JOIN user_roles ur
-           ON ur.user_id = mac.tenant_id
-          AND ur.role IN ('admin_master', 'adminmaster')
-         WHERE mac.id = ?
-           AND mac.app_id = '1783038629742610'
-           AND mac.status = 'active'
-         LIMIT 1`,
-        [connectionId],
-      );
-      conn = sharedRows?.[0];
-    }
-
-    if (!conn && connectionId === "platform") {
-      const platformRows = await db.query<
-        { meta_app_id: string; meta_app_secret: string; meta_graph_version: string | null }[]
-      >(
-        `SELECT meta_app_id, meta_app_secret, meta_graph_version
-         FROM platform_settings
-         WHERE id = 1
-         LIMIT 1`,
-      );
-      const platform = platformRows?.[0];
-      if (platform?.meta_app_id && platform?.meta_app_secret) {
-        conn = {
-          app_id: platform.meta_app_id,
-          app_secret_plain: platform.meta_app_secret,
-          graph_version: platform.meta_graph_version || "v26.0",
-        };
-      }
-    }
-
+    const conn = connRows?.[0];
     if (!conn) {
-      throw new Error("Meta App Connection master não encontrada.");
+      throw new Error("Meta App Connection não encontrada ou não pertence ao tenant.");
     }
 
     const APP_ID = conn.app_id;
     const GRAPH_VERSION = conn.graph_version || "v26.0";
-    let APP_SECRET = conn.app_secret_plain || "";
-    if (!APP_SECRET) {
-      try {
-        APP_SECRET = decryptMetaCredential(conn.app_secret_encrypted || "");
-      } catch (err) {
-        throw new Error("Falha ao descriptografar o App Secret da Meta App Connection.");
-      }
+    let APP_SECRET = "";
+    try {
+      APP_SECRET = decryptMetaCredential(conn.app_secret_encrypted);
+    } catch (err) {
+      throw new Error("Falha ao descriptografar o App Secret da Meta App Connection.");
     }
 
     if (!APP_ID || !APP_SECRET) {
@@ -299,11 +239,11 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
       const tokenUrl = `https://graph.facebook.com/${GRAPH_VERSION}/oauth/access_token?client_id=${APP_ID}&client_secret=${APP_SECRET}&code=${data.code}`;
       const tokenResp = await fetch(tokenUrl);
       const tokenData = await tokenResp.json();
-
+      
       if (!tokenResp.ok) {
         throw new Error(tokenData.error?.message || "Erro ao obter access token.");
       }
-
+      
       const accessToken = tokenData.access_token;
       let wabaId = data.waba_id;
       let phoneNumberId = data.phone_number_id;
@@ -314,7 +254,7 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
         // Exemplo: debug_token para achar os accounts (se aplicável), mas o ideal é que venha do frontend.
         // O fluxo do frontend passará os IDs.
         if (!wabaId || !phoneNumberId) {
-          throw new Error("waba_id e phone_number_id são obrigatórios. O frontend não os enviou.");
+           throw new Error("waba_id e phone_number_id são obrigatórios. O frontend não os enviou.");
         }
       }
 
@@ -324,10 +264,10 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
         const registerResp = await fetch(registerUrl, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
           },
-          body: JSON.stringify({ messaging_product: "whatsapp" }),
+          body: JSON.stringify({ messaging_product: 'whatsapp' })
         });
         if (!registerResp.ok) {
           const err = await registerResp.json();
@@ -340,8 +280,8 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
       const subscribeResp = await fetch(subscribeUrl, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
+          "Authorization": `Bearer ${accessToken}`
+        }
       });
       if (!subscribeResp.ok) {
         const err = await subscribeResp.json();
@@ -354,13 +294,13 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
         const syncResp = await fetch(syncUrl, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
           },
           body: JSON.stringify({
             history_sync: true, // Configuração base (você pode optar por history_sync: false se não quiser mensagens antigas)
-            contacts_sync: true,
-          }),
+            contacts_sync: true
+          })
         });
         if (!syncResp.ok) {
           const err = await syncResp.json();
@@ -376,7 +316,7 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
           whatsapp_phone_number_id = ?, 
           whatsapp_waba_id = ? 
         WHERE id = ?`,
-        [accessToken, phoneNumberId, wabaId, effectiveUserId],
+        [accessToken, phoneNumberId, wabaId, effectiveUserId]
       );
 
       return { success: true, waba_id: wabaId, phone_number_id: phoneNumberId };
