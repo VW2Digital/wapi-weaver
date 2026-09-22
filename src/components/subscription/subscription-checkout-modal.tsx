@@ -352,31 +352,42 @@ export function SubscriptionCheckoutModal({ open, onOpenChange }: SubscriptionCh
     return () => controller.abort();
   }, [cardNumber, gatewayConfig?.publicKey, selectedAmount]);
 
-  // PIX poll
+  // PIX poll — also asks Mercado Pago via the invoice endpoint, not only the local DB.
   useEffect(() => {
     if (!pixData?.invoiceId || !open) return;
-    const interval = setInterval(async () => {
+    let cancelled = false;
+
+    const tick = async () => {
       try {
         const res = await fetch(`/api/billing/invoices/${pixData.invoiceId}`, {
           headers: getAuthHeaders(),
           credentials: "include",
         });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.invoice?.status === "paid") {
-            queryClient.invalidateQueries({ queryKey: ["license-status"] });
-            queryClient.invalidateQueries({ queryKey: ["billing"] });
-            queryClient.invalidateQueries({ queryKey: ["my-plan"] });
-            setPixData(null);
-            setCardResult({ status: "approved", detail: "" });
-          }
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const invoicePaid = data.invoice?.status === "paid";
+        const paymentApproved = Array.isArray(data.payments)
+          ? data.payments.some((payment: { status?: string }) => payment.status === "approved")
+          : false;
+        if (invoicePaid || paymentApproved) {
+          queryClient.invalidateQueries({ queryKey: ["license-status"] });
+          queryClient.invalidateQueries({ queryKey: ["billing"] });
+          queryClient.invalidateQueries({ queryKey: ["my-plan"] });
+          setPixData(null);
+          setCardResult({ status: "approved", detail: "" });
         }
       } catch {
-        // ignore
+        // keep waiting
       }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [pixData?.invoiceId, open, queryClient, onOpenChange]);
+    };
+
+    void tick();
+    const interval = setInterval(() => void tick(), 2500);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [pixData?.invoiceId, open, queryClient]);
 
   const handleCheckout = async () => {
     if (!selectedCommercialPlanId) return;

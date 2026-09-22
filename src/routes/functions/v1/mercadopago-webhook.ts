@@ -193,7 +193,20 @@ export const Route = createFileRoute("/functions/v1/mercadopago-webhook")({
               throw new Error("No active credentials found to fetch payment details.");
             }
 
-            const paymentDetails = await getPaymentDetails(config, resourceId);
+            let paymentDetails: any;
+            try {
+              paymentDetails = await getPaymentDetails(config, resourceId);
+            } catch (lookupErr: any) {
+              const statusCode = Number(lookupErr?.status) || 0;
+              if (statusCode === 400 || statusCode === 404) {
+                await db.query(
+                  "UPDATE billing_webhook_events SET status = 'ignored', error_message = ? WHERE id = ?",
+                  [String(lookupErr.message || "Payment not found at Mercado Pago").slice(0, 500), eventUuid],
+                );
+                return;
+              }
+              throw lookupErr;
+            }
             const externalReference = paymentDetails.external_reference;
             const status = paymentDetails.status;
             const amount = Number(paymentDetails.transaction_amount);

@@ -67,3 +67,10 @@ export function decryptSecret(value?: string | null) {
 export function gatewayId() {
   return crypto.randomUUID();
 }
+
+export async function getPlatformWebhookSecret(): Promise<string> {
+  const fromEnv = (process.env.MERCADOPAGO_WEBHOOK_SECRET || process.env.MP_WEBHOOK_SECRET || "").trim();
+  if (fromEnv) return fromEnv;
+  const row = await getGlobalMercadoPagoRow();
+  return decryptSecret(row?.webhook_secret).trim();
+}

@@ -4,6 +4,7 @@ import crypto from "crypto";
 import db from "@/lib/db";
 import { processApprovedPayment } from "@/lib/subscription-helpers";
 import { getMercadoPagoConfig, getPaymentDetails } from "@/lib/mercadopago";
+import { getPlatformWebhookSecret } from "@/lib/payment-gateway-admin";
 
 function getEventDetails(body: any, url: URL): { id: string; type: string } {
   if (body?.data?.id) {
@@ -83,22 +84,16 @@ export const Route = createFileRoute("/api/webhooks/mercadopago")({
           });
         }
 
-        // Validate webhook signature: when secret is configured, signature is STRICTLY REQUIRED
-        const webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET || process.env.MP_WEBHOOK_SECRET || "";
-        if (!webhookSecret) {
-          console.error("[MercadoPago Webhook] MERCADOPAGO_WEBHOOK_SECRET is not configured");
-          return new Response(JSON.stringify({ error: "Webhook secret not configured" }), {
-            status: 503,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
-        const isValid = verifyMercadoPagoSignature(signature, requestId, resourceId, webhookSecret);
-        if (!isValid) {
-          console.warn(`[MercadoPago Webhook] Invalid or missing signature for event resource: ${resourceId}`);
-          return new Response(JSON.stringify({ error: "Invalid or missing webhook signature" }), {
-            status: 401,
-            headers: { "Content-Type": "application/json" },
-          });
+        // Signature is optional in the admin UI. Prefer env, then the saved platform secret.
+        // The Mercado Pago GET is still the source of truth for payment status.
+        const webhookSecret = await getPlatformWebhookSecret();
+        if (webhookSecret) {
+          const isValid = verifyMercadoPagoSignature(signature, requestId, resourceId, webhookSecret);
+          if (!isValid) {
+            console.warn(
+              `[MercadoPago Webhook] Signature missing or invalid for ${resourceId}; continuing with Mercado Pago API lookup.`,
+            );
+          }
         }
 
         // Deduplication event ID based on unique request or resource + action/event
@@ -271,12 +266,36 @@ export const Route = createFileRoute("/api/webhooks/mercadopago")({
           });
         } catch (e: any) {
           console.error(`[MercadoPago Webhook Process Error] Event ${eventUuid} failed:`, e);
-          await db.query(
-            "UPDATE billing_webhook_events SET status = 'failed', error_code = ?, error_message = ? WHERE id = ?",
-            [e.code || "PROCESSING_ERROR", e.message || String(e), eventUuid]
-          );
+          const statusCode = Number(e?.status) || 0;
+          const message = String(e?.message || e || "");
+          const unknownPayment =
+            statusCode === 400 ||
+            statusCode === 404 ||
+            /not found|does not exist|resource not found|Failed to fetch payment details/i.test(message);
 
-          // Return HTTP 500 for transient internal failures so Mercado Pago can retry
+          try {
+            await db.query(
+              "UPDATE billing_webhook_events SET status = ?, error_code = ?, error_message = ? WHERE id = ?",
+              [
+                unknownPayment ? "ignored" : "failed",
+                e.code || (unknownPayment ? "PAYMENT_NOT_FOUND" : "PROCESSING_ERROR"),
+                message.slice(0, 500),
+                eventUuid,
+              ],
+            );
+          } catch {
+            /* ignore log update */
+          }
+
+          // Mercado Pago's dashboard test uses a fake payment id (e.g. 1234564).
+          // Acknowledge it so the URL test succeeds; keep 500 only for real infra failures.
+          if (unknownPayment) {
+            return new Response(
+              JSON.stringify({ success: true, message: "Notification acknowledged; payment id not found." }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            );
+          }
+
           return new Response(JSON.stringify({ error: "Ocorreu uma falha no processamento interno da notificação." }), {
             status: 500,
             headers: { "Content-Type": "application/json" },

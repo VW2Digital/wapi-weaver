@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import db from "@/lib/db";
 import { verifyApiUser } from "@/lib/subscription-helpers";
+import { syncPendingInvoiceFromMercadoPago } from "@/lib/mercadopago";
 
 export const Route = createFileRoute("/api/billing/invoices/$id")({
   server: {
@@ -22,7 +23,19 @@ export const Route = createFileRoute("/api/billing/invoices/$id")({
             });
           }
 
-          // Fetch associated payment details if they exist
+          if (rows[0].status !== "paid") {
+            try {
+              await syncPendingInvoiceFromMercadoPago(id, user.tenantId);
+            } catch (syncErr: any) {
+              console.error("[Invoice GET] Mercado Pago sync failed:", syncErr?.message || syncErr);
+            }
+          }
+
+          const invoiceRows = (await db.query(
+            "SELECT * FROM billing_invoices WHERE id = ? AND tenant_id = ? LIMIT 1",
+            [id, user.tenantId],
+          )) as any[];
+
           const payments = await db.query(
             "SELECT * FROM billing_payments WHERE invoice_id = ? AND tenant_id = ? ORDER BY created_at DESC",
             [id, user.tenantId],
@@ -30,7 +43,7 @@ export const Route = createFileRoute("/api/billing/invoices/$id")({
 
           return new Response(
             JSON.stringify({
-              invoice: rows[0],
+              invoice: invoiceRows[0],
               payments,
             }),
             {

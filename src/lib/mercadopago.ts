@@ -203,11 +203,53 @@ export async function getPaymentDetails(config: MercadoPagoConfig, paymentId: st
 
   if (!response.ok) {
     const errorBody = await response.text();
-    console.error("[MercadoPago API Error] getPaymentDetails:", errorBody);
-    throw new Error(`Failed to fetch payment details: ${errorBody}`);
+    console.error("[MercadoPago API Error] getPaymentDetails:", response.status, errorBody);
+    const err = new Error(`Failed to fetch payment details: ${errorBody}`) as Error & { status?: number };
+    err.status = response.status;
+    throw err;
   }
 
   return response.json();
+}
+
+/**
+ * If the local invoice is still pending, ask Mercado Pago for the live payment status
+ * and provision the subscription when it is already approved. Used by PIX polling
+ * so the UI does not depend only on the webhook.
+ */
+export async function syncPendingInvoiceFromMercadoPago(invoiceId: string, tenantId: string): Promise<void> {
+  const payments = (await db.query(
+    `SELECT provider_payment_id, status
+     FROM billing_payments
+     WHERE invoice_id = ? AND tenant_id = ? AND provider = 'mercadopago'
+     ORDER BY created_at DESC`,
+    [invoiceId, tenantId],
+  )) as Array<{ provider_payment_id: string | null; status: string }>;
+
+  if (payments.some((payment) => payment.status === "approved")) return;
+
+  const providerPaymentId = payments.find((payment) => payment.provider_payment_id)?.provider_payment_id;
+  if (!providerPaymentId) return;
+
+  const config = await getMercadoPagoConfig("global");
+  if (!config?.accessToken) return;
+
+  const details = await getPaymentDetails(config, String(providerPaymentId));
+  if (details?.status !== "approved") return;
+
+  const { processApprovedPayment } = await import("@/lib/subscription-helpers");
+  const dateApproved = details.date_approved ? new Date(details.date_approved) : new Date();
+
+  await db.transaction(async (conn) => {
+    await processApprovedPayment(
+      conn,
+      String(providerPaymentId),
+      dateApproved,
+      Number(details.transaction_amount),
+      details.currency_id || "BRL",
+      details,
+    );
+  });
 }
 
 /**
