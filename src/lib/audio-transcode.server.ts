@@ -1,4 +1,7 @@
 import { spawn } from "node:child_process";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import ffmpegPath from "ffmpeg-static";
 
 export function isMp3(bytes: Uint8Array) {
@@ -213,4 +216,87 @@ export async function transcodeAudioToMp3(bytes: Uint8Array): Promise<Uint8Array
     });
     child.stdin.end(Buffer.from(bytes));
   });
+}
+
+export function isMp4Ftyp(bytes: Uint8Array) {
+  if (bytes.length < 8) return false;
+  return bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70;
+}
+
+export async function transcodeVideoToMp4(bytes: Uint8Array): Promise<Uint8Array> {
+  const executable = ffmpegPath;
+  if (!executable) {
+    throw new Error("FFmpeg não está disponível para converter o vídeo.");
+  }
+
+  const workDir = await mkdtemp(path.join(tmpdir(), "bliv-ig-video-"));
+  const inputPath = path.join(workDir, "input.bin");
+  const outputPath = path.join(workDir, "output.mp4");
+
+  try {
+    await writeFile(inputPath, bytes);
+
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(
+        executable,
+        [
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-y",
+          "-i",
+          inputPath,
+          "-map",
+          "0:v:0",
+          "-map",
+          "0:a:0?",
+          "-c:v",
+          "libx264",
+          "-pix_fmt",
+          "yuv420p",
+          "-preset",
+          "veryfast",
+          "-crf",
+          "23",
+          "-vf",
+          "scale='min(1280,iw)':-2",
+          "-c:a",
+          "aac",
+          "-ac",
+          "2",
+          "-b:a",
+          "128k",
+          "-movflags",
+          "+faststart",
+          "-f",
+          "mp4",
+          outputPath,
+        ],
+        { timeout: 120000 },
+      );
+
+      const errors: Buffer[] = [];
+      child.stderr.on("data", (chunk: Buffer) => errors.push(chunk));
+      child.on("error", reject);
+      child.on("close", (code: number | null) => {
+        if (code !== 0) {
+          reject(
+            new Error(
+              `Falha ao converter vídeo: ${Buffer.concat(errors).toString("utf8").trim() || `código ${code}`}`,
+            ),
+          );
+          return;
+        }
+        resolve();
+      });
+    });
+
+    const converted = new Uint8Array(await readFile(outputPath));
+    if (!isMp4Ftyp(converted)) {
+      throw new Error("A conversão não produziu um arquivo MP4 válido.");
+    }
+    return converted;
+  } finally {
+    await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
+  }
 }

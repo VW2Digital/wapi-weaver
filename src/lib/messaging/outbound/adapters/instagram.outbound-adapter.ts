@@ -3,7 +3,7 @@
 import db from "@/lib/db";
 import { getChannelConnection, requireActiveChannel, resolveChannelAccessToken, type ChannelConnection } from "@/lib/messaging/channel-connection.service";
 import type { IOutboundAdapter, OutboundMessageContext, OutboundSendResult } from "../types";
-import { buildInstagramOutboundPayload } from "./instagram.payload-builder";
+import { buildInstagramOutboundPayload, resolveInstagramAuthMode } from "./instagram.payload-builder";
 import { InstagramClient } from "./instagram.api";
 
 export class InstagramOutboundAdapter implements IOutboundAdapter {
@@ -23,11 +23,14 @@ export class InstagramOutboundAdapter implements IOutboundAdapter {
 
     const payload = buildInstagramOutboundPayload(context.providerRecipientId || "", context.payload as any, {
       replyToMessageId: context.payload.reply_to_message_id,
-      useHumanAgentTag: decision.useHumanAgentTag,
+      useHumanAgentTag: credentials.authMode === "facebook_login" && decision.useHumanAgentTag,
+      authMode: credentials.authMode,
     });
 
     const client = new InstagramClient({
-      igUserId: credentials.graphNodeId,
+      igUserId: credentials.igUserId,
+      pageId: credentials.pageId,
+      authMode: credentials.authMode,
       accessToken: credentials.accessToken,
     });
 
@@ -73,7 +76,13 @@ export class InstagramOutboundAdapter implements IOutboundAdapter {
     channel: ChannelConnection,
     tenantId: string,
     userId: string,
-  ): Promise<{ graphNodeId: string; igUserId: string; accessToken: string }> {
+  ): Promise<{
+    graphNodeId: string;
+    igUserId: string;
+    pageId: string | null;
+    authMode: "facebook_login" | "instagram_login";
+    accessToken: string;
+  }> {
     const externalId = channel.externalAccountId || "";
     const rows = (await db.query(
       `SELECT ig_user_id, instagram_business_account_id, page_id, access_token
@@ -100,9 +109,13 @@ export class InstagramOutboundAdapter implements IOutboundAdapter {
     const freshToken = account?.access_token?.trim() || "";
     if (account && freshToken) {
       const igUserId = account.ig_user_id || account.instagram_business_account_id || externalId;
+      const pageId = account.page_id || null;
+      const authMode = resolveInstagramAuthMode({ pageId });
       return {
-        graphNodeId: account.page_id || externalId || igUserId,
+        graphNodeId: authMode === "facebook_login" ? pageId || igUserId : igUserId,
         igUserId,
+        pageId,
+        authMode,
         accessToken: freshToken,
       };
     }
@@ -110,6 +123,8 @@ export class InstagramOutboundAdapter implements IOutboundAdapter {
     return {
       graphNodeId: externalId,
       igUserId: externalId,
+      pageId: externalId || null,
+      authMode: resolveInstagramAuthMode({ pageId: externalId }),
       accessToken: resolveChannelAccessToken(channel),
     };
   }

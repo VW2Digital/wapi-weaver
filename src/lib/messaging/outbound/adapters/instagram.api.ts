@@ -1,17 +1,44 @@
 "use server";
 
-import type { InstagramSendPayload } from "./instagram.payload-builder";
+import type { InstagramAuthMode, InstagramSendPayload } from "./instagram.payload-builder";
+
+function normalizeGraphVersion(configuredVersion = process.env.META_GRAPH_VERSION || "v26.0") {
+  return configuredVersion.startsWith("v") ? configuredVersion : `v${configuredVersion}`;
+}
 
 export function buildInstagramGraphUrl(
   nodeId: string,
   path = "",
   configuredVersion = process.env.META_GRAPH_VERSION || "v26.0",
 ) {
-  const apiVersion = configuredVersion.startsWith("v")
-    ? configuredVersion
-    : `v${configuredVersion}`;
+  const apiVersion = normalizeGraphVersion(configuredVersion);
   const suffix = path ? `/${path.replace(/^\/+/, "")}` : "";
   return `https://graph.facebook.com/${apiVersion}/${encodeURIComponent(nodeId)}${suffix}`;
+}
+
+export function buildInstagramMeMessagesUrl(
+  configuredVersion = process.env.META_GRAPH_VERSION || "v26.0",
+) {
+  const apiVersion = normalizeGraphVersion(configuredVersion);
+  return `https://graph.instagram.com/${apiVersion}/me/messages`;
+}
+
+export function buildInstagramSendUrl(input: {
+  authMode: InstagramAuthMode;
+  pageId?: string | null;
+  igUserId?: string | null;
+  graphVersion?: string;
+}) {
+  const apiVersion = normalizeGraphVersion(input.graphVersion);
+  if (input.authMode === "instagram_login") {
+    const node = input.igUserId || "me";
+    return `https://graph.instagram.com/${apiVersion}/${encodeURIComponent(node)}/messages`;
+  }
+  const node = input.pageId || input.igUserId;
+  if (!node) {
+    return buildInstagramGraphUrl("me", "messages", apiVersion);
+  }
+  return buildInstagramGraphUrl(node, "messages", apiVersion);
 }
 
 const MAX_RETRIES = 3;
@@ -25,6 +52,8 @@ export interface InstagramCredentials {
   igUserId: string;
   accessToken: string;
   graphVersion?: string;
+  authMode?: InstagramAuthMode;
+  pageId?: string | null;
 }
 
 export interface InstagramSendInput {
@@ -41,12 +70,19 @@ export class InstagramClient {
   constructor(private readonly credentials: InstagramCredentials) {}
 
   async send(input: InstagramSendInput): Promise<InstagramSendResult> {
-    const url = buildInstagramGraphUrl(this.credentials.igUserId, "messages", this.credentials.graphVersion);
+    const authMode = this.credentials.authMode || "facebook_login";
+    const url = buildInstagramSendUrl({
+      authMode,
+      pageId: this.credentials.pageId,
+      igUserId: this.credentials.igUserId,
+      graphVersion: this.credentials.graphVersion,
+    });
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
         console.log(`[Instagram API] Sending message (Attempt ${attempt})`, {
           url,
+          authMode,
           type: this.inferType(input.payload),
         });
 

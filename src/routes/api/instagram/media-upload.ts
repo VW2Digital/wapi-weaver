@@ -5,7 +5,12 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { resolveEffectiveUserId } from "@/lib/chat-helpers";
 import { JWT_SECRET } from "@/lib/jwt-secret";
-import { transcodeAudioToM4a } from "@/lib/audio-transcode.server";
+import { transcodeAudioToM4a, transcodeVideoToMp4 } from "@/lib/audio-transcode.server";
+import {
+  inferInstagramVideoMime,
+  isAcceptedInstagramVideoMime,
+  looksLikeFtypContainer,
+} from "@/lib/instagram-media-format";
 
 function getAuthUserId(request: Request): string {
   let token = "";
@@ -40,7 +45,7 @@ type MediaType = "image" | "audio" | "video" | "document" | "sticker";
 const MEDIA_RULES: Record<MediaType, { maxBytes: number; mimeTypes: Set<string> }> = {
   image: {
     maxBytes: 8 * 1024 * 1024,
-    mimeTypes: new Set(["image/jpeg", "image/png"]),
+    mimeTypes: new Set(["image/jpeg", "image/png", "image/gif"]),
   },
   audio: {
     maxBytes: 25 * 1024 * 1024,
@@ -48,7 +53,16 @@ const MEDIA_RULES: Record<MediaType, { maxBytes: number; mimeTypes: Set<string> 
   },
   video: {
     maxBytes: 25 * 1024 * 1024,
-    mimeTypes: new Set(["video/mp4"]),
+    mimeTypes: new Set([
+      "video/mp4",
+      "video/quicktime",
+      "video/webm",
+      "video/x-matroska",
+      "video/x-msvideo",
+      "video/avi",
+      "video/3gpp",
+      "video/3gpp2",
+    ]),
   },
   document: {
     maxBytes: 25 * 1024 * 1024,
@@ -63,6 +77,7 @@ const MEDIA_RULES: Record<MediaType, { maxBytes: number; mimeTypes: Set<string> 
 const MIME_EXTENSIONS: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
+  "image/gif": "gif",
   "image/webp": "webp",
   "audio/aac": "aac",
   "audio/m4a": "m4a",
@@ -77,11 +92,13 @@ async function persistLocalMedia({
   buffer,
   mimeType,
   originalFileName,
+  publicBaseUrl,
 }: {
   tenantId: string;
   buffer: Buffer;
   mimeType: string;
   originalFileName: string;
+  publicBaseUrl?: string;
 }) {
   const originalExtension = path.extname(originalFileName).slice(1).toLowerCase();
   const safeOriginalExtension = /^[a-z0-9]{1,10}$/.test(originalExtension)
@@ -99,7 +116,7 @@ async function persistLocalMedia({
   await fs.promises.writeFile(path.join(directory, fileName), buffer);
 
   const relativeUrl = `/api/storage/file?path=${encodeURIComponent(relativePath)}`;
-  const baseUrl = (process.env.APP_URL || "").replace(/\/$/, "");
+  const baseUrl = (publicBaseUrl || process.env.APP_URL || "").replace(/\/$/, "");
   const url = baseUrl ? `${baseUrl}${relativeUrl}` : relativeUrl;
 
   return {
@@ -122,21 +139,46 @@ export const Route = createFileRoute("/api/instagram/media-upload")({
           const form = await request.formData();
           const mediaType = String(form.get("mediaType") || "") as MediaType;
           const file = form.get("file");
+          const isBlob = typeof Blob !== "undefined" && file instanceof Blob;
 
-          if (!(file instanceof File) || !MEDIA_RULES[mediaType]) {
+          if (!isBlob || !MEDIA_RULES[mediaType]) {
             return json(
               { ok: false, error: "Envie mediaType e file válidos no multipart/form-data." },
               400,
             );
           }
 
+          const uploadName =
+            typeof File !== "undefined" && file instanceof File
+              ? file.name || "media"
+              : "media";
+          const uploadType = file.type || "";
+
           const rule = MEDIA_RULES[mediaType];
-          let declaredMime = (file.type || "").toLowerCase().split(";")[0].trim();
-          if (!declaredMime || declaredMime === "application/octet-stream") {
-            const ext = (file.name || "").toLowerCase().split(".").pop();
+          const incomingMaxBytes = mediaType === "video" ? 80 * 1024 * 1024 : rule.maxBytes;
+          if (file.size > incomingMaxBytes) {
+            const maxSizeLabel =
+              incomingMaxBytes >= 1024 * 1024
+                ? `${Math.floor(incomingMaxBytes / 1024 / 1024)} MB`
+                : `${incomingMaxBytes / 1024} KB`;
+            return json(
+              {
+                ok: false,
+                error: `Arquivo excede o limite de ${maxSizeLabel} para ${mediaType}.`,
+              },
+              413,
+            );
+          }
+
+          let declaredMime = (uploadType || "").toLowerCase().split(";")[0].trim();
+          if (mediaType === "video") {
+            declaredMime = inferInstagramVideoMime(declaredMime, uploadName);
+          } else if (!declaredMime || declaredMime === "application/octet-stream") {
+            const ext = (uploadName || "").toLowerCase().split(".").pop();
             if (ext === "mp4") declaredMime = "video/mp4";
             else if (ext === "jpg" || ext === "jpeg") declaredMime = "image/jpeg";
             else if (ext === "png") declaredMime = "image/png";
+            else if (ext === "gif") declaredMime = "image/gif";
             else if (ext === "webp") declaredMime = "image/webp";
             else if (ext === "pdf") declaredMime = "application/pdf";
             else if (ext === "m4a") declaredMime = "audio/mp4";
@@ -144,7 +186,21 @@ export const Route = createFileRoute("/api/instagram/media-upload")({
             else if (ext === "wav") declaredMime = "audio/wav";
           }
 
-          if (!rule.mimeTypes.has(declaredMime)) {
+          if (mediaType === "video") {
+            if (
+              declaredMime &&
+              !isAcceptedInstagramVideoMime(declaredMime) &&
+              !declaredMime.startsWith("video/")
+            ) {
+              return json(
+                {
+                  ok: false,
+                  error: `Formato ${declaredMime} não suportado pelo Instagram para vídeo.`,
+                },
+                415,
+              );
+            }
+          } else if (!rule.mimeTypes.has(declaredMime)) {
             return json(
               {
                 ok: false,
@@ -155,6 +211,12 @@ export const Route = createFileRoute("/api/instagram/media-upload")({
           }
 
           let fileBuffer = Buffer.from(await file.arrayBuffer());
+
+          if (mediaType === "video" && (!declaredMime || declaredMime === "application/octet-stream")) {
+            if (looksLikeFtypContainer(fileBuffer)) {
+              declaredMime = "video/mp4";
+            }
+          }
 
           if (mediaType === "audio") {
             try {
@@ -169,7 +231,25 @@ export const Route = createFileRoute("/api/instagram/media-upload")({
             }
           }
 
-          if (file.size > rule.maxBytes) {
+          if (mediaType === "video") {
+            try {
+              fileBuffer = Buffer.from(await transcodeVideoToMp4(new Uint8Array(fileBuffer)));
+              declaredMime = "video/mp4";
+            } catch (transcodeErr: any) {
+              console.error("[Instagram Media Upload] Falha ao transcodificar vídeo:", transcodeErr);
+              return json(
+                {
+                  ok: false,
+                  error:
+                    transcodeErr?.message ||
+                    "Falha ao converter o vídeo. Envie um MP4 (H.264) de até 25 MB.",
+                },
+                415,
+              );
+            }
+          }
+
+          if (fileBuffer.length > rule.maxBytes) {
             const maxSizeLabel =
               rule.maxBytes >= 1024 * 1024
                 ? `${Math.floor(rule.maxBytes / 1024 / 1024)} MB`
@@ -183,11 +263,16 @@ export const Route = createFileRoute("/api/instagram/media-upload")({
             );
           }
 
+          const forwardedHost = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
+          const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
+          const requestOrigin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : "";
+
           const localMedia = await persistLocalMedia({
             tenantId: effectiveUserId,
             buffer: fileBuffer,
             mimeType: declaredMime,
-            originalFileName: file.name || "media",
+            originalFileName: uploadName,
+            publicBaseUrl: (process.env.APP_URL || requestOrigin || "").replace(/\/$/, ""),
           });
 
           return json(
