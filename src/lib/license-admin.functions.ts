@@ -13,6 +13,7 @@ import {
   parseJson,
 } from "./license-server";
 import { hasMasterRole } from "./roles";
+import { reconcilePendingMercadoPagoPayments } from "./mercadopago";
 
 // Helper to assert administrator privileges in panel mode
 async function assertAdmin(ctx: { userId: string }) {
@@ -457,6 +458,13 @@ export const deleteActivation = createServerFn({ method: "POST" })
 
     await db.query("DELETE FROM license_activations WHERE id = ?", [input.id]);
     return { success: true };
+  });
+
+export const syncPaidSubscriptions = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context);
+    return reconcilePendingMercadoPagoPayments();
   });
 
 export const getLicenseRole = createServerFn({ method: "GET" })

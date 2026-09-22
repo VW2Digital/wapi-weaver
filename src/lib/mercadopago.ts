@@ -217,7 +217,10 @@ export async function getPaymentDetails(config: MercadoPagoConfig, paymentId: st
  * and provision the subscription when it is already approved. Used by PIX polling
  * so the UI does not depend only on the webhook.
  */
-export async function syncPendingInvoiceFromMercadoPago(invoiceId: string, tenantId: string): Promise<void> {
+export async function syncPendingInvoiceFromMercadoPago(
+  invoiceId: string,
+  tenantId: string,
+): Promise<{ provisioned: boolean }> {
   const payments = (await db.query(
     `SELECT provider_payment_id, status
      FROM billing_payments
@@ -226,22 +229,29 @@ export async function syncPendingInvoiceFromMercadoPago(invoiceId: string, tenan
     [invoiceId, tenantId],
   )) as Array<{ provider_payment_id: string | null; status: string }>;
 
-  if (payments.some((payment) => payment.status === "approved")) return;
+  if (payments.some((payment) => payment.status === "approved")) return { provisioned: false };
 
   const providerPaymentId = payments.find((payment) => payment.provider_payment_id)?.provider_payment_id;
-  if (!providerPaymentId) return;
+  if (!providerPaymentId) return { provisioned: false };
 
   const config = await getMercadoPagoConfig("global");
-  if (!config?.accessToken) return;
+  if (!config?.accessToken) return { provisioned: false };
 
-  const details = await getPaymentDetails(config, String(providerPaymentId));
-  if (details?.status !== "approved") return;
+  let details: Awaited<ReturnType<typeof getPaymentDetails>>;
+  try {
+    details = await getPaymentDetails(config, String(providerPaymentId));
+  } catch (error: any) {
+    const status = Number(error?.status);
+    if (status === 400 || status === 404) return { provisioned: false };
+    throw error;
+  }
+  if (details?.status !== "approved") return { provisioned: false };
 
   const { processApprovedPayment } = await import("@/lib/subscription-helpers");
   const dateApproved = details.date_approved ? new Date(details.date_approved) : new Date();
 
-  await db.transaction(async (conn) => {
-    await processApprovedPayment(
+  const result = await db.transaction(async (conn) => {
+    return processApprovedPayment(
       conn,
       String(providerPaymentId),
       dateApproved,
@@ -250,6 +260,79 @@ export async function syncPendingInvoiceFromMercadoPago(invoiceId: string, tenan
       details,
     );
   });
+
+  return { provisioned: Boolean(result?.success) && !result?.alreadyProcessed };
+}
+
+/**
+ * Admin fallback: look up Mercado Pago for pending invoices and provision anyone who already paid.
+ */
+export async function reconcilePendingMercadoPagoPayments(): Promise<{
+  checked: number;
+  updated: number;
+  items: Array<{
+    tenantId: string;
+    invoiceId: string;
+    clientName: string | null;
+    clientEmail: string | null;
+  }>;
+  errors: Array<{ invoiceId: string; tenantId: string; message: string }>;
+}> {
+  const pending = (await db.query(
+    `SELECT p.invoice_id, p.tenant_id, MAX(l.client_name) AS client_name, MAX(l.client_email) AS client_email
+     FROM billing_payments p
+     INNER JOIN billing_invoices i ON i.id = p.invoice_id AND i.tenant_id = p.tenant_id
+     LEFT JOIN licenses l ON l.tenant_id = p.tenant_id
+     WHERE p.provider = 'mercadopago'
+       AND p.provider_payment_id IS NOT NULL
+       AND p.provider_payment_id <> ''
+       AND p.status IN ('pending', 'in_process', 'authorized')
+       AND i.status = 'pending'
+       AND p.created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY)
+     GROUP BY p.invoice_id, p.tenant_id
+     ORDER BY MAX(p.created_at) DESC
+     LIMIT 80`,
+  )) as Array<{
+    invoice_id: string;
+    tenant_id: string;
+    client_name: string | null;
+    client_email: string | null;
+  }>;
+
+  const items: Array<{
+    tenantId: string;
+    invoiceId: string;
+    clientName: string | null;
+    clientEmail: string | null;
+  }> = [];
+  const errors: Array<{ invoiceId: string; tenantId: string; message: string }> = [];
+
+  for (const row of pending) {
+    try {
+      const result = await syncPendingInvoiceFromMercadoPago(row.invoice_id, row.tenant_id);
+      if (result.provisioned) {
+        items.push({
+          tenantId: row.tenant_id,
+          invoiceId: row.invoice_id,
+          clientName: row.client_name,
+          clientEmail: row.client_email,
+        });
+      }
+    } catch (error: any) {
+      errors.push({
+        invoiceId: row.invoice_id,
+        tenantId: row.tenant_id,
+        message: error?.message || "Falha ao consultar pagamento",
+      });
+    }
+  }
+
+  return {
+    checked: pending.length,
+    updated: items.length,
+    items,
+    errors,
+  };
 }
 
 /**

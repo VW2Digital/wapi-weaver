@@ -52,6 +52,7 @@ import {
   MoreHorizontal,
   CreditCard,
   Pencil,
+  RefreshCw,
 } from "lucide-react";
 import { useConfirm } from "@/components/confirm-dialog";
 import { useRoles } from "@/hooks/use-roles";
@@ -64,6 +65,7 @@ import {
   getLicenseStats,
   getLicenseRole,
   listPlans,
+  syncPaidSubscriptions,
 } from "@/lib/license-admin.functions";
 import { PlansManager } from "@/components/licenses/plans-manager";
 import { BannersManager } from "@/components/licenses/banners-manager";
@@ -79,6 +81,7 @@ function LicensesPage() {
   const deleteLicenseMut = useServerFn(deleteLicense);
   const fetchLicenseRole = useServerFn(getLicenseRole);
   const fetchPlans = useServerFn(listPlans);
+  const syncPaidSubscriptionsMut = useServerFn(syncPaidSubscriptions);
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
@@ -181,6 +184,35 @@ function LicensesPage() {
     },
   });
 
+  const syncPaymentsMutation = useMutation({
+    mutationFn: () => syncPaidSubscriptionsMut({}),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["licenses"] });
+      queryClient.invalidateQueries({ queryKey: ["licenses-stats"] });
+      if (result.updated > 0) {
+        const names = result.items
+          .map((item) => item.clientName || item.clientEmail || item.tenantId)
+          .slice(0, 5)
+          .join(", ");
+        toast.success(
+          `${result.updated} assinatura(s) liberada(s) entre ${result.checked} pagamento(s) conferido(s). ${names}`,
+        );
+      } else if (result.checked === 0) {
+        toast.info("Nenhum pagamento pendente dos últimos 60 dias para conferir.");
+      } else {
+        toast.info(
+          `${result.checked} pagamento(s) conferido(s) no Mercado Pago. Nenhum ainda aprovado para liberar.`,
+        );
+      }
+      if (result.errors.length > 0) {
+        toast.error(`${result.errors.length} consulta(s) falharam ao sincronizar pagamentos.`);
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Falha ao sincronizar pagamentos.");
+    },
+  });
+
   const openEditModal = (lic: any) => {
     setEditingLicense(lic);
     setEditClientName(lic.client_name || "");
@@ -264,11 +296,27 @@ function LicensesPage() {
     action: (
       <div className="flex flex-wrap items-center justify-end gap-2">
         {isAdminMasterUser && (
-          <Button variant="outline" asChild>
-            <Link to="/settings" search={{ s: "admin-payments" }} className="gap-2">
-              <CreditCard className="h-4 w-4" /> Meios de Pagamento
-            </Link>
-          </Button>
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-2"
+              disabled={syncPaymentsMutation.isPending}
+              onClick={() => syncPaymentsMutation.mutate()}
+            >
+              {syncPaymentsMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Sincronizar pagamentos
+            </Button>
+            <Button variant="outline" asChild>
+              <Link to="/settings" search={{ s: "admin-payments" }} className="gap-2">
+                <CreditCard className="h-4 w-4" /> Meios de Pagamento
+              </Link>
+            </Button>
+          </>
         )}
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
