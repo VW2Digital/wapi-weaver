@@ -331,7 +331,9 @@ function LicenseDetailPage() {
         <Card className="md:col-span-1 shadow-sm h-fit">
           <CardHeader>
             <CardTitle>Editar Propriedades</CardTitle>
-            <CardDescription>Configure as opções de acesso do cliente.</CardDescription>
+            <CardDescription>
+              Nome, e-mail, plano e validade são gravados na licença e na assinatura do cliente.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleUpdate} className="space-y-4">
@@ -383,6 +385,9 @@ function LicenseDetailPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Plano da assinatura: {planLabel}
+                </p>
               </div>
 
               <div className="grid gap-2">
