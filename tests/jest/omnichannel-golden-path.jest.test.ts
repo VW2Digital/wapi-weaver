@@ -53,7 +53,13 @@ const channelRows: Record<string, any> = {
 jest.mock("@/lib/db", () => ({
   __esModule: true,
   default: {
-    query: async (_sql: string, params: unknown[]) => {
+    query: async (sql: string, params: unknown[]) => {
+      if (sql.includes("FROM direct_messages")) {
+        return [{ created_at: new Date() }];
+      }
+      if (sql.includes("FROM bot_conversation_state")) {
+        return [];
+      }
       const row = channelRows[String((params as any[])?.[0])];
       return row ? [row] : [];
     },

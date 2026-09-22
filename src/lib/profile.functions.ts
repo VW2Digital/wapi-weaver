@@ -2413,18 +2413,41 @@ export const onboardInstagramFacebookLogin = createServerFn({ method: "POST" })
     const { default: db } = await import("./db");
     const { decryptMetaCredential } = await import("./encryption");
     const graphVersion = "v26.0";
+    const tenantId = context.tenantId;
 
     const connections = (await db.query(
       `SELECT id, app_id, app_secret_encrypted
        FROM meta_app_connections
        WHERE tenant_id = ?
        ORDER BY CASE WHEN app_id = '1783038629742610' THEN 0 ELSE 1 END, created_at DESC`,
-      [context.userId],
+      [tenantId],
     )) as Array<{ id: string; app_id: string; app_secret_encrypted: string }>;
 
-    let conn = data.meta_app_connection_id
+    let conn: {
+      id: string;
+      app_id: string;
+      app_secret_encrypted?: string;
+      app_secret_plain?: string;
+    } | undefined = data.meta_app_connection_id
       ? connections.find((c) => c.id === data.meta_app_connection_id)
       : connections.find((c) => c.app_id === "1783038629742610") || connections[0];
+
+    if (!conn) {
+      const platformRows = (await db.query(
+        `SELECT meta_app_id, meta_app_secret
+         FROM platform_settings
+         WHERE id = 1
+         LIMIT 1`,
+      )) as Array<{ meta_app_id: string | null; meta_app_secret: string | null }>;
+      const platform = platformRows[0];
+      if (platform?.meta_app_id && platform?.meta_app_secret) {
+        conn = {
+          id: "platform",
+          app_id: platform.meta_app_id,
+          app_secret_plain: platform.meta_app_secret,
+        };
+      }
+    }
 
     if (!conn?.app_id) {
       throw new Error("Nenhuma Meta App Connection encontrada para este tenant.");
@@ -2435,11 +2458,13 @@ export const onboardInstagramFacebookLogin = createServerFn({ method: "POST" })
       if (!data.redirect_uri) {
         throw new Error("redirect_uri é obrigatório para trocar o code.");
       }
-      let appSecret = "";
-      try {
-        appSecret = decryptMetaCredential(conn.app_secret_encrypted);
-      } catch {
-        throw new Error("Falha ao ler o App Secret da Meta App Connection.");
+      let appSecret = conn.app_secret_plain || "";
+      if (!appSecret) {
+        try {
+          appSecret = decryptMetaCredential(conn.app_secret_encrypted || "");
+        } catch {
+          throw new Error("Falha ao ler o App Secret da Meta App Connection.");
+        }
       }
       const tokenUrl = new URL(`https://graph.facebook.com/${graphVersion}/oauth/access_token`);
       tokenUrl.searchParams.set("client_id", conn.app_id);
@@ -2480,7 +2505,7 @@ export const onboardInstagramFacebookLogin = createServerFn({ method: "POST" })
       `SELECT external_account_id
        FROM channel_connections
        WHERE tenant_id = ? AND provider = 'instagram' AND status = 'active'`,
-      [context.userId],
+      [tenantId],
     )) as Array<{ external_account_id: string | null }>;
     const deliveryRows = (await db.query(
       `SELECT channel_resource_id
@@ -2488,7 +2513,7 @@ export const onboardInstagramFacebookLogin = createServerFn({ method: "POST" })
        WHERE provider = 'instagram' AND tenant_id = ? AND outcome = 'queued'
        ORDER BY received_at DESC
        LIMIT 20`,
-      [context.userId],
+      [tenantId],
     )) as Array<{ channel_resource_id: string | null }>;
     const channelIds = new Set(channelRows.map((row) => String(row.external_account_id || "")).filter(Boolean));
     const knownIds = new Set([
@@ -2514,9 +2539,9 @@ export const onboardInstagramFacebookLogin = createServerFn({ method: "POST" })
       const conflicts = (await db.query(
         `SELECT id FROM instagram_accounts
          WHERE (page_id = ? OR instagram_business_account_id = ? OR ig_user_id = ?)
-           AND user_id != ?
+           AND tenant_id != ?
          LIMIT 1`,
-        [pageId, igId, igId, context.userId],
+        [pageId, igId, igId, tenantId],
       )) as any[];
       if (conflicts?.[0]) {
         throw new Error(
@@ -2544,7 +2569,7 @@ export const onboardInstagramFacebookLogin = createServerFn({ method: "POST" })
           status = 'active'`,
         [
           id,
-          context.userId,
+          tenantId,
           context.userId,
           pageId,
           igId,
@@ -2563,7 +2588,7 @@ export const onboardInstagramFacebookLogin = createServerFn({ method: "POST" })
          WHERE tenant_id = ? AND provider = 'instagram' AND status = 'active'
          ORDER BY updated_at DESC
          LIMIT 1`,
-        [context.userId],
+        [tenantId],
       )) as Array<{ id: string; external_account_id: string | null }>;
       const currentExternalId = String(activeChannels[0]?.external_account_id || "");
       const channelMatchesChosen =
@@ -2577,7 +2602,7 @@ export const onboardInstagramFacebookLogin = createServerFn({ method: "POST" })
                status = 'active',
                updated_at = NOW()
            WHERE id = ? AND tenant_id = ?`,
-          [pageId, username, encryptMetaCredential(pageToken), activeChannels[0].id, context.userId],
+          [pageId, username, encryptMetaCredential(pageToken), activeChannels[0].id, tenantId],
         );
       }
 
@@ -2878,12 +2903,31 @@ export const listMetaAppConnectionsForEmbeddedSignup = createServerFn({ method: 
        FROM meta_app_connections
        WHERE tenant_id = ?
        ORDER BY created_at DESC`,
-      [context.userId],
+      [context.tenantId],
     );
-    return (rows || []).map((r) => ({
-      id: r.id,
-      appId: r.app_id || null,
-      configId: r.meta_config_id || null,
-    }));
+    if (rows?.length) {
+      return rows.map((r) => ({
+        id: r.id,
+        appId: r.app_id || null,
+        configId: r.meta_config_id || null,
+      }));
+    }
+
+    const platformRows = await query<
+      { meta_app_id: string | null; meta_config_id: string | null; meta_app_secret: string | null }[]
+    >(
+      `SELECT meta_app_id, meta_config_id, meta_app_secret
+       FROM platform_settings
+       WHERE id = 1
+       LIMIT 1`,
+    );
+    const platform = platformRows?.[0];
+    if (!platform?.meta_app_id || !platform?.meta_app_secret) return [];
+
+    return [{
+      id: "platform",
+      appId: platform.meta_app_id,
+      configId: platform.meta_config_id || null,
+    }];
   });
 
