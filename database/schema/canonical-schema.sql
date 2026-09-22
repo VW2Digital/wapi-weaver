@@ -1164,6 +1164,101 @@ CREATE TABLE IF NOT EXISTS `instagram_attention_events` (
   KEY `idx_ig_attention_tenant` (`tenant_id`,`contact_phone`,`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `instagram_public_connections` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `instagram_account_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `meta_app_connection_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `page_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `ig_user_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `username` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `user_access_token_encrypted` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `granted_scopes` json DEFAULT NULL,
+  `status` enum('connected','permission_pending','reauth_required','error','disconnected') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'connected',
+  `app_review_status` enum('unknown','api_available','required','error') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'unknown',
+  `token_expires_at` datetime DEFAULT NULL,
+  `last_validated_at` datetime DEFAULT NULL,
+  `last_error` text COLLATE utf8mb4_unicode_ci,
+  `disconnected_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_instagram_public_tenant` (`tenant_id`),
+  UNIQUE KEY `uq_instagram_public_ig_user` (`ig_user_id`),
+  KEY `idx_instagram_public_account` (`tenant_id`,`instagram_account_id`),
+  KEY `idx_instagram_public_status` (`tenant_id`,`status`),
+  CONSTRAINT `fk_instagram_public_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_instagram_public_account` FOREIGN KEY (`instagram_account_id`) REFERENCES `instagram_accounts` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `instagram_public_hashtags` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `connection_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `hashtag_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `hashtag` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `first_searched_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_searched_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `window_expires_at` datetime NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_instagram_public_hashtag` (`tenant_id`,`hashtag`),
+  KEY `idx_instagram_public_hashtag_window` (`tenant_id`,`window_expires_at`),
+  CONSTRAINT `fk_instagram_public_hashtag_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_instagram_public_hashtag_connection` FOREIGN KEY (`connection_id`) REFERENCES `instagram_public_connections` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `instagram_public_media` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `hashtag_record_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `provider_media_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `source` enum('recent','top') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `media_type` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `media_url` text COLLATE utf8mb4_unicode_ci,
+  `thumbnail_url` text COLLATE utf8mb4_unicode_ci,
+  `permalink` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `caption` text COLLATE utf8mb4_unicode_ci,
+  `username` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `provider_timestamp` datetime DEFAULT NULL,
+  `children_json` json DEFAULT NULL,
+  `selected` tinyint(1) NOT NULL DEFAULT '0',
+  `rights_confirmed_at` datetime DEFAULT NULL,
+  `display_order` int NOT NULL DEFAULT '0',
+  `fetched_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `expires_at` datetime NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_instagram_public_media` (`tenant_id`,`hashtag_record_id`,`provider_media_id`,`source`),
+  KEY `idx_instagram_public_media_gallery` (`tenant_id`,`selected`,`display_order`),
+  KEY `idx_instagram_public_media_expiry` (`tenant_id`,`expires_at`),
+  CONSTRAINT `fk_instagram_public_media_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_instagram_public_media_hashtag` FOREIGN KEY (`hashtag_record_id`) REFERENCES `instagram_public_hashtags` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `instagram_storefront_settings` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `slug` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `enabled` tinyint(1) NOT NULL DEFAULT '0',
+  `title` varchar(160) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Instagram',
+  `subtitle` varchar(320) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `layout` enum('grid','masonry') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'grid',
+  `columns_count` tinyint unsigned NOT NULL DEFAULT '3',
+  `show_captions` tinyint(1) NOT NULL DEFAULT '1',
+  `show_hashtags` tinyint(1) NOT NULL DEFAULT '1',
+  `max_items` tinyint unsigned NOT NULL DEFAULT '12',
+  `theme` enum('auto','light','dark') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'auto',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_instagram_storefront_tenant` (`tenant_id`),
+  UNIQUE KEY `uq_instagram_storefront_slug` (`slug`),
+  CONSTRAINT `fk_instagram_storefront_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `instagram_webhook_events` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,

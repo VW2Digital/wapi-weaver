@@ -26,12 +26,23 @@ function escapeHtml(value: string) {
 
 function buildSettingsRedirect(requestUrl: URL) {
   const state = requestUrl.searchParams.get("state") || "";
-  const dest = new URL("/settings", requestUrl.origin);
-    dest.searchParams.set(
-    "s",
-    state.startsWith("instagram") ? "instagram" : state.startsWith("messenger") ? "facebook" : "meta",
+  const dest = new URL(
+    state.startsWith("instagram-public:") ? "/instagram-content" : "/settings",
+    requestUrl.origin,
   );
-  dest.searchParams.set("oauth", "1");
+  if (state.startsWith("instagram-public:")) {
+    dest.searchParams.set("oauth", "1");
+  } else {
+    dest.searchParams.set(
+      "s",
+      state.startsWith("instagram")
+        ? "instagram"
+        : state.startsWith("messenger")
+          ? "facebook"
+          : "meta",
+    );
+    dest.searchParams.set("oauth", "1");
+  }
 
   const error = requestUrl.searchParams.get("error");
   const errorReason = requestUrl.searchParams.get("error_reason");

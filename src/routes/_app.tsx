@@ -38,6 +38,7 @@ import {
   AlertTriangle,
   Sparkles,
   Calendar,
+  Instagram,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
@@ -109,6 +110,7 @@ const NAV: NavItem[] = [
       { to: "/webhooks", label: "Webhooks", icon: Webhook },
     ],
   },
+  { to: "/instagram-content", label: "Conteúdo Instagram", icon: Instagram },
   { to: "/billing", label: "Faturamento", icon: Receipt },
   {
     to: "/settings",
@@ -287,7 +289,7 @@ function AppLayout() {
       if (ADMIN_ONLY_PATHS.has(item.to) && !isAdmin) continue;
       const gIdx = GROUP_ORDER[item.to] ?? 0;
       if (!groupMap.has(gIdx)) groupMap.set(gIdx, []);
-      
+
       const isLocked = isSubscriptionBlocked && OPERATIONAL_PATHS.has(item.to);
 
       const navItem: SidebarNavItem = {
@@ -511,49 +513,49 @@ function AppLayout() {
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
             <DropdownMenuContent side="top" align="center" sideOffset={4} className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg z-[100]">
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col gap-0.5">
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col gap-0.5">
                   <span className="text-sm font-medium truncate">{profileDisplayName ?? user.email?.split("@")?.[0]}</span>
-                  <span className="text-xs text-muted-foreground truncate">{user.email}</span>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link to="/profile" className="cursor-pointer">
-                  <UserIcon className="mr-2 h-4 w-4" /> Perfil
-                </Link>
-              </DropdownMenuItem>
-              {isAdmin && (
+                    <span className="text-xs text-muted-foreground truncate">{user.email}</span>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link to="/settings" search={{ s: undefined }} className="cursor-pointer">
-                    <Settings className="mr-2 h-4 w-4" /> Configurações
+                  <Link to="/profile" className="cursor-pointer">
+                    <UserIcon className="mr-2 h-4 w-4" /> Perfil
                   </Link>
                 </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={(e) => {
-                  e.preventDefault();
-                  toggleTheme();
-                }}
-                className="cursor-pointer"
-              >
-                {theme === "dark" ? (
-                  <Sun className="mr-2 h-4 w-4" />
-                ) : (
-                  <Moon className="mr-2 h-4 w-4" />
+                {isAdmin && (
+                  <DropdownMenuItem asChild>
+                    <Link to="/settings" search={{ s: undefined }} className="cursor-pointer">
+                      <Settings className="mr-2 h-4 w-4" /> Configurações
+                    </Link>
+                  </DropdownMenuItem>
                 )}
-                {theme === "dark" ? "Tema claro" : "Tema escuro"}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={logout}
-                className="cursor-pointer text-destructive focus:text-destructive"
-              >
-                <LogOut className="mr-2 h-4 w-4" /> Sair
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleTheme();
+                  }}
+                  className="cursor-pointer"
+                >
+                  {theme === "dark" ? (
+                    <Sun className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Moon className="mr-2 h-4 w-4" />
+                  )}
+                  {theme === "dark" ? "Tema claro" : "Tema escuro"}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={logout}
+                  className="cursor-pointer text-destructive focus:text-destructive"
+                >
+                  <LogOut className="mr-2 h-4 w-4" /> Sair
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </SidebarMenuItem>
         </SidebarMenu>
       }

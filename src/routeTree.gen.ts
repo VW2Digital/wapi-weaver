@@ -17,6 +17,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as DataDeletionRouteImport } from './routes/data-deletion'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as VitrineSlugRouteImport } from './routes/vitrine/$slug'
 import { Route as ApiQueryRouteImport } from './routes/api/query'
 import { Route as AppWhatsappBusinessProfileRouteImport } from './routes/_app/whatsapp-business-profile'
 import { Route as AppWebhooksRouteImport } from './routes/_app/webhooks'
@@ -27,6 +28,7 @@ import { Route as AppTemplatesRouteImport } from './routes/_app/templates'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppListsRouteImport } from './routes/_app/lists'
+import { Route as AppInstagramContentRouteImport } from './routes/_app/instagram-content'
 import { Route as AppGroupsRouteImport } from './routes/_app/groups'
 import { Route as AppDocsRouteImport } from './routes/_app/docs'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
@@ -152,6 +154,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VitrineSlugRoute = VitrineSlugRouteImport.update({
+  id: '/vitrine/$slug',
+  path: '/vitrine/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiQueryRoute = ApiQueryRouteImport.update({
   id: '/api/query',
   path: '/api/query',
@@ -201,6 +208,11 @@ const AppProfileRoute = AppProfileRouteImport.update({
 const AppListsRoute = AppListsRouteImport.update({
   id: '/lists',
   path: '/lists',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppInstagramContentRoute = AppInstagramContentRouteImport.update({
+  id: '/instagram-content',
+  path: '/instagram-content',
   getParentRoute: () => AppRoute,
 } as any)
 const AppGroupsRoute = AppGroupsRouteImport.update({
@@ -675,6 +687,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AppDashboardRoute
   '/docs': typeof AppDocsRoute
   '/groups': typeof AppGroupsRoute
+  '/instagram-content': typeof AppInstagramContentRoute
   '/lists': typeof AppListsRoute
   '/profile': typeof AppProfileRoute
   '/settings': typeof AppSettingsRouteWithChildren
@@ -685,6 +698,7 @@ export interface FileRoutesByFullPath {
   '/webhooks': typeof AppWebhooksRoute
   '/whatsapp-business-profile': typeof AppWhatsappBusinessProfileRoute
   '/api/query': typeof ApiQueryRoute
+  '/vitrine/$slug': typeof VitrineSlugRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
   '/contacts/$id': typeof AppContactsIdRoute
   '/ds-agente/$agentId': typeof AppDsAgenteAgentIdRoute
@@ -779,6 +793,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AppDashboardRoute
   '/docs': typeof AppDocsRoute
   '/groups': typeof AppGroupsRoute
+  '/instagram-content': typeof AppInstagramContentRoute
   '/lists': typeof AppListsRoute
   '/profile': typeof AppProfileRoute
   '/settings': typeof AppSettingsRouteWithChildren
@@ -789,6 +804,7 @@ export interface FileRoutesByTo {
   '/webhooks': typeof AppWebhooksRoute
   '/whatsapp-business-profile': typeof AppWhatsappBusinessProfileRoute
   '/api/query': typeof ApiQueryRoute
+  '/vitrine/$slug': typeof VitrineSlugRoute
   '/campaigns/$id': typeof AppCampaignsIdRoute
   '/contacts/$id': typeof AppContactsIdRoute
   '/ds-agente/$agentId': typeof AppDsAgenteAgentIdRoute
@@ -885,6 +901,7 @@ export interface FileRoutesById {
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/docs': typeof AppDocsRoute
   '/_app/groups': typeof AppGroupsRoute
+  '/_app/instagram-content': typeof AppInstagramContentRoute
   '/_app/lists': typeof AppListsRoute
   '/_app/profile': typeof AppProfileRoute
   '/_app/settings': typeof AppSettingsRouteWithChildren
@@ -895,6 +912,7 @@ export interface FileRoutesById {
   '/_app/webhooks': typeof AppWebhooksRoute
   '/_app/whatsapp-business-profile': typeof AppWhatsappBusinessProfileRoute
   '/api/query': typeof ApiQueryRoute
+  '/vitrine/$slug': typeof VitrineSlugRoute
   '/_app/campaigns/$id': typeof AppCampaignsIdRoute
   '/_app/contacts/$id': typeof AppContactsIdRoute
   '/_app/ds-agente/$agentId': typeof AppDsAgenteAgentIdRoute
@@ -991,6 +1009,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/docs'
     | '/groups'
+    | '/instagram-content'
     | '/lists'
     | '/profile'
     | '/settings'
@@ -1001,6 +1020,7 @@ export interface FileRouteTypes {
     | '/webhooks'
     | '/whatsapp-business-profile'
     | '/api/query'
+    | '/vitrine/$slug'
     | '/campaigns/$id'
     | '/contacts/$id'
     | '/ds-agente/$agentId'
@@ -1095,6 +1115,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/docs'
     | '/groups'
+    | '/instagram-content'
     | '/lists'
     | '/profile'
     | '/settings'
@@ -1105,6 +1126,7 @@ export interface FileRouteTypes {
     | '/webhooks'
     | '/whatsapp-business-profile'
     | '/api/query'
+    | '/vitrine/$slug'
     | '/campaigns/$id'
     | '/contacts/$id'
     | '/ds-agente/$agentId'
@@ -1200,6 +1222,7 @@ export interface FileRouteTypes {
     | '/_app/dashboard'
     | '/_app/docs'
     | '/_app/groups'
+    | '/_app/instagram-content'
     | '/_app/lists'
     | '/_app/profile'
     | '/_app/settings'
@@ -1210,6 +1233,7 @@ export interface FileRouteTypes {
     | '/_app/webhooks'
     | '/_app/whatsapp-business-profile'
     | '/api/query'
+    | '/vitrine/$slug'
     | '/_app/campaigns/$id'
     | '/_app/contacts/$id'
     | '/_app/ds-agente/$agentId'
@@ -1297,6 +1321,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
   ApiQueryRoute: typeof ApiQueryRoute
+  VitrineSlugRoute: typeof VitrineSlugRoute
   ApiAdminCheckPlansRoute: typeof ApiAdminCheckPlansRoute
   ApiAdminEmailProviderRoute: typeof ApiAdminEmailProviderRouteWithChildren
   ApiAdminFixSubscriptionsTableRoute: typeof ApiAdminFixSubscriptionsTableRoute
@@ -1416,6 +1441,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/vitrine/$slug': {
+      id: '/vitrine/$slug'
+      path: '/vitrine/$slug'
+      fullPath: '/vitrine/$slug'
+      preLoaderRoute: typeof VitrineSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/query': {
       id: '/api/query'
       path: '/api/query'
@@ -1484,6 +1516,13 @@ declare module '@tanstack/react-router' {
       path: '/lists'
       fullPath: '/lists'
       preLoaderRoute: typeof AppListsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/instagram-content': {
+      id: '/_app/instagram-content'
+      path: '/instagram-content'
+      fullPath: '/instagram-content'
+      preLoaderRoute: typeof AppInstagramContentRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/groups': {
@@ -2107,6 +2146,7 @@ interface AppRouteChildren {
   AppDashboardRoute: typeof AppDashboardRoute
   AppDocsRoute: typeof AppDocsRoute
   AppGroupsRoute: typeof AppGroupsRoute
+  AppInstagramContentRoute: typeof AppInstagramContentRoute
   AppListsRoute: typeof AppListsRoute
   AppProfileRoute: typeof AppProfileRoute
   AppSettingsRoute: typeof AppSettingsRouteWithChildren
@@ -2137,6 +2177,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppDashboardRoute: AppDashboardRoute,
   AppDocsRoute: AppDocsRoute,
   AppGroupsRoute: AppGroupsRoute,
+  AppInstagramContentRoute: AppInstagramContentRoute,
   AppListsRoute: AppListsRoute,
   AppProfileRoute: AppProfileRoute,
   AppSettingsRoute: AppSettingsRouteWithChildren,
@@ -2248,6 +2289,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
   ApiQueryRoute: ApiQueryRoute,
+  VitrineSlugRoute: VitrineSlugRoute,
   ApiAdminCheckPlansRoute: ApiAdminCheckPlansRoute,
   ApiAdminEmailProviderRoute: ApiAdminEmailProviderRouteWithChildren,
   ApiAdminFixSubscriptionsTableRoute: ApiAdminFixSubscriptionsTableRoute,

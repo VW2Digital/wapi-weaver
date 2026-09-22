@@ -17,7 +17,9 @@
         "src/lib/messaging/outbound/adapters/instagram.api.ts",
         "src/lib/instagram.functions.ts",
         "src/routes/api/public/instagram-webhook.ts",
-        "src/lib/messaging/webhook-handlers/instagram.handler.ts"
+        "src/lib/messaging/webhook-handlers/instagram.handler.ts",
+        "database/migrations/061_instagram_public_content.sql",
+        "database/migrations/062_instagram_public_review_status.sql"
       ]
     },
     "core": {
