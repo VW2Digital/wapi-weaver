@@ -20,7 +20,8 @@
         "src/lib/messaging/webhook-handlers/instagram.handler.ts",
         "database/migrations/061_instagram_public_content.sql",
         "database/migrations/062_instagram_public_review_status.sql",
-        "database/migrations/063_instagram_shared_user_token.sql"
+        "database/migrations/063_instagram_shared_user_token.sql",
+        "database/migrations/064_instagram_storefront_soft_delete.sql"
       ]
     },
     "core": {

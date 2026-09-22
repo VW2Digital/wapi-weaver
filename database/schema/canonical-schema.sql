@@ -1252,11 +1252,14 @@ CREATE TABLE IF NOT EXISTS `instagram_storefront_settings` (
   `show_hashtags` tinyint(1) NOT NULL DEFAULT '1',
   `max_items` tinyint unsigned NOT NULL DEFAULT '12',
   `theme` enum('auto','light','dark') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'auto',
+  `deleted_at` datetime DEFAULT NULL,
+  `deleted_by` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_instagram_storefront_tenant` (`tenant_id`),
   UNIQUE KEY `uq_instagram_storefront_slug` (`slug`),
+  KEY `idx_instagram_storefront_tenant` (`tenant_id`),
+  KEY `idx_instagram_storefront_deleted` (`tenant_id`,`deleted_at`),
   CONSTRAINT `fk_instagram_storefront_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

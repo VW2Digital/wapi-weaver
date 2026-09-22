@@ -7,6 +7,7 @@ import {
   getChatMessages,
   sendDirectMessage,
   markMessagesAsRead,
+  sendWhatsAppTypingIndicator,
   getConfiguredChannels,
 } from "@/lib/chat.functions";
 import { sendGroupMessage } from "@/lib/groups.functions";
@@ -287,13 +288,13 @@ function ChatVoiceMessage({
       <button
         type="button"
         onClick={togglePlay}
-        className="h-9 w-9 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 transition-all flex items-center justify-center text-white shrink-0 shadow-sm"
+        className="h-9 w-9 rounded-full shrink-0 shadow-sm flex items-center justify-center text-current bg-[var(--bubble-control)] hover:bg-[var(--bubble-control-hover)] active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/40"
         aria-label={isPlaying ? "Pausar áudio" : "Tocar áudio"}
       >
         {isPlaying ? (
-          <Pause className="h-4.5 w-4.5 fill-white stroke-none" />
+          <Pause className="h-4.5 w-4.5 fill-current stroke-none" />
         ) : (
-          <Play className="h-4.5 w-4.5 fill-white stroke-none ml-0.5" />
+          <Play className="h-4.5 w-4.5 fill-current stroke-none ml-0.5" />
         )}
       </button>
 
@@ -312,7 +313,9 @@ function ChatVoiceMessage({
                 key={idx}
                 className={cn(
                   "flex-1 rounded-full transition-colors",
-                  isActive ? "bg-white" : "bg-white/40 group-hover:bg-white/50",
+                  isActive
+                    ? "bg-[var(--bubble-track-played)]"
+                    : "bg-[var(--bubble-track)] group-hover:opacity-90",
                 )}
                 style={{ height: `${height}px` }}
               />
@@ -321,18 +324,18 @@ function ChatVoiceMessage({
 
           {/* Scrubber thumb circle */}
           <div
-            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 h-3.5 w-3.5 rounded-full bg-white shadow-md pointer-events-none transition-transform group-hover:scale-110"
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 h-3.5 w-3.5 rounded-full bg-[var(--bubble-thumb)] shadow-md pointer-events-none transition-transform group-hover:scale-110 ring-2 ring-background/80"
             style={{ left: `${Math.max(2, Math.min(98, progress * 100))}%` }}
           />
         </div>
 
         {/* Time and Speed */}
-        <div className="flex items-center justify-between text-[11px] text-white/80 font-medium px-0.5">
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground font-medium px-0.5">
           <span>{formatTime(isPlaying ? currentTime : duration || currentTime)}</span>
           <button
             type="button"
             onClick={handleSpeedToggle}
-            className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-white/15 hover:bg-white/25 transition-colors text-white tracking-wider"
+            className="px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider text-current bg-[var(--bubble-control)] hover:bg-[var(--bubble-control-hover)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/40"
           >
             {speed}x
           </button>
@@ -340,7 +343,7 @@ function ChatVoiceMessage({
       </div>
 
       {/* Sender Avatar Circle */}
-      <div className="h-9 w-9 rounded-full bg-white/20 border border-white/20 flex items-center justify-center font-bold text-xs text-white uppercase shrink-0 shadow-inner">
+      <div className="h-9 w-9 rounded-full shrink-0 shadow-inner flex items-center justify-center font-bold text-xs uppercase text-current bg-[var(--bubble-control)] border border-foreground/20">
         {initials}
       </div>
     </div>
@@ -357,11 +360,11 @@ function ChatDocumentCard({
   return (
     <div className="flex flex-col gap-2 min-w-[220px] max-w-[320px] p-2.5 select-none">
       {/* Top row: Outline File icon, solid document icon + label, Download button */}
-      <div className="flex items-center justify-between gap-3 text-white/95">
+      <div className="flex items-center justify-between gap-3 text-current">
         <div className="flex items-center gap-2">
-          <FileText className="h-6 w-6 stroke-[1.75] text-white" />
+          <FileText className="h-6 w-6 stroke-[1.75] text-current" />
           <div className="flex items-center gap-1.5 text-xs font-semibold tracking-wide">
-            <FileText className="h-3.5 w-3.5 fill-white stroke-none opacity-90" />
+            <FileText className="h-3.5 w-3.5 fill-current stroke-none opacity-90" />
             <span>Documento</span>
           </div>
         </div>
@@ -371,7 +374,7 @@ function ChatDocumentCard({
             target="_blank"
             rel="noreferrer"
             download={filename}
-            className="p-1 rounded-md hover:bg-white/15 transition-colors text-white"
+            className="p-1 rounded-md text-current hover:bg-[var(--bubble-control)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/40"
             title="Baixar Documento"
           >
             <Download className="h-4.5 w-4.5 stroke-[2.2]" />
@@ -382,10 +385,72 @@ function ChatDocumentCard({
       </div>
 
       {/* Bottom row: Clean Filename */}
-      <div className="text-[13px] font-semibold text-white truncate select-text">
+      <div className="text-[13px] font-semibold text-current truncate select-text">
         {filename}
       </div>
     </div>
+  );
+}
+
+function quotedReplyPreview(type?: string | null, body?: string | null) {
+  switch (type) {
+    case "image":
+      return { icon: ImageIcon, label: "Imagem" };
+    case "audio":
+      return { icon: Mic, label: "Áudio" };
+    case "video":
+      return { icon: Video, label: "Vídeo" };
+    case "document":
+      return { icon: FileText, label: body?.trim() || "Documento" };
+    case "sticker":
+      return { icon: Smile, label: "Sticker" };
+    case "location":
+      return { icon: MapPin, label: "Localização" };
+    case "contacts":
+      return { icon: User, label: "Contato" };
+    default: {
+      const text = (body || "").replace(/\s+/g, " ").trim();
+      return { icon: MessageSquare, label: text || "Mensagem indisponível" };
+    }
+  }
+}
+
+function ChatQuotedReply({
+  author,
+  type,
+  body,
+  isOutgoing,
+  onOpen,
+}: {
+  author: string;
+  type?: string | null;
+  body?: string | null;
+  isOutgoing: boolean;
+  onOpen: () => void;
+}) {
+  const preview = quotedReplyPreview(type, body);
+  const Icon = preview.icon;
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      title="Ir para a mensagem original"
+      className={cn(
+        "wa-quote-reply flex w-full max-w-full items-start gap-2 overflow-hidden text-left",
+        isOutgoing ? "wa-quote-reply-outgoing" : "wa-quote-reply-incoming",
+      )}
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[11px] font-semibold leading-tight text-[color:var(--bubble-action)]">
+          {author}
+        </span>
+        <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] leading-snug text-[color:var(--bubble-muted-ink,var(--muted-foreground))]">
+          <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span className="truncate">{preview.label}</span>
+        </span>
+      </span>
+    </button>
   );
 }
 
@@ -2548,6 +2613,8 @@ function ChatPage() {
 
   // Novos estados para organização da barra lateral conforme o mockup
   const fetchMarkAsRead = useServerFn(markMessagesAsRead);
+  const fetchWhatsAppTyping = useServerFn(sendWhatsAppTypingIndicator);
+  const lastWhatsAppTypingAt = useRef(0);
   const [mainTab, setMainTab] = useState<"conversas" | "grupos">("conversas");
   const [activeTab, setActiveTab] = useState<"novos" | "meus" | "outros">("novos");
   const [showTagFilters, setShowTagFilters] = useState(false);
@@ -4368,6 +4435,23 @@ function ChatPage() {
 
   // Calcula a janela de 24h para contatos do Instagram
   const isInstagramChat = selectedContact?.channel === "instagram" || selectedPhone?.startsWith("ig_");
+  const isWhatsAppDirectChat =
+    selectedContact?.channel === "whatsapp" &&
+    Boolean(selectedPhone) &&
+    !String(selectedPhone).startsWith("ig_") &&
+    !String(selectedPhone).startsWith("wc_");
+
+  useEffect(() => {
+    lastWhatsAppTypingAt.current = 0;
+  }, [selectedPhone]);
+
+  const notifyWhatsAppTyping = useCallback(() => {
+    if (!isWhatsAppDirectChat || !selectedPhone) return;
+    const now = Date.now();
+    if (now - lastWhatsAppTypingAt.current < 20_000) return;
+    lastWhatsAppTypingAt.current = now;
+    void fetchWhatsAppTyping({ data: { phone: selectedPhone } }).catch(() => undefined);
+  }, [fetchWhatsAppTyping, isWhatsAppDirectChat, selectedPhone]);
   const igAttention = igAttentionQuery.data;
   const isInstagramComposerBlocked = Boolean(
     isInstagramChat && (igAttentionQuery.isLoading || (igAttention && !igAttention.composerEnabled)),
@@ -4421,20 +4505,6 @@ function ChatPage() {
       <style
         dangerouslySetInnerHTML={{
           __html: `
-        /* Estilos dos Balões estilo WhatsApp */
-        .wa-bubble-outgoing {
-          background: color-mix(in oklab, var(--primary) 12%, var(--card)) !important;
-          color: var(--foreground) !important;
-          border: 1px solid color-mix(in oklab, var(--primary) 28%, var(--border)) !important;
-          border-radius: 18px 18px 5px 18px !important;
-          position: relative !important;
-          box-shadow: 0 1px 2px rgb(0 0 0 / 0.06) !important;
-        }
-        .dark .wa-bubble-outgoing {
-          background: color-mix(in oklab, var(--primary) 22%, var(--card)) !important;
-          border-color: color-mix(in oklab, var(--primary) 38%, var(--border)) !important;
-        }
-
         .chat-thread-header {
           background: var(--card);
           border-bottom: 1px solid var(--border);
@@ -4442,60 +4512,6 @@ function ChatPage() {
         .dark .chat-thread-header {
           background: #1B1B1B !important;
           border-bottom-color: var(--border) !important;
-        }
-
-        .wa-bubble-incoming {
-          background: var(--card) !important;
-          color: var(--foreground) !important;
-          border: 1px solid color-mix(in oklab, var(--border) 82%, transparent) !important;
-          border-radius: 18px 18px 18px 5px !important;
-          position: relative !important;
-          box-shadow: 0 1px 2px rgb(0 0 0 / 0.05) !important;
-        }
-
-        .wa-quote-reply-outgoing {
-          background: color-mix(in oklab, var(--primary) 9%, transparent) !important;
-          border-left: 3px solid var(--primary) !important;
-          border-radius: 8px !important;
-        }
-        
-        .wa-quote-reply-incoming {
-          background: var(--muted) !important;
-          border-left: 3px solid var(--primary) !important;
-          border-radius: 8px !important;
-        }
-
-        .wa-button-separator-outgoing {
-          border-top: 1px solid color-mix(in oklab, var(--primary) 18%, var(--border)) !important;
-        }
-        
-        .wa-button-separator-incoming {
-          border-top: 1px solid var(--border) !important;
-        }
-        
-        .wa-card-button-outgoing {
-          color: inherit !important;
-          transition: background-color 0.2s;
-          cursor: pointer;
-          font-weight: 600;
-        }
-        .wa-card-button-outgoing:hover {
-          background-color: rgba(0, 0, 0, 0.05);
-        }
-
-        .wa-card-button-incoming {
-          color: var(--primary) !important;
-          transition: background-color 0.2s;
-          cursor: pointer;
-          font-weight: 600;
-        }
-        .wa-card-button-incoming:hover {
-          background-color: color-mix(in oklab, var(--primary) 7%, transparent);
-        }
-
-        .wa-timestamp {
-          color: var(--muted-foreground) !important;
-          opacity: 0.9;
         }
       `,
         }}
@@ -6480,7 +6496,7 @@ function ChatPage() {
                                         );
                                         formatted = formatted.replace(
                                           /`([^`]+)`/g,
-                                          "<code class='bg-black/25 px-1 py-0.5 rounded font-mono text-[11px]'>$1</code>",
+                                          "<code class='bg-[var(--bubble-control)] px-1 py-0.5 rounded font-mono text-[11px] text-current'>$1</code>",
                                         );
                                         return (
                                           <span dangerouslySetInnerHTML={{ __html: formatted }} />
@@ -6633,13 +6649,16 @@ function ChatPage() {
                                       return (
                                         <div
                                           className={cn(
-                                            "relative min-w-[7rem] max-w-full transition-all duration-200",
+                                            "relative max-w-full transition-all duration-200",
+                                            replyMessage
+                                              ? "min-w-[13rem] sm:min-w-[16.5rem] shrink-0"
+                                              : "min-w-[7rem]",
                                             isOutgoing
                                               ? "wa-bubble-outgoing"
                                               : "wa-bubble-incoming",
                                             isRichCard
                                               ? "p-0 rounded-xl"
-                                              : "px-3.5 py-2.5 flex flex-col gap-1",
+                                              : "px-3.5 py-2.5 flex flex-col gap-1.5",
                                           )}
                                         >
                                           {/* Display applied tags in message body */}
@@ -6664,7 +6683,7 @@ function ChatPage() {
                                                     className={cn(
                                                       "shadow-sm",
                                                       isOutgoing
-                                                        ? "border-primary-foreground/30 text-white"
+                                                        ? "border-foreground/20 text-foreground"
                                                         : "",
                                                     )}
                                                   />
@@ -6677,42 +6696,21 @@ function ChatPage() {
                                           {replyMessage && (
                                             <div
                                               className={cn(
-                                                "px-3 pt-1",
-                                                isRichCard ? "" : "pb-0.5",
+                                                "w-full min-w-0",
+                                                isRichCard ? "px-3 pt-2" : "",
                                               )}
                                             >
-                                              <button
-                                                onClick={() => scrollToMessage(replyMessage.id)}
-                                                className={cn(
-                                                  "w-full text-left text-xs p-2 rounded-md border-l-4 transition-all hover:opacity-100 block",
-                                                  isOutgoing
-                                                    ? "wa-quote-reply-outgoing"
-                                                    : "wa-quote-reply-incoming",
-                                                )}
-                                              >
-                                                <div className="font-bold mb-0.5 text-emerald-400 text-[11px]">
-                                                  {replyMessage.direction === "incoming"
+                                              <ChatQuotedReply
+                                                author={
+                                                  replyMessage.direction === "incoming"
                                                     ? "Contato"
-                                                    : "Você"}
-                                                </div>
-                                                <div className="truncate opacity-80 text-[11px]">
-                                                  {replyMessage.type === "image"
-                                                    ? "Imagem"
-                                                    : replyMessage.type === "audio"
-                                                      ? "Áudio"
-                                                      : replyMessage.type === "video"
-                                                        ? "Vídeo"
-                                                        : replyMessage.type === "document"
-                                                          ? "Documento"
-                                                          : replyMessage.type === "sticker"
-                                                            ? "Sticker"
-                                                            : replyMessage.type === "location"
-                                                              ? "Localização"
-                                                              : replyMessage.type === "contacts"
-                                                                ? "Contato"
-                                                                : replyMessage.body}
-                                                </div>
-                                              </button>
+                                                    : "Você"
+                                                }
+                                                type={replyMessage.type}
+                                                body={replyMessage.body}
+                                                isOutgoing={isOutgoing}
+                                                onOpen={() => scrollToMessage(replyMessage.id)}
+                                              />
                                             </div>
                                           )}
 
@@ -6737,7 +6735,7 @@ function ChatPage() {
                                               </div>
                                             )}
                                             {headerMediaType === "document" && headerMediaUrl && (
-                                              <div className="mx-3 mt-3 rounded-lg border border-muted-foreground/10 bg-black/10 p-2 flex items-center gap-2 text-xs">
+                                              <div className="mx-3 mt-3 rounded-lg border border-[color:var(--bubble-divider)] bg-[var(--bubble-surface)] p-2 flex items-center gap-2 text-xs">
                                                 <FileText className="h-6 w-6 text-primary shrink-0" />
                                                 <span className="truncate font-medium flex-1">
                                                   {header?.document?.filename ||
@@ -6794,7 +6792,7 @@ function ChatPage() {
                                                     </div>
                                                   );
                                                 })()}
-                                                <div className="absolute bottom-1.5 right-2 z-10 flex items-center gap-1 rounded bg-black/45 px-1.5 py-0.5 text-[10px] text-white shadow-sm backdrop-blur-[1px]">
+                                                <div className="absolute bottom-1.5 right-2 z-10 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white shadow-sm backdrop-blur-[1px]">
                                                   <span>
                                                     {new Date(
                                                       msg.timestamp,
@@ -6830,7 +6828,7 @@ function ChatPage() {
                                                       isOutgoing={isOutgoing}
                                                     />
                                                   ) : (
-                                                    <div className="px-3 py-2 text-xs text-white/70">
+                                                    <div className="px-3 py-2 text-xs text-muted-foreground">
                                                       Áudio indisponível
                                                     </div>
                                                   );
@@ -6869,7 +6867,7 @@ function ChatPage() {
                                                     </div>
                                                   );
                                                 })()}
-                                                <div className="pointer-events-none absolute bottom-1.5 right-2 z-10 flex items-center gap-1 rounded bg-black/45 px-1.5 py-0.5 text-[10px] text-white shadow-sm backdrop-blur-[1px]">
+                                                <div className="pointer-events-none absolute bottom-1.5 right-2 z-10 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white shadow-sm backdrop-blur-[1px]">
                                                   <span>
                                                     {new Date(
                                                       msg.timestamp,
@@ -6926,7 +6924,7 @@ function ChatPage() {
                                             )}
 
                                             {type === "location" && msg.location && (
-                                              <div className="mx-3 mt-3 rounded-lg border border-muted-foreground/15 bg-black/10 p-3 space-y-2">
+                                              <div className="mx-3 mt-3 rounded-lg border border-[color:var(--bubble-divider)] bg-[var(--bubble-surface)] p-3 space-y-2">
                                                 <div className="flex items-start gap-2.5">
                                                   <MapPin className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
                                                   <div className="min-w-0">
@@ -6958,7 +6956,7 @@ function ChatPage() {
                                             )}
 
                                             {type === "contacts" && msg.contacts && (
-                                              <div className="mx-3 mt-3 rounded-lg border border-muted-foreground/15 bg-black/10 p-3 space-y-3">
+                                              <div className="mx-3 mt-3 rounded-lg border border-[color:var(--bubble-divider)] bg-[var(--bubble-surface)] p-3 space-y-3">
                                                 <div className="flex items-center gap-3">
                                                   <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
                                                     <User className="h-4 w-4" />
@@ -7029,7 +7027,7 @@ function ChatPage() {
                                                     )
                                                   )}
                                                   {interactive?.footer?.text && (
-                                                    <p className="text-[10px] opacity-60">
+                                                    <p className="text-[10px] text-[color:var(--bubble-muted-ink,var(--muted-foreground))]">
                                                       {interactive.footer.text}
                                                     </p>
                                                   )}
@@ -7040,7 +7038,7 @@ function ChatPage() {
                                             {/* E. Render Buttons / Actions (WhatsApp Web Style) */}
                                             {interactive?.type === "button" &&
                                               interactive.action?.buttons && (
-                                                <div className="flex flex-col gap-1.5 w-full px-2.5 pb-2.5 pt-2 border-t border-border/40">
+                                                <div className="flex flex-col gap-1.5 w-full px-2.5 pb-2.5 pt-2 border-t border-[color:var(--bubble-divider)]">
                                                   {interactive.action.buttons.map(
                                                     (
                                                       btn: InteractiveButtonRecord,
@@ -7054,7 +7052,7 @@ function ChatPage() {
                                                         <div
                                                           key={btnIdx}
                                                           className={cn(
-                                                            "w-full rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary text-center flex items-center justify-center gap-1.5 select-none",
+                                                            "w-full rounded-lg bg-[var(--bubble-surface)] px-3 py-2 text-xs font-semibold text-[color:var(--bubble-action)] text-center flex items-center justify-center gap-1.5 select-none",
                                                             isLast && "mb-0",
                                                           )}
                                                         >
@@ -7075,12 +7073,12 @@ function ChatPage() {
                                               />
                                             )}
                                             {interactive?.type === "cta_url" && (
-                                              <div className="px-2.5 pb-2.5 pt-2 border-t border-border/40">
+                                              <div className="px-2.5 pb-2.5 pt-2 border-t border-[color:var(--bubble-divider)]">
                                                 <a
                                                   href={interactive.action?.parameters?.url || "#"}
                                                   target="_blank"
                                                   rel="noreferrer"
-                                                  className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-500 hover:bg-blue-500/20"
+                                                  className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[var(--bubble-surface)] px-3 py-2 text-xs font-semibold text-[color:var(--bubble-action)] hover:bg-[var(--bubble-control-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--bubble-action)]"
                                                 >
                                                   <LinkIcon className="h-3.5 w-3.5" />
                                                   {interactive.action?.parameters?.display_text ||
@@ -7112,7 +7110,7 @@ function ChatPage() {
                                           {type !== "image" && type !== "video" && (
                                             <div
                                               className={cn(
-                                                "flex items-center justify-end gap-1 text-[10px] wa-timestamp pb-0.5 pt-0.5 self-end",
+                                                "flex w-full items-center justify-end gap-1 text-[10px] wa-timestamp pb-0.5 pt-0.5",
                                                 isRichCard && "pb-1.5 pr-2.5",
                                               )}
                                             >
@@ -7274,7 +7272,10 @@ function ChatPage() {
                             className="min-h-[44px] max-h-[140px] w-full p-0 resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent text-sm md:text-sm shadow-none font-sans leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                             rows={1}
                             value={typedMessage}
-                            onChange={(e) => setTypedMessage(e.target.value)}
+                            onChange={(e) => {
+                              setTypedMessage(e.target.value);
+                              if (e.target.value.trim()) notifyWhatsAppTyping();
+                            }}
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && !e.shiftKey) {
                                 e.preventDefault();

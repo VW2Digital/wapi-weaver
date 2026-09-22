@@ -2,11 +2,18 @@ import { afterEach, describe, expect, it, jest } from "@jest/globals";
 import {
   INSTAGRAM_HASHTAG_MEDIA_FIELDS,
   INSTAGRAM_PUBLIC_REQUIRED_SCOPES,
+  INSTAGRAM_STOREFRONT_UPDATE_SCHEMA,
   canSearchUniqueHashtag,
   classifyPublicContentApproval,
   instagramPublicGraphRequest,
+  isPublicStorefrontAvailable,
   normalizeInstagramHashtag,
+  retireStorefrontSlug,
 } from "../../src/lib/instagram-public-content.functions";
+import {
+  mergeHashtagSearchItems,
+  resolveInstagramPublicPreview,
+} from "../../src/lib/instagram-public-preview";
 
 describe("Instagram Public Content contracts", () => {
   afterEach(() => {
@@ -63,5 +70,110 @@ describe("Instagram Public Content contracts", () => {
     expect(url.toString()).not.toContain("secret-user-token");
     expect(url.searchParams.get("q")).toBe("bliv");
     expect(options.headers).toEqual({ Authorization: "Bearer secret-user-token" });
+  });
+});
+
+describe("Instagram public media preview", () => {
+  it("never uses a video file as the image cover", () => {
+    const preview = resolveInstagramPublicPreview({
+      media_type: "VIDEO",
+      media_url: "https://scontent.cdninstagram.com/v/clip.mp4",
+      thumbnail_url: null,
+      children_json: [],
+    });
+    expect(preview.kind).toBe("video");
+    expect(preview.previewUrl).toBeNull();
+    expect(preview.videoUrl).toContain(".mp4");
+  });
+
+  it("uses the first carousel child image as cover", () => {
+    const preview = resolveInstagramPublicPreview({
+      media_type: "CAROUSEL_ALBUM",
+      media_url: "https://scontent.cdninstagram.com/v/clip.mp4",
+      thumbnail_url: null,
+      children_json: [
+        { media_type: "IMAGE", media_url: "https://scontent.cdninstagram.com/v/cover.jpg" },
+        { media_type: "VIDEO", media_url: "https://scontent.cdninstagram.com/v/item.mp4" },
+      ],
+    });
+    expect(preview.kind).toBe("carousel");
+    expect(preview.previewUrl).toContain("cover.jpg");
+    expect(preview.childCount).toBe(2);
+  });
+
+  it("prefers a video thumbnail over the playable file", () => {
+    const preview = resolveInstagramPublicPreview({
+      media_type: "VIDEO",
+      media_url: "https://scontent.cdninstagram.com/v/clip.mp4",
+      thumbnail_url: "https://scontent.cdninstagram.com/v/thumb.jpg",
+      children_json: [],
+    });
+    expect(preview.previewUrl).toContain("thumb.jpg");
+  });
+
+  it("parses children_json stored as a JSON string", () => {
+    const preview = resolveInstagramPublicPreview({
+      media_type: "CAROUSEL_ALBUM",
+      media_url: null,
+      thumbnail_url: null,
+      children_json: JSON.stringify([
+        { media_type: "VIDEO", media_url: "https://cdn.example/clip.mp4", thumbnail_url: "https://cdn.example/thumb.jpg" },
+      ]),
+    });
+    expect(preview.previewUrl).toContain("thumb.jpg");
+  });
+
+  it("appends unique pages and ignores duplicates", () => {
+    const first = [{ id: "a" }, { id: "b" }];
+    const second = [{ id: "b" }, { id: "c" }];
+    expect(mergeHashtagSearchItems(first, second, true).map((item) => item.id)).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+    expect(mergeHashtagSearchItems(first, second, false).map((item) => item.id)).toEqual(["b", "c"]);
+  });
+});
+
+describe("Instagram storefront lifecycle", () => {
+  it("validates storefront settings before persistence", () => {
+    expect(() =>
+      INSTAGRAM_STOREFRONT_UPDATE_SCHEMA.parse({
+        enabled: true,
+        title: "  ",
+        subtitle: null,
+        layout: "grid",
+        columnsCount: 3,
+        showCaptions: true,
+        showHashtags: true,
+        maxItems: 12,
+        theme: "auto",
+      }),
+    ).toThrow();
+    expect(
+      INSTAGRAM_STOREFRONT_UPDATE_SCHEMA.parse({
+        enabled: false,
+        title: "Loja Bliv",
+        subtitle: "Galeria",
+        layout: "masonry",
+        columnsCount: 4,
+        showCaptions: false,
+        showHashtags: true,
+        maxItems: 8,
+        theme: "dark",
+      }).title,
+    ).toBe("Loja Bliv");
+  });
+
+  it("retires the public slug on logical delete so the old URL cannot match", () => {
+    const retired = retireStorefrontSlug("minha-loja-abcd1234", "11111111-2222-3333-4444-555555555555");
+    expect(retired).toContain("-deleted-");
+    expect(retired).not.toBe("minha-loja-abcd1234");
+  });
+
+  it("hides unpublished and deleted storefronts from the public query contract", () => {
+    expect(isPublicStorefrontAvailable({ enabled: 1, deleted_at: null })).toBe(true);
+    expect(isPublicStorefrontAvailable({ enabled: 0, deleted_at: null })).toBe(false);
+    expect(isPublicStorefrontAvailable({ enabled: 1, deleted_at: "2026-09-22T12:00:00Z" })).toBe(false);
   });
 });

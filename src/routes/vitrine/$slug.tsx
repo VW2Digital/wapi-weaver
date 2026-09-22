@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useEffect, useState } from "react";
 import { ExternalLink, ImageOff, Instagram, Loader2 } from "lucide-react";
+import { InstagramPublicMediaPreview } from "@/components/instagram/InstagramPublicMediaPreview";
 import { getPublicInstagramStorefront } from "@/lib/instagram-public-content.functions";
 
 function gridColumns(columns: number) {
@@ -22,8 +24,17 @@ function InstagramStorefrontPage() {
   const query = useQuery({
     queryKey: ["public-instagram-storefront", slug],
     queryFn: () => getStorefront({ data: { slug } }),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 15_000,
   });
+
+  const [prefersDark, setPrefersDark] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const sync = () => setPrefersDark(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
 
   if (query.isLoading) {
     return (
@@ -41,7 +52,7 @@ function InstagramStorefrontPage() {
           <ImageOff className="mx-auto h-8 w-8 text-muted-foreground" />
           <h1 className="mt-4 text-xl font-semibold">Galeria indisponível</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Esta loja ainda não publicou sua vitrine do Instagram.
+            Esta vitrine não está publicada ou foi excluída.
           </p>
         </div>
       </main>
@@ -49,7 +60,7 @@ function InstagramStorefrontPage() {
   }
 
   const { store, media } = data;
-  const dark = store.theme === "dark";
+  const dark = store.theme === "dark" || (store.theme === "auto" && prefersDark);
   const galleryClass =
     store.layout === "masonry"
       ? `columns-1 ${masonryColumns(Number(store.columnsCount))} gap-4`
@@ -72,8 +83,6 @@ function InstagramStorefrontPage() {
         {media.length ? (
           <section className={galleryClass} aria-label="Galeria do Instagram">
             {media.map((item) => {
-              const source = item.thumbnail_url || item.media_url;
-              const isVideo = item.media_type === "VIDEO";
               return (
                 <article
                   key={item.id}
@@ -81,31 +90,10 @@ function InstagramStorefrontPage() {
                     store.layout === "masonry" ? "mb-4 break-inside-avoid" : ""
                   }`}
                 >
-                  <div className="relative bg-muted">
-                    {source ? (
-                      isVideo ? (
-                        <video
-                          src={item.media_url || source}
-                          poster={item.thumbnail_url || undefined}
-                          controls
-                          preload="metadata"
-                          className="aspect-square h-full w-full object-cover"
-                          aria-label={item.caption || "Vídeo do Instagram"}
-                        />
-                      ) : (
-                        <img
-                          src={source}
-                          alt={item.caption || `Publicação de @${item.username || "Instagram"}`}
-                          className="aspect-square h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                          loading="lazy"
-                        />
-                      )
-                    ) : (
-                      <div className="flex aspect-square items-center justify-center">
-                        <ImageOff className="h-8 w-8 text-muted-foreground" />
-                      </div>
-                    )}
-                  </div>
+                  <InstagramPublicMediaPreview
+                    item={item}
+                    alt="Publicação do Instagram"
+                  />
                   {(store.showCaptions || store.showHashtags) && (
                     <div className="space-y-2 p-4">
                       {store.showHashtags && (

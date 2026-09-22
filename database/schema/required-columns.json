@@ -813,6 +813,8 @@
     "show_hashtags",
     "max_items",
     "theme",
+    "deleted_at",
+    "deleted_by",
     "created_at",
     "updated_at"
   ],

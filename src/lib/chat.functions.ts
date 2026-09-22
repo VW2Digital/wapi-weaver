@@ -101,6 +101,69 @@ interface ProfileMessageRow {
   meta_graph_version?: string | null;
 }
 
+/** Cloud API POST /{Phone-Number-ID}/messages — read receipt and optional typing indicator. */
+export function buildWhatsAppCloudReadPayload(input: {
+  messageId: string;
+  showTypingIndicator?: boolean;
+}) {
+  const payload: {
+    messaging_product: "whatsapp";
+    status: "read";
+    message_id: string;
+    typing_indicator?: { type: "text" };
+  } = {
+    messaging_product: "whatsapp",
+    status: "read",
+    message_id: input.messageId,
+  };
+  if (input.showTypingIndicator) {
+    payload.typing_indicator = { type: "text" };
+  }
+  return payload;
+}
+
+function resolveWhatsAppGraphVersion(raw?: string | null) {
+  let apiVersion = raw || "v26.0";
+  if (apiVersion.startsWith("v") && parseFloat(apiVersion.slice(1)) < 24.0) {
+    apiVersion = "v26.0";
+  }
+  return apiVersion;
+}
+
+async function postWhatsAppCloudReadReceipt(input: {
+  phoneNumberId: string;
+  accessToken: string;
+  graphVersion?: string | null;
+  messageId: string;
+  showTypingIndicator?: boolean;
+}) {
+  const apiVersion = resolveWhatsAppGraphVersion(input.graphVersion);
+  const response = await fetch(
+    `https://graph.facebook.com/${apiVersion}/${input.phoneNumberId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${input.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(
+        buildWhatsAppCloudReadPayload({
+          messageId: input.messageId,
+          showTypingIndicator: input.showTypingIndicator,
+        }),
+      ),
+    },
+  );
+  if (!response.ok) {
+    console.warn("WhatsApp Cloud read/typing request failed.", {
+      status: response.status,
+      messageId: input.messageId,
+      typing: Boolean(input.showTypingIndicator),
+    });
+  }
+  return response.ok;
+}
+
 function isJsonRecord(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -483,31 +546,12 @@ export const markMessagesAsRead = createServerFn({ method: "POST" })
         const phoneNumberId =
           incomingMessage.provider_account_id || profile?.whatsapp_phone_number_id;
         if (phoneNumberId && profile?.whatsapp_access_token) {
-          let apiVersion = profile.meta_graph_version || "v26.0";
-          if (apiVersion.startsWith("v") && parseFloat(apiVersion.slice(1)) < 24.0) {
-            apiVersion = "v26.0";
-          }
-          const response = await fetch(
-            `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`,
-            {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${profile.whatsapp_access_token}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                messaging_product: "whatsapp",
-                status: "read",
-                message_id: incomingMessage.wa_message_id,
-              }),
-            },
-          );
-          if (!response.ok) {
-            console.warn("Não foi possível confirmar leitura da mensagem na Meta.", {
-              status: response.status,
-              messageId: incomingMessage.wa_message_id,
-            });
-          }
+          await postWhatsAppCloudReadReceipt({
+            phoneNumberId,
+            accessToken: profile.whatsapp_access_token,
+            graphVersion: profile.meta_graph_version,
+            messageId: incomingMessage.wa_message_id,
+          });
         }
       } catch (error) {
         console.warn("Falha não bloqueante ao confirmar leitura na Meta.", error);
@@ -515,6 +559,67 @@ export const markMessagesAsRead = createServerFn({ method: "POST" })
     }
 
     return { ok: true };
+  });
+
+export const sendWhatsAppTypingIndicator = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) =>
+    z
+      .object({
+        phone: z.string().trim().min(5),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const phone = normalizeChatContactId(data.phone);
+    const { resolveEffectiveUserId } = await import("./chat-helpers");
+    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+
+    const latestIncoming = (await db.query(
+      `SELECT wa_message_id, provider_account_id, channel
+       FROM direct_messages
+       WHERE (user_id = ? OR tenant_id = ?) AND contact_phone = ? AND direction = 'incoming'
+         AND wa_message_id IS NOT NULL
+         AND (channel IS NULL OR channel = 'whatsapp')
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [effectiveUserId, effectiveUserId, phone],
+    )) as Array<{
+      wa_message_id?: string | null;
+      provider_account_id?: string | null;
+      channel?: string | null;
+    }>;
+
+    const incomingMessage = latestIncoming[0];
+    if (!incomingMessage?.wa_message_id) {
+      return { ok: false as const, reason: "no_incoming_wamid" };
+    }
+
+    try {
+      const profiles = (await db.query(
+        `SELECT whatsapp_phone_number_id, whatsapp_access_token, meta_graph_version
+         FROM profiles WHERE id = ? LIMIT 1`,
+        [effectiveUserId],
+      )) as ProfileMessageRow[];
+      const profile = profiles[0];
+      const phoneNumberId =
+        incomingMessage.provider_account_id || profile?.whatsapp_phone_number_id;
+      if (!phoneNumberId || !profile?.whatsapp_access_token) {
+        return { ok: false as const, reason: "missing_credentials" };
+      }
+
+      const ok = await postWhatsAppCloudReadReceipt({
+        phoneNumberId,
+        accessToken: profile.whatsapp_access_token,
+        graphVersion: profile.meta_graph_version,
+        messageId: incomingMessage.wa_message_id,
+        showTypingIndicator: true,
+      });
+      return { ok };
+    } catch (error) {
+      console.warn("Falha não bloqueante ao enviar typing indicator na Meta.", error);
+      return { ok: false as const, reason: "request_failed" };
+    }
   });
 
 export const getChatContactDetails = createServerFn({ method: "POST" })

@@ -3,6 +3,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
+import { resolveInstagramPublicPreview } from "@/lib/instagram-public-preview";
 
 const GRAPH_VERSION = "v26.0";
 const HASHTAG_LIMIT = 30;
@@ -44,6 +45,8 @@ type StorefrontRow = {
   show_hashtags: number;
   max_items: number;
   theme: "auto" | "light" | "dark";
+  deleted_at?: string | Date | null;
+  deleted_by?: string | null;
 };
 
 type HashtagRow = {
@@ -216,6 +219,31 @@ function safeSlug(value: string) {
     .replace(/^-+|-+$/g, "")
     .slice(0, 90);
 }
+
+export function retireStorefrontSlug(slug: string, id: string) {
+  const base = safeSlug(slug.replace(/-deleted-[a-z0-9]+$/i, "")) || "vitrine";
+  const suffix = id.replace(/-/g, "").slice(0, 12);
+  return `${base}-deleted-${suffix}`.slice(0, 120);
+}
+
+export function isPublicStorefrontAvailable(row: {
+  enabled?: number | boolean | null;
+  deleted_at?: string | Date | null;
+}) {
+  return !row.deleted_at && Boolean(Number(row.enabled));
+}
+
+export const INSTAGRAM_STOREFRONT_UPDATE_SCHEMA = z.object({
+  enabled: z.boolean(),
+  title: z.string().trim().min(1).max(160),
+  subtitle: z.string().trim().max(320).nullable(),
+  layout: z.enum(["grid", "masonry"]),
+  columnsCount: z.number().int().min(2).max(4),
+  showCaptions: z.boolean(),
+  showHashtags: z.boolean(),
+  maxItems: z.number().int().min(1).max(30),
+  theme: z.enum(["auto", "light", "dark"]),
+});
 
 async function sleep(milliseconds: number) {
   await new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -492,17 +520,23 @@ async function requireUsableConnection(tenantId: string) {
   };
 }
 
-async function ensureStorefrontSettings(tenantId: string) {
+async function getActiveStorefrontSettings(tenantId: string) {
   const { default: db } = await import("./db");
   const rows = (await db.query(
     `SELECT *
      FROM instagram_storefront_settings
-     WHERE tenant_id = ?
+     WHERE tenant_id = ? AND deleted_at IS NULL
      LIMIT 1`,
     [tenantId],
   )) as StorefrontRow[];
-  if (rows[0]) return rows[0];
+  return rows[0] || null;
+}
 
+async function ensureStorefrontSettings(tenantId: string) {
+  const existing = await getActiveStorefrontSettings(tenantId);
+  if (existing) return existing;
+
+  const { default: db } = await import("./db");
   const profileRows = (await db.query(
     `SELECT company_name, display_name
      FROM profiles
@@ -513,7 +547,12 @@ async function ensureStorefrontSettings(tenantId: string) {
   const base = safeSlug(
     profileRows[0]?.company_name || profileRows[0]?.display_name || `loja-${tenantId.slice(0, 8)}`,
   );
-  const slug = `${base || "loja"}-${tenantId.slice(0, 8)}`;
+  let slug = `${base || "loja"}-${tenantId.slice(0, 8)}`;
+  const slugTaken = (await db.query(
+    `SELECT id FROM instagram_storefront_settings WHERE slug = ? LIMIT 1`,
+    [slug],
+  )) as Array<{ id: string }>;
+  if (slugTaken[0]) slug = `${slug}-${crypto.randomUUID().slice(0, 8)}`;
   const id = crypto.randomUUID();
   await db.query(
     `INSERT INTO instagram_storefront_settings
@@ -525,7 +564,7 @@ async function ensureStorefrontSettings(tenantId: string) {
   const created = (await db.query(
     `SELECT *
      FROM instagram_storefront_settings
-     WHERE id = ? AND tenant_id = ?
+     WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL
      LIMIT 1`,
     [id, tenantId],
   )) as StorefrontRow[];
@@ -824,7 +863,7 @@ export const disconnectInstagramPublicContent = createServerFn({ method: "POST" 
     await db.query(
       `UPDATE instagram_storefront_settings
        SET enabled = 0, updated_at = NOW()
-       WHERE tenant_id = ?`,
+       WHERE tenant_id = ? AND deleted_at IS NULL`,
       [context.tenantId],
     );
     return { ok: true };
@@ -838,7 +877,7 @@ export const getInstagramPublicDashboard = createServerFn({ method: "GET" })
     const reusableConnection = connection
       ? null
       : await getReusableDirectConnection(context.tenantId);
-    const storefront = await ensureStorefrontSettings(context.tenantId);
+    const storefront = await getActiveStorefrontSettings(context.tenantId);
     const hashtagRows = (await db.query(
       `SELECT id, hashtag_id, hashtag, first_searched_at, last_searched_at, window_expires_at
        FROM instagram_public_hashtags
@@ -1017,7 +1056,7 @@ export const searchInstagramPublicHashtag = createServerFn({ method: "POST" })
     );
 
     if (!result.hashtagId) {
-      return { hashtag, items: [], paging: null, notFound: true };
+      return { hashtag, source: data.source, items: [], paging: null, notFound: true as const };
     }
 
     const existing = (await db.query(
@@ -1079,7 +1118,12 @@ export const searchInstagramPublicHashtag = createServerFn({ method: "POST" })
           data.source,
           media.media_type,
           media.media_url || null,
-          media.thumbnail_url || null,
+          resolveInstagramPublicPreview({
+            media_type: media.media_type,
+            media_url: media.media_url,
+            thumbnail_url: media.thumbnail_url,
+            children_json: media.children?.data || [],
+          }).previewUrl,
           media.permalink,
           media.caption || null,
           media.username || null,
@@ -1089,26 +1133,42 @@ export const searchInstagramPublicHashtag = createServerFn({ method: "POST" })
       );
     }
 
+    const pageIds = result.data.map((media) => media.id).filter((id): id is string => Boolean(id));
+    if (pageIds.length === 0) {
+      return {
+        hashtag,
+        source: data.source,
+        isRepeatedWithinWindow: Boolean(isActive),
+        items: [],
+        paging: result.paging,
+        notFound: false as const,
+      };
+    }
+    const placeholders = pageIds.map(() => "?").join(", ");
     const persisted = (await db.query(
       `SELECT id, provider_media_id, source, media_type, media_url, thumbnail_url,
               permalink, caption, username, provider_timestamp, children_json,
               selected, rights_confirmed_at, display_order
        FROM instagram_public_media
        WHERE tenant_id = ? AND hashtag_record_id = ? AND source = ?
-       ORDER BY fetched_at DESC
-       LIMIT 100`,
-      [context.tenantId, hashtagRecordId, data.source],
+         AND provider_media_id IN (${placeholders})`,
+      [context.tenantId, hashtagRecordId, data.source, ...pageIds],
     )) as MediaRow[];
+    const byProvider = new Map(persisted.map((row) => [row.provider_media_id, row]));
     return {
       hashtag,
+      source: data.source,
       isRepeatedWithinWindow: Boolean(isActive),
-      items: persisted.map((row) => ({
-        ...row,
-        selected: Boolean(row.selected),
-        children_json: parseJson<MediaChild[]>(row.children_json, []),
-      })),
+      items: pageIds
+        .map((id) => byProvider.get(id))
+        .filter((row): row is MediaRow => Boolean(row))
+        .map((row) => ({
+          ...row,
+          selected: Boolean(row.selected),
+          children_json: parseJson<MediaChild[]>(row.children_json, []),
+        })),
       paging: result.paging,
-      notFound: false,
+        notFound: false as const,
     };
   });
 
@@ -1140,21 +1200,7 @@ export const setInstagramPublicMediaSelection = createServerFn({ method: "POST" 
 
 export const updateInstagramStorefront = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .validator((data) =>
-    z
-      .object({
-        enabled: z.boolean(),
-        title: z.string().trim().min(1).max(160),
-        subtitle: z.string().trim().max(320).nullable(),
-        layout: z.enum(["grid", "masonry"]),
-        columnsCount: z.number().int().min(2).max(4),
-        showCaptions: z.boolean(),
-        showHashtags: z.boolean(),
-        maxItems: z.number().int().min(1).max(30),
-        theme: z.enum(["auto", "light", "dark"]),
-      })
-      .parse(data),
-  )
+  .validator((data) => INSTAGRAM_STOREFRONT_UPDATE_SCHEMA.parse(data))
   .handler(async ({ data, context }) => {
     const { default: db } = await import("./db");
     const storefront = await ensureStorefrontSettings(context.tenantId);
@@ -1171,12 +1217,12 @@ export const updateInstagramStorefront = createServerFn({ method: "POST" })
         throw new Error("Selecione ao menos uma publicação com direitos confirmados.");
       }
     }
-    await db.query(
+    const result = await db.query(
       `UPDATE instagram_storefront_settings
        SET enabled = ?, title = ?, subtitle = ?, layout = ?,
            columns_count = ?, show_captions = ?, show_hashtags = ?,
            max_items = ?, theme = ?, updated_at = NOW()
-       WHERE id = ? AND tenant_id = ?`,
+       WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`,
       [
         data.enabled ? 1 : 0,
         data.title,
@@ -1191,7 +1237,47 @@ export const updateInstagramStorefront = createServerFn({ method: "POST" })
         context.tenantId,
       ],
     );
-    return { ok: true, slug: storefront.slug };
+    const affected = Number((result as { affectedRows?: number })?.affectedRows || 0);
+    if (!affected) throw new Error("A vitrine não pertence a esta loja ou já foi excluída.");
+    return { ok: true as const, slug: storefront.slug };
+  });
+
+export const deleteInstagramStorefront = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const { default: db } = await import("./db");
+    const storefront = await getActiveStorefrontSettings(context.tenantId);
+    if (!storefront?.id) {
+      throw new Error("Não há vitrine ativa para excluir.");
+    }
+    const retiredSlug = retireStorefrontSlug(storefront.slug, storefront.id);
+    const result = await db.query(
+      `UPDATE instagram_storefront_settings
+       SET enabled = 0,
+           deleted_at = NOW(),
+           deleted_by = ?,
+           slug = ?,
+           updated_at = NOW()
+       WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`,
+      [context.userId || context.tenantId, retiredSlug, storefront.id, context.tenantId],
+    );
+    const affected = Number((result as { affectedRows?: number })?.affectedRows || 0);
+    if (!affected) {
+      throw new Error("A vitrine não pertence a esta loja ou já foi excluída.");
+    }
+    const { recordAudit } = await import("./audit.functions");
+    await recordAudit({
+      userId: context.tenantId,
+      action: "instagram_storefront.delete",
+      entityType: "instagram_storefront_settings",
+      entityId: storefront.id,
+      metadata: {
+        previousSlug: storefront.slug,
+        retiredSlug,
+        policy: "logical_delete_keep_media_and_instagram_connection",
+      },
+    });
+    return { ok: true as const, previousSlug: storefront.slug };
   });
 
 export const getPublicInstagramStorefront = createServerFn({ method: "GET" })
@@ -1215,7 +1301,7 @@ export const getPublicInstagramStorefront = createServerFn({ method: "GET" })
               iss.max_items, iss.theme, p.company_name, p.display_name
        FROM instagram_storefront_settings iss
        LEFT JOIN profiles p ON p.id = iss.tenant_id
-       WHERE iss.slug = ? AND iss.enabled = 1
+       WHERE iss.slug = ? AND iss.enabled = 1 AND iss.deleted_at IS NULL
        LIMIT 1`,
       [data.slug],
     )) as Array<

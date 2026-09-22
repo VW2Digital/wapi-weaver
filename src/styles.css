@@ -103,6 +103,25 @@
   --sidebar-accent-foreground: #F23869;
   --sidebar-border: #e4e4e7;
   --sidebar-ring: #F23869;
+
+  --bubble-outgoing-bg: color-mix(in oklab, var(--primary) 12%, var(--card));
+  --bubble-outgoing-fg: var(--foreground);
+  --bubble-outgoing-muted: #52525b;
+  --bubble-outgoing-border: color-mix(in oklab, var(--primary) 28%, var(--border));
+  --bubble-incoming-bg: var(--card);
+  --bubble-incoming-fg: var(--foreground);
+  --bubble-incoming-muted: var(--muted-foreground);
+  --bubble-incoming-border: color-mix(in oklab, var(--border) 82%, transparent);
+  --bubble-control: color-mix(in oklab, var(--foreground) 12%, transparent);
+  --bubble-control-hover: color-mix(in oklab, var(--foreground) 18%, transparent);
+  --bubble-track: color-mix(in oklab, var(--foreground) 38%, transparent);
+  --bubble-track-played: var(--foreground);
+  --bubble-thumb: var(--foreground);
+  --bubble-surface: color-mix(in oklab, var(--foreground) 8%, var(--card));
+  --bubble-action: #0f766e;
+  --bubble-divider: color-mix(in oklab, var(--foreground) 14%, transparent);
+  --bubble-ink: var(--foreground);
+  --bubble-muted-ink: var(--muted-foreground);
 }
 
 .dark {
@@ -142,6 +161,25 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  --bubble-outgoing-bg: color-mix(in oklab, var(--primary) 22%, var(--card));
+  --bubble-outgoing-fg: var(--foreground);
+  --bubble-outgoing-muted: var(--muted-foreground);
+  --bubble-outgoing-border: color-mix(in oklab, var(--primary) 38%, var(--border));
+  --bubble-incoming-bg: var(--card);
+  --bubble-incoming-fg: var(--foreground);
+  --bubble-incoming-muted: var(--muted-foreground);
+  --bubble-incoming-border: color-mix(in oklab, var(--border) 82%, transparent);
+  --bubble-control: color-mix(in oklab, var(--foreground) 14%, transparent);
+  --bubble-control-hover: color-mix(in oklab, var(--foreground) 22%, transparent);
+  --bubble-track: color-mix(in oklab, var(--foreground) 38%, transparent);
+  --bubble-track-played: var(--foreground);
+  --bubble-thumb: var(--foreground);
+  --bubble-surface: color-mix(in oklab, var(--foreground) 10%, var(--card));
+  --bubble-action: #5eead4;
+  --bubble-divider: color-mix(in oklab, var(--foreground) 18%, transparent);
+  --bubble-ink: var(--foreground);
+  --bubble-muted-ink: var(--muted-foreground);
 }
 
 @layer base {
@@ -268,4 +306,106 @@
   background: linear-gradient(90deg, #F23869 0%, #D93B92 33%, #BF39B6 66%, #F26A4B 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+.wa-bubble-outgoing {
+  background: var(--bubble-outgoing-bg) !important;
+  color: var(--bubble-outgoing-fg) !important;
+  border: 1px solid var(--bubble-outgoing-border) !important;
+  border-radius: 18px 18px 5px 18px !important;
+  position: relative !important;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06) !important;
+  --bubble-ink: var(--bubble-outgoing-fg);
+  --bubble-muted-ink: var(--bubble-outgoing-muted);
+}
+
+.wa-bubble-incoming {
+  background: var(--bubble-incoming-bg) !important;
+  color: var(--bubble-incoming-fg) !important;
+  border: 1px solid var(--bubble-incoming-border) !important;
+  border-radius: 18px 18px 18px 5px !important;
+  position: relative !important;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05) !important;
+  --bubble-ink: var(--bubble-incoming-fg);
+  --bubble-muted-ink: var(--bubble-incoming-muted);
+}
+
+.wa-bubble-outgoing .wa-timestamp,
+.wa-bubble-incoming .wa-timestamp {
+  color: var(--bubble-muted-ink) !important;
+}
+
+.wa-quote-reply,
+.wa-quote-reply-outgoing,
+.wa-quote-reply-incoming {
+  width: 100%;
+  min-width: 12.5rem;
+  max-width: 100%;
+  padding: 0.5rem 0.625rem;
+  border-radius: 8px;
+  border: 1px solid var(--bubble-divider);
+  border-left-width: 3px;
+  border-left-color: var(--primary);
+  background: var(--bubble-surface) !important;
+  color: var(--bubble-ink, var(--foreground)) !important;
+}
+
+.wa-bubble-outgoing:has(.wa-quote-reply),
+.wa-bubble-incoming:has(.wa-quote-reply) {
+  min-width: 13rem;
+}
+
+@media (min-width: 640px) {
+  .wa-bubble-outgoing:has(.wa-quote-reply),
+  .wa-bubble-incoming:has(.wa-quote-reply) {
+    min-width: 16.5rem;
+  }
+}
+
+.wa-quote-reply:hover,
+.wa-quote-reply-outgoing:hover,
+.wa-quote-reply-incoming:hover {
+  background: var(--bubble-control-hover) !important;
+}
+
+.wa-quote-reply:focus-visible,
+.wa-quote-reply-outgoing:focus-visible,
+.wa-quote-reply-incoming:focus-visible {
+  outline: 2px solid var(--bubble-action);
+  outline-offset: 1px;
+}
+
+.wa-button-separator-outgoing {
+  border-top: 1px solid color-mix(in oklab, var(--primary) 18%, var(--border)) !important;
+}
+
+.wa-button-separator-incoming {
+  border-top: 1px solid var(--border) !important;
+}
+
+.wa-card-button-outgoing {
+  color: inherit !important;
+  transition: background-color 0.2s;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.wa-card-button-outgoing:hover {
+  background-color: color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+
+.wa-card-button-incoming {
+  color: var(--primary) !important;
+  transition: background-color 0.2s;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.wa-card-button-incoming:hover {
+  background-color: color-mix(in oklab, var(--primary) 7%, transparent);
+}
+
+.wa-timestamp {
+  color: var(--muted-foreground) !important;
+  opacity: 1;
 }

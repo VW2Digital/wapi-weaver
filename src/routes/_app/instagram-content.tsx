@@ -1,22 +1,23 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
   ExternalLink,
   Grid3X3,
   Hash,
-  Image as ImageIcon,
   Instagram,
   Loader2,
   LogOut,
   RefreshCw,
   Search,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/confirm-dialog";
 import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -42,13 +43,44 @@ import {
   searchInstagramPublicHashtag,
   setInstagramPublicMediaSelection,
   updateInstagramStorefront,
+  deleteInstagramStorefront,
 } from "@/lib/instagram-public-content.functions";
+import { InstagramPublicMediaPreview } from "@/components/instagram/InstagramPublicMediaPreview";
 import { listMetaAppConnectionsForEmbeddedSignup } from "@/lib/profile.functions";
+import { mergeHashtagSearchItems } from "@/lib/instagram-public-preview";
 
 type Source = "recent" | "top";
 type DashboardData = Awaited<ReturnType<typeof getInstagramPublicDashboard>>;
 type HashtagSearchResult = Awaited<ReturnType<typeof searchInstagramPublicHashtag>>;
 type MediaItem = DashboardData["media"][number] | HashtagSearchResult["items"][number];
+
+function mediaTypeLabel(type?: string | null) {
+  const value = String(type || "").toUpperCase();
+  if (value === "VIDEO" || value === "REELS") return "Vídeo";
+  if (value === "CAROUSEL_ALBUM" || value === "CAROUSEL") return "Carrossel";
+  return "Imagem";
+}
+
+function SearchCaption({ caption }: { caption: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const long = caption.length > 140;
+  return (
+    <div className="space-y-1">
+      <p className={expanded ? "text-sm text-muted-foreground" : "line-clamp-3 text-sm text-muted-foreground"}>
+        {caption}
+      </p>
+      {long ? (
+        <button
+          type="button"
+          className="text-xs font-medium text-primary hover:underline"
+          onClick={() => setExpanded((current) => !current)}
+        >
+          {expanded ? "Recolher legenda" : "Ver legenda completa"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 function statusLabel(status?: string) {
   if (status === "connected") return "Conectado";
@@ -58,12 +90,24 @@ function statusLabel(status?: string) {
   return "Desconectado";
 }
 
+function storefrontGalleryClass(layout: "grid" | "masonry", columns: number) {
+  if (layout === "masonry") {
+    if (columns === 2) return "columns-1 sm:columns-2 gap-4";
+    if (columns === 4) return "columns-1 sm:columns-2 lg:columns-4 gap-4";
+    return "columns-1 sm:columns-2 lg:columns-3 gap-4";
+  }
+  if (columns === 2) return "grid grid-cols-1 sm:grid-cols-2 gap-4";
+  if (columns === 4) return "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4";
+  return "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4";
+}
+
 function InstagramPublicContentPage() {
   usePageHeader({
     title: "Conteúdo público do Instagram",
     subtitle: "Pesquise hashtags oficiais da Meta e publique uma galeria na vitrine da sua loja.",
   });
 
+  const confirm = useConfirm();
   const queryClient = useQueryClient();
   const getDashboard = useServerFn(getInstagramPublicDashboard);
   const listMetaApps = useServerFn(listMetaAppConnectionsForEmbeddedSignup);
@@ -73,6 +117,7 @@ function InstagramPublicContentPage() {
   const searchHashtag = useServerFn(searchInstagramPublicHashtag);
   const setSelection = useServerFn(setInstagramPublicMediaSelection);
   const saveStorefront = useServerFn(updateInstagramStorefront);
+  const removeStorefront = useServerFn(deleteInstagramStorefront);
 
   const dashboardQuery = useQuery({
     queryKey: ["instagram-public-dashboard"],
@@ -104,7 +149,20 @@ function InstagramPublicContentPage() {
   });
 
   useEffect(() => {
-    if (!storefront) return;
+    if (!storefront) {
+      setStoreForm({
+        enabled: false,
+        title: "Instagram",
+        subtitle: "",
+        layout: "grid",
+        columnsCount: 3,
+        showCaptions: true,
+        showHashtags: true,
+        maxItems: 12,
+        theme: "auto",
+      });
+      return;
+    }
     setStoreForm({
       enabled: Boolean(storefront.enabled),
       title: storefront.title || "Instagram",
@@ -211,8 +269,18 @@ function InstagramPublicContentPage() {
       searchHashtag({
         data: { hashtag, source, after },
       }),
-    onSuccess: (result) => {
-      setSearchResult(result);
+    onMutate: (after) => {
+      if (!after) setSearchResult(null);
+    },
+    onSuccess: (result, after) => {
+      setSearchResult((current) => {
+        if (result.notFound || !after || !current || current.notFound) return result;
+        if (current.hashtag !== result.hashtag || current.source !== result.source) return result;
+        return {
+          ...result,
+          items: mergeHashtagSearchItems(current.items, result.items, true),
+        };
+      });
       if (result.notFound) toast.info("A Meta não encontrou essa hashtag.");
       queryClient.invalidateQueries({ queryKey: ["instagram-public-dashboard"] });
     },
@@ -239,25 +307,45 @@ function InstagramPublicContentPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const invalidateStorefrontViews = (slug?: string | null) => {
+    queryClient.invalidateQueries({ queryKey: ["instagram-public-dashboard"] });
+    queryClient.invalidateQueries({ queryKey: ["public-instagram-storefront"] });
+    if (slug) {
+      queryClient.invalidateQueries({ queryKey: ["public-instagram-storefront", slug] });
+    }
+  };
+
   const storefrontMutation = useMutation({
-    mutationFn: () =>
-      saveStorefront({
+    mutationFn: () => {
+      const title = storeForm.title.trim();
+      if (!title) {
+        throw new Error("Informe o título da vitrine.");
+      }
+      return saveStorefront({
         data: {
           ...storeForm,
+          title,
           subtitle: storeForm.subtitle.trim() || null,
         },
-      }),
-    onSuccess: () => {
+      });
+    },
+    onSuccess: (result) => {
       toast.success("Vitrine do Instagram atualizada.");
-      queryClient.invalidateQueries({ queryKey: ["instagram-public-dashboard"] });
+      invalidateStorefrontViews(result.slug);
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const media = useMemo(
-    () => (searchResult?.items?.length ? searchResult.items : dashboard?.media || []),
-    [dashboard?.media, searchResult],
-  );
+  const deleteStorefrontMutation = useMutation({
+    mutationFn: () => removeStorefront(),
+    onSuccess: (result) => {
+      toast.success("Vitrine excluída. O endereço público deixou de estar disponível.");
+      invalidateStorefrontViews(result.previousSlug);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const searchItems = searchResult && !searchResult.notFound ? searchResult.items : [];
 
   if (dashboardQuery.isLoading) {
     return (
@@ -477,54 +565,83 @@ function InstagramPublicContentPage() {
             </Button>
           </form>
 
+          {searchMutation.isError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Falha na pesquisa</AlertTitle>
+              <AlertDescription>
+                {searchMutation.error instanceof Error
+                  ? searchMutation.error.message
+                  : "Não foi possível consultar a Graph API agora."}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {connection?.appReviewStatus === "required" && (
+            <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+              A pesquisa de hashtags fica disponível após a Meta aprovar o Instagram Public Content Access.
+            </div>
+          )}
+
           {searchResult?.notFound && (
             <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
               A Meta não encontrou a hashtag #{searchResult.hashtag}.
             </div>
           )}
 
-          {searchResult && !searchResult.notFound && searchResult.items.length === 0 && (
+          {searchResult && !searchResult.notFound && searchItems.length === 0 && !searchMutation.isPending && (
             <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
               Nenhuma publicação pública foi disponibilizada pela Meta para #{searchResult.hashtag}
-              {source === "recent" ? " nas últimas 24 horas." : "."}
+              {searchResult.source === "recent" ? " nas últimas 24 horas." : "."}
             </div>
           )}
 
-          {media.length > 0 && (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {media.map((item: MediaItem) => {
-                const preview = item.thumbnail_url || item.media_url;
-                return (
-                  <article key={item.id} className="overflow-hidden rounded-xl border bg-card">
-                    <div className="aspect-square bg-muted">
-                      {preview ? (
-                        <img
-                          src={preview}
-                          alt={item.caption || `Publicação de @${item.username || "Instagram"}`}
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center">
-                          <ImageIcon className="h-8 w-8 text-muted-foreground" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="space-y-3 p-4">
+          {searchMutation.isPending && searchItems.length === 0 && (
+            <div className="grid grid-cols-1 justify-items-center gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="w-full max-w-[22rem] animate-pulse overflow-hidden rounded-xl border bg-card"
+                >
+                  <div className="aspect-square bg-muted" />
+                  <div className="space-y-2 p-4">
+                    <div className="h-4 w-24 rounded bg-muted" />
+                    <div className="h-10 rounded bg-muted" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {searchItems.length > 0 && (
+            <div className="grid grid-cols-1 justify-items-center gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {searchItems.map((item: MediaItem) => (
+                  <article
+                    key={item.id}
+                    className="flex w-full max-w-[22rem] flex-col overflow-hidden rounded-xl border bg-card shadow-sm"
+                  >
+                    <InstagramPublicMediaPreview
+                      item={item}
+                      alt={item.caption ? `Publicação do Instagram` : "Publicação do Instagram"}
+                    />
+                    <div className="flex flex-1 flex-col gap-3 p-4">
                       <div className="flex items-center justify-between gap-2">
-                        <Badge variant="secondary">{item.media_type}</Badge>
-                        <a
-                          href={item.permalink}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground"
-                        >
-                          Ver original <ExternalLink className="ml-1 h-3 w-3" />
-                        </a>
+                        <Badge variant="secondary">{mediaTypeLabel(item.media_type)}</Badge>
+                        {item.username ? (
+                          <span className="truncate text-xs text-muted-foreground">@{item.username}</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Autoria não informada pela Meta</span>
+                        )}
                       </div>
-                      {item.caption && (
-                        <p className="line-clamp-2 text-sm text-muted-foreground">{item.caption}</p>
-                      )}
+                      {item.caption ? <SearchCaption caption={item.caption} /> : null}
+                      <a
+                        href={item.permalink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center text-xs font-medium text-muted-foreground hover:text-foreground"
+                      >
+                        Ver publicação original <ExternalLink className="ml-1 h-3 w-3" />
+                      </a>
                       {!item.selected && (
                         <label className="flex items-start gap-2 text-xs text-muted-foreground">
                           <Checkbox
@@ -542,7 +659,7 @@ function InstagramPublicContentPage() {
                       )}
                       <Button
                         variant={item.selected ? "outline" : "default"}
-                        className="w-full"
+                        className="mt-auto w-full"
                         disabled={
                           selectionMutation.isPending ||
                           (!item.selected && !rightsConfirmed[item.id])
@@ -571,8 +688,7 @@ function InstagramPublicContentPage() {
                       </Button>
                     </div>
                   </article>
-                );
-              })}
+              ))}
             </div>
           )}
 
@@ -580,7 +696,7 @@ function InstagramPublicContentPage() {
             <div className="flex justify-center">
               <Button
                 variant="outline"
-                onClick={() => searchMutation.mutate(searchResult.paging.after || undefined)}
+                onClick={() => searchMutation.mutate(searchResult.paging?.after || undefined)}
                 disabled={searchMutation.isPending}
               >
                 <RefreshCw className="mr-2 h-4 w-4" />
@@ -598,116 +714,254 @@ function InstagramPublicContentPage() {
             Vitrine pública
           </CardTitle>
           <CardDescription>
-            A publicação só é exibida depois da confirmação dos direitos de uso.
+            Uma vitrine por loja. Salvar atualiza a configuração persistida; excluir despublica o endereço.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="flex flex-col items-start gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <Label htmlFor="storefront-enabled" className="font-medium">
-                Exibir galeria na vitrine
-              </Label>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Controle independente para esta loja.
+          {!storefront ? (
+            <div className="rounded-xl border border-dashed p-8 text-center">
+              <p className="text-sm text-muted-foreground">
+                Nenhuma vitrine ativa. As publicações autorizadas na galeria continuam disponíveis.
               </p>
-            </div>
-            <Switch
-              className="shrink-0"
-              id="storefront-enabled"
-              checked={storeForm.enabled}
-              onCheckedChange={(enabled) => setStoreForm((form) => ({ ...form, enabled }))}
-            />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="storefront-title">Título</Label>
-              <Input
-                id="storefront-title"
-                value={storeForm.title}
-                onChange={(event) =>
-                  setStoreForm((form) => ({ ...form, title: event.target.value }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Layout</Label>
-              <Select
-                value={storeForm.layout}
-                onValueChange={(layout: "grid" | "masonry") =>
-                  setStoreForm((form) => ({ ...form, layout }))
-                }
+              <Button
+                className="mt-4"
+                onClick={() => storefrontMutation.mutate()}
+                disabled={storefrontMutation.isPending}
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="grid">Grade</SelectItem>
-                  <SelectItem value="masonry">Mosaico</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="storefront-subtitle">Descrição</Label>
-              <Textarea
-                id="storefront-subtitle"
-                value={storeForm.subtitle}
-                onChange={(event) =>
-                  setStoreForm((form) => ({ ...form, subtitle: event.target.value }))
-                }
-                maxLength={320}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Colunas</Label>
-              <Select
-                value={String(storeForm.columnsCount)}
-                onValueChange={(value) =>
-                  setStoreForm((form) => ({ ...form, columnsCount: Number(value) }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="2">2 colunas</SelectItem>
-                  <SelectItem value="3">3 colunas</SelectItem>
-                  <SelectItem value="4">4 colunas</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Máximo de itens</Label>
-              <Input
-                type="number"
-                min={1}
-                max={30}
-                value={storeForm.maxItems}
-                onChange={(event) =>
-                  setStoreForm((form) => ({
-                    ...form,
-                    maxItems: Math.max(1, Math.min(30, Number(event.target.value) || 1)),
-                  }))
-                }
-              />
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {storefront?.slug && (
-              <Button variant="ghost" asChild>
-                <a href={`/vitrine/${storefront.slug}`} target="_blank" rel="noreferrer">
-                  Visualizar vitrine <ExternalLink className="ml-2 h-4 w-4" />
-                </a>
+                {storefrontMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Criar nova vitrine
               </Button>
-            )}
-            <Button
-              onClick={() => storefrontMutation.mutate()}
-              disabled={storefrontMutation.isPending}
-              className="w-full sm:ml-auto sm:w-auto"
-            >
-              {storefrontMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Salvar vitrine
-            </Button>
-          </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={storeForm.enabled ? "default" : "secondary"}>
+                      {storeForm.enabled ? "Publicada" : "Desativada"}
+                    </Badge>
+                    <span className="truncate text-xs text-muted-foreground">
+                      /vitrine/{storefront.slug}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Endereço público desta loja. Após excluir, este caminho deixa de responder.
+                  </p>
+                </div>
+                <Button variant="outline" asChild>
+                  <a href={`/vitrine/${storefront.slug}`} target="_blank" rel="noreferrer">
+                    Visualizar vitrine <ExternalLink className="ml-2 h-4 w-4" />
+                  </a>
+                </Button>
+              </div>
+
+              <div className="flex flex-col items-start gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <Label htmlFor="storefront-enabled" className="font-medium">
+                    Exibir galeria na vitrine
+                  </Label>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Controle independente para esta loja.
+                  </p>
+                </div>
+                <Switch
+                  className="shrink-0"
+                  id="storefront-enabled"
+                  checked={storeForm.enabled}
+                  onCheckedChange={(enabled) => setStoreForm((form) => ({ ...form, enabled }))}
+                />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="storefront-title">Título</Label>
+                  <Input
+                    id="storefront-title"
+                    value={storeForm.title}
+                    maxLength={160}
+                    onChange={(event) =>
+                      setStoreForm((form) => ({ ...form, title: event.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Layout</Label>
+                  <Select
+                    value={storeForm.layout}
+                    onValueChange={(layout: "grid" | "masonry") =>
+                      setStoreForm((form) => ({ ...form, layout }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="grid">Grade</SelectItem>
+                      <SelectItem value="masonry">Mosaico</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="storefront-subtitle">Descrição</Label>
+                  <Textarea
+                    id="storefront-subtitle"
+                    value={storeForm.subtitle}
+                    onChange={(event) =>
+                      setStoreForm((form) => ({ ...form, subtitle: event.target.value }))
+                    }
+                    maxLength={320}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Colunas</Label>
+                  <Select
+                    value={String(storeForm.columnsCount)}
+                    onValueChange={(value) =>
+                      setStoreForm((form) => ({ ...form, columnsCount: Number(value) }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="2">2 colunas</SelectItem>
+                      <SelectItem value="3">3 colunas</SelectItem>
+                      <SelectItem value="4">4 colunas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Máximo de publicações</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={storeForm.maxItems}
+                    onChange={(event) =>
+                      setStoreForm((form) => ({
+                        ...form,
+                        maxItems: Math.max(1, Math.min(30, Number(event.target.value) || 1)),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Tema</Label>
+                  <Select
+                    value={storeForm.theme}
+                    onValueChange={(theme: "auto" | "light" | "dark") =>
+                      setStoreForm((form) => ({ ...form, theme }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">Automático</SelectItem>
+                      <SelectItem value="light">Claro</SelectItem>
+                      <SelectItem value="dark">Escuro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col justify-end gap-3 rounded-lg border p-3">
+                  <label className="flex items-center justify-between gap-3 text-sm">
+                    Exibir legendas
+                    <Switch
+                      checked={storeForm.showCaptions}
+                      onCheckedChange={(showCaptions) =>
+                        setStoreForm((form) => ({ ...form, showCaptions }))
+                      }
+                    />
+                  </label>
+                  <label className="flex items-center justify-between gap-3 text-sm">
+                    Exibir hashtags
+                    <Switch
+                      checked={storeForm.showHashtags}
+                      onCheckedChange={(showHashtags) =>
+                        setStoreForm((form) => ({ ...form, showHashtags }))
+                      }
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div
+                className={`rounded-xl border p-4 ${
+                  storeForm.theme === "dark" ? "bg-zinc-950 text-zinc-50" : "bg-muted/30"
+                }`}
+              >
+                <p className="mb-3 text-xs font-medium text-muted-foreground">Pré-visualização</p>
+                <h3 className="text-lg font-semibold tracking-tight">{storeForm.title || "Instagram"}</h3>
+                {storeForm.subtitle ? (
+                  <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{storeForm.subtitle}</p>
+                ) : null}
+                <div
+                  className={`mt-4 ${storefrontGalleryClass(storeForm.layout, storeForm.columnsCount)}`}
+                >
+                  {(dashboard?.media || [])
+                    .filter((item) => item.selected)
+                    .slice(0, storeForm.maxItems)
+                    .map((item) => (
+                      <article
+                        key={item.id}
+                        className={`overflow-hidden rounded-xl border bg-card ${
+                          storeForm.layout === "masonry" ? "mb-4 break-inside-avoid" : ""
+                        }`}
+                      >
+                        <InstagramPublicMediaPreview item={item} alt="Publicação do Instagram" />
+                        {(storeForm.showCaptions || storeForm.showHashtags) && (
+                          <div className="space-y-1 p-3">
+                            {storeForm.showHashtags && item.hashtag ? (
+                              <p className="text-[11px] text-muted-foreground">#{item.hashtag}</p>
+                            ) : null}
+                            {storeForm.showCaptions && item.caption ? (
+                              <p className="line-clamp-2 text-xs">{item.caption}</p>
+                            ) : null}
+                          </div>
+                        )}
+                      </article>
+                    ))}
+                </div>
+                {(dashboard?.media || []).filter((item) => item.selected).length === 0 ? (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Nenhuma publicação autorizada na galeria ainda.
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={deleteStorefrontMutation.isPending || storefrontMutation.isPending}
+                  onClick={async () => {
+                    const confirmed = await confirm({
+                      title: "Excluir vitrine?",
+                      description:
+                        "A vitrine deixará de estar disponível publicamente. A conexão com o Instagram Direct, as publicações originais e os dados do CRM são preservados.",
+                      confirmText: "Excluir vitrine",
+                      destructive: true,
+                    });
+                    if (confirmed) deleteStorefrontMutation.mutate();
+                  }}
+                >
+                  {deleteStorefrontMutation.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="mr-2 h-4 w-4" />
+                  )}
+                  Excluir vitrine
+                </Button>
+                <Button
+                  onClick={() => storefrontMutation.mutate()}
+                  disabled={storefrontMutation.isPending || !storeForm.title.trim()}
+                  className="sm:min-w-44"
+                >
+                  {storefrontMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Salvar vitrine
+                </Button>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

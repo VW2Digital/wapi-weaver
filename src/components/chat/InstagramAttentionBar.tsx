@@ -25,6 +25,19 @@ const WINDOW_LABEL: Record<InstagramWindowState, string> = {
   closed: "Janela de atendimento encerrada",
 };
 
+const BADGE_GREEN =
+  "rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-700 dark:text-emerald-400";
+const BADGE_AMBER =
+  "rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-medium text-amber-700 dark:text-amber-400";
+const BADGE_MUTED =
+  "rounded-md border border-border bg-background px-2 py-0.5 font-medium text-muted-foreground";
+
+function windowBadgeClass(state: InstagramWindowState) {
+  if (state === "standard") return BADGE_GREEN;
+  if (state === "human_agent") return BADGE_AMBER;
+  return BADGE_MUTED;
+}
+
 function attentionStorageKey(storageId: string) {
   return `bliv:ig-attention-collapsed:${storageId}`;
 }
@@ -81,10 +94,8 @@ export function InstagramAttentionBar({
     <div className={`border-b border-border/60 bg-muted/30 px-3 text-xs text-foreground ${collapsed ? "py-1.5" : "space-y-2 py-2"}`}>
       <div className="flex items-start gap-2">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <span className="rounded-md border border-border bg-background px-2 py-0.5 font-medium">{modeLabel}</span>
-          <span className="rounded-md border border-border bg-background px-2 py-0.5 font-medium">
-            {WINDOW_LABEL[shown]}
-          </span>
+          <span className={state.mode === "human" ? BADGE_GREEN : BADGE_AMBER}>{modeLabel}</span>
+          <span className={windowBadgeClass(shown)}>{WINDOW_LABEL[shown]}</span>
           {state.mode === "human" && state.attendantName ? (
             <span className="truncate">Atendente: {state.attendantName}</span>
           ) : null}
@@ -128,11 +139,23 @@ export function InstagramAttentionBar({
       ) : null}
       <div className="flex flex-wrap gap-2">
         {state.mode !== "human" ? (
-          <Button type="button" size="sm" variant="outline" disabled={busy} onClick={onAssume}>
+          <Button
+            type="button"
+            size="sm"
+            disabled={busy}
+            onClick={onAssume}
+            className="border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white"
+          >
             Assumir atendimento
           </Button>
         ) : (
-          <Button type="button" size="sm" variant="outline" disabled={busy || state.window.state !== "standard"} onClick={onResume}>
+          <Button
+            type="button"
+            size="sm"
+            disabled={busy || state.window.state !== "standard"}
+            onClick={onResume}
+            className="border-amber-500 bg-amber-500 text-amber-950 hover:bg-amber-400 hover:text-amber-950 disabled:opacity-60"
+          >
             Devolver para automação
           </Button>
         )}
