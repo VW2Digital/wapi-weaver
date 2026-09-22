@@ -9,6 +9,8 @@ const HASHTAG_LIMIT = 30;
 const HASHTAG_WINDOW_DAYS = 7;
 const REQUIRED_SCOPES = ["instagram_basic", "pages_show_list"] as const;
 export const INSTAGRAM_PUBLIC_REQUIRED_SCOPES = REQUIRED_SCOPES;
+export const INSTAGRAM_HASHTAG_MEDIA_FIELDS =
+  "id,caption,media_type,media_url,permalink,timestamp,children{media_type,media_url,thumbnail_url}";
 
 type PublicConnectionRow = {
   id: string;
@@ -997,8 +999,7 @@ export const searchInstagramPublicHashtag = createServerFn({ method: "POST" })
           graphVersion: app.graphVersion,
           params: {
             user_id: connection.ig_user_id,
-            fields:
-              "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,username,children{media_type,media_url,thumbnail_url}",
+            fields: INSTAGRAM_HASHTAG_MEDIA_FIELDS,
             limit: 25,
             after: data.after,
           },

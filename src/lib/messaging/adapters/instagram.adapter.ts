@@ -143,7 +143,6 @@ export class InstagramAdapter extends BaseMessagingAdapter {
           continue;
         }
 
-        const phonePlaceholder = `ig_${senderId}`;
         const contactName = item.sender?.name || `Instagram (${senderId})`;
 
         if (item.message) {
@@ -154,20 +153,28 @@ export class InstagramAdapter extends BaseMessagingAdapter {
             continue;
           }
           const { type, body, attachments } = resolveInstagramMessageType(message);
+          const isEcho = Boolean(message.is_echo);
+          const contactExternalId = isEcho ? recipientId : senderId;
+          const channelExternalId = isEcho ? senderId : recipientId;
+          const messageContactName =
+            (!isEcho ? item.sender?.name : null) || `Instagram (${contactExternalId})`;
 
           const canonicalMessage: CanonicalMessage = {
             providerMessageId: mid,
-            direction: message.is_echo ? "outgoing" : "incoming",
+            direction: isEcho ? "outgoing" : "incoming",
             type,
             body,
             attachments,
             providerTimestamp: item.timestamp ?? null,
-            sender: buildIdentity(senderId, { name: contactName, metadata: { recipientId } }),
-            recipient: buildIdentity(recipientId),
+            sender: buildIdentity(contactExternalId, {
+              name: messageContactName,
+              metadata: { recipientId: channelExternalId },
+            }),
+            recipient: buildIdentity(channelExternalId),
             raw: item,
           };
 
-          const eventType = message.is_echo ? "message.echo" : "message.received";
+          const eventType = isEcho ? "message.echo" : "message.received";
           events.push(
             buildEventBase(
               this.provider,

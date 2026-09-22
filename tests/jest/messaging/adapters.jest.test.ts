@@ -174,6 +174,38 @@ describe("Messaging Adapters", () => {
       expect(events[0].externalEventId).toBe("mid.123");
       expect(events[0].channelResourceId).toBe("PAGE_ID");
     });
+
+    it("attributes an echo to the recipient contact instead of the business account", () => {
+      const payload = {
+        object: "instagram",
+        entry: [
+          {
+            id: "BUSINESS_IG_ID",
+            messaging: [
+              {
+                sender: { id: "BUSINESS_IG_ID" },
+                recipient: { id: "CONTACT_IG_ID" },
+                timestamp: 1699999999,
+                message: { mid: "mid.echo", text: "Resposta", is_echo: true },
+              },
+            ],
+          },
+        ],
+      };
+
+      const { events } = instagramAdapter.normalize(payload);
+      const message = events[0].payload as {
+        direction: string;
+        sender: { externalId: string; metadata?: { recipientId?: string } };
+        recipient: { externalId: string };
+      };
+
+      expect(events[0].eventType).toBe("message.echo");
+      expect(message.direction).toBe("outgoing");
+      expect(message.sender.externalId).toBe("CONTACT_IG_ID");
+      expect(message.sender.metadata?.recipientId).toBe("BUSINESS_IG_ID");
+      expect(message.recipient.externalId).toBe("BUSINESS_IG_ID");
+    });
   });
 
   describe("messengerAdapter", () => {

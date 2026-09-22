@@ -117,6 +117,32 @@ function getStringValue(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+export function resolveStoredMediaAttachment(
+  metadata: unknown,
+  messageType: string,
+): JsonRecord | null {
+  const meta = asJsonRecord(metadata);
+  if (!meta) return null;
+
+  const directMedia = asJsonRecord(meta[messageType]);
+  if (directMedia) return directMedia;
+
+  const primaryAttachment = asJsonRecord(meta.primaryAttachment);
+  const attachments = asJsonRecordArray(meta.attachments);
+  const canonicalAttachment = [primaryAttachment, ...attachments].find(
+    (attachment) => attachment && getStringValue(attachment.type) === messageType,
+  );
+  if (!canonicalAttachment) return null;
+
+  return {
+    id: getStringValue(canonicalAttachment.providerMediaId),
+    link: getStringValue(canonicalAttachment.remoteUrl),
+    caption: getStringValue(canonicalAttachment.caption),
+    mime_type: getStringValue(canonicalAttachment.mimeType),
+    filename: getStringValue(canonicalAttachment.filename),
+  };
+}
+
 function parseJsonField<T extends JsonValue | string>(value: T): JsonValue {
   if (typeof value !== "string") return value;
 
@@ -725,9 +751,18 @@ export const getChatMessages = createServerFn({ method: "POST" })
         rawMessages.find((m) => getStringValue(m.id) === row.wa_message_id) ||
         rawMessages[0] ||
         null;
-      const imageData = asJsonRecord(meta?.image) || asJsonRecord(rawMessage?.image) || null;
-      const audioData = asJsonRecord(meta?.audio) || asJsonRecord(rawMessage?.audio) || null;
-      const videoData = asJsonRecord(meta?.video) || asJsonRecord(rawMessage?.video) || null;
+      const imageData =
+        asJsonRecord(meta?.image) ||
+        asJsonRecord(rawMessage?.image) ||
+        resolveStoredMediaAttachment(meta, "image");
+      const audioData =
+        asJsonRecord(meta?.audio) ||
+        asJsonRecord(rawMessage?.audio) ||
+        resolveStoredMediaAttachment(meta, "audio");
+      const videoData =
+        asJsonRecord(meta?.video) ||
+        asJsonRecord(rawMessage?.video) ||
+        resolveStoredMediaAttachment(meta, "video");
       const documentData =
         asJsonRecord(meta?.document) || asJsonRecord(rawMessage?.document) || null;
       const stickerData = asJsonRecord(meta?.sticker) || asJsonRecord(rawMessage?.sticker) || null;

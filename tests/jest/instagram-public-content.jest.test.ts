@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, jest } from "@jest/globals";
 import {
+  INSTAGRAM_HASHTAG_MEDIA_FIELDS,
   INSTAGRAM_PUBLIC_REQUIRED_SCOPES,
   canSearchUniqueHashtag,
   classifyPublicContentApproval,
@@ -14,6 +15,13 @@ describe("Instagram Public Content contracts", () => {
 
   it("requests only the scopes required for hashtag search", () => {
     expect(INSTAGRAM_PUBLIC_REQUIRED_SCOPES).toEqual(["instagram_basic", "pages_show_list"]);
+  });
+
+  it("requests only fields supported by Meta hashtag media edges", () => {
+    expect(INSTAGRAM_HASHTAG_MEDIA_FIELDS).toBe(
+      "id,caption,media_type,media_url,permalink,timestamp,children{media_type,media_url,thumbnail_url}",
+    );
+    expect(INSTAGRAM_HASHTAG_MEDIA_FIELDS).not.toContain("username");
   });
 
   it.each([

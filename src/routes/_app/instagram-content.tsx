@@ -479,7 +479,14 @@ function InstagramPublicContentPage() {
 
           {searchResult?.notFound && (
             <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-              Nenhuma publicação foi disponibilizada pela Meta para #{searchResult.hashtag}.
+              A Meta não encontrou a hashtag #{searchResult.hashtag}.
+            </div>
+          )}
+
+          {searchResult && !searchResult.notFound && searchResult.items.length === 0 && (
+            <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+              Nenhuma publicação pública foi disponibilizada pela Meta para #{searchResult.hashtag}
+              {source === "recent" ? " nas últimas 24 horas." : "."}
             </div>
           )}
 
