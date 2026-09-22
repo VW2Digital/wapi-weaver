@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
@@ -38,6 +38,7 @@ import {
   connectInstagramPublicContent,
   disconnectInstagramPublicContent,
   getInstagramPublicDashboard,
+  reuseInstagramDirectConnection,
   searchInstagramPublicHashtag,
   setInstagramPublicMediaSelection,
   updateInstagramStorefront,
@@ -68,6 +69,7 @@ function InstagramPublicContentPage() {
   const listMetaApps = useServerFn(listMetaAppConnectionsForEmbeddedSignup);
   const connect = useServerFn(connectInstagramPublicContent);
   const disconnect = useServerFn(disconnectInstagramPublicContent);
+  const reuseConnection = useServerFn(reuseInstagramDirectConnection);
   const searchHashtag = useServerFn(searchInstagramPublicHashtag);
   const setSelection = useServerFn(setInstagramPublicMediaSelection);
   const saveStorefront = useServerFn(updateInstagramStorefront);
@@ -82,6 +84,7 @@ function InstagramPublicContentPage() {
   });
   const dashboard = dashboardQuery.data;
   const connection = dashboard?.connection;
+  const reusableConnection = dashboard?.reusableConnection;
   const storefront = dashboard?.storefront;
 
   const [hashtag, setHashtag] = useState("");
@@ -187,6 +190,22 @@ function InstagramPublicContentPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const reuseMutation = useMutation({
+    mutationFn: () => reuseConnection(),
+    onSuccess: (result) => {
+      if (result.appReviewStatus === "api_available") {
+        toast.success(`Conexão existente de @${result.username || "Instagram"} reutilizada.`);
+      } else {
+        toast.warning(
+          result.message ||
+            "A conexão foi reutilizada, mas o Public Content Access ainda depende da Meta.",
+        );
+      }
+      queryClient.invalidateQueries({ queryKey: ["instagram-public-dashboard"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const searchMutation = useMutation({
     mutationFn: (after?: string) =>
       searchHashtag({
@@ -269,7 +288,7 @@ function InstagramPublicContentPage() {
   }
 
   return (
-    <div className="min-w-0 space-y-4 pb-10 sm:space-y-6">
+    <div className="min-w-0 space-y-4 p-4 pb-10 sm:space-y-6 sm:p-6 sm:pb-10">
       <Card className="min-w-0 overflow-hidden border-border/60 shadow-sm">
         <CardHeader className="gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
@@ -290,6 +309,25 @@ function InstagramPublicContentPage() {
             >
               <LogOut className="mr-2 h-4 w-4" />
               Desconectar
+            </Button>
+          ) : reusableConnection?.hasReusableAuthorization ? (
+            <Button
+              className="w-full sm:w-auto"
+              onClick={() => reuseMutation.mutate()}
+              disabled={reuseMutation.isPending}
+            >
+              {reuseMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Instagram className="mr-2 h-4 w-4" />
+              )}
+              Usar conexão existente
+            </Button>
+          ) : reusableConnection ? (
+            <Button className="w-full sm:w-auto" asChild>
+              <Link to="/settings" search={{ s: "instagram" }}>
+                Atualizar autorização única
+              </Link>
             </Button>
           ) : (
             <Button
@@ -350,10 +388,17 @@ function InstagramPublicContentPage() {
           ) : (
             <div className="rounded-lg border border-dashed p-5 text-center sm:p-8">
               <ShieldCheck className="mx-auto h-8 w-8 text-muted-foreground" />
-              <p className="mt-3 font-medium">Nenhuma conta conectada</p>
+              <p className="mt-3 font-medium">
+                {reusableConnection
+                  ? `Conta @${reusableConnection.username || "Instagram"} já conectada`
+                  : "Nenhuma conta conectada"}
+              </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                É necessária uma Página do Facebook ligada a uma conta Instagram Business ou
-                Creator.
+                {reusableConnection
+                  ? reusableConnection.hasReusableAuthorization
+                    ? "Use a autorização existente para ativar o conteúdo público sem fazer outro Facebook Login."
+                    : "Esta conexão é anterior ao compartilhamento seguro. Atualize a autorização uma única vez em Configurações."
+                  : "É necessária uma Página do Facebook ligada a uma conta Instagram Business ou Creator."}
               </p>
             </div>
           )}

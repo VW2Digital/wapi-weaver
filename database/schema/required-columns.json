@@ -717,6 +717,7 @@
     "ig_user_id",
     "username",
     "access_token",
+    "facebook_user_access_token_encrypted",
     "app_id",
     "app_secret",
     "token_expires_at",

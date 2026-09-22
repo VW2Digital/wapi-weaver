@@ -77,6 +77,16 @@ type MediaRow = {
   hashtag?: string;
 };
 
+export type ReusableInstagramConnectionRow = {
+  instagram_account_id: string;
+  channel_connection_id: string;
+  meta_app_connection_id: string | null;
+  page_id: string;
+  ig_user_id: string;
+  username: string | null;
+  facebook_user_access_token_encrypted: string | null;
+};
+
 type MetaAppConfig = {
   connectionId: string | null;
   appId: string;
@@ -149,6 +159,41 @@ export async function updateInstagramMediaSelectionForTenant(
       options.tenantId,
     ],
   );
+}
+
+export async function findReusableInstagramConnectionForTenant(
+  execute: (
+    sql: string,
+    params: unknown[],
+  ) => Promise<ReusableInstagramConnectionRow[]>,
+  tenantId: string,
+) {
+  const rows = await execute(
+    `SELECT ia.id AS instagram_account_id,
+            cc.id AS channel_connection_id,
+            cc.meta_app_connection_id,
+            ia.page_id,
+            COALESCE(ia.instagram_business_account_id, ia.ig_user_id) AS ig_user_id,
+            COALESCE(ia.instagram_username, ia.username, cc.display_name) AS username,
+            ia.facebook_user_access_token_encrypted
+     FROM instagram_accounts ia
+     JOIN channel_connections cc
+       ON cc.tenant_id = ia.tenant_id
+      AND cc.provider = 'instagram'
+      AND cc.status = 'active'
+      AND (
+        cc.external_account_id = ia.page_id
+        OR cc.external_account_id = ia.instagram_business_account_id
+        OR cc.external_account_id = ia.ig_user_id
+      )
+     WHERE ia.tenant_id = ?
+       AND ia.is_active = 1
+       AND ia.status = 'active'
+     ORDER BY cc.updated_at DESC, ia.updated_at DESC
+     LIMIT 1`,
+    [tenantId],
+  );
+  return rows[0] || null;
 }
 
 function parseJson<T>(value: unknown, fallback: T): T {
@@ -393,6 +438,15 @@ async function getTenantConnection(tenantId: string) {
   return rows[0] || null;
 }
 
+async function getReusableDirectConnection(tenantId: string) {
+  const { default: db } = await import("./db");
+  return findReusableInstagramConnectionForTenant(
+    (sql, params) =>
+      db.query(sql, params) as Promise<ReusableInstagramConnectionRow[]>,
+    tenantId,
+  );
+}
+
 async function requireUsableConnection(tenantId: string) {
   const connection = await getTenantConnection(tenantId);
   if (!connection || connection.status === "disconnected") {
@@ -412,6 +466,24 @@ async function requireUsableConnection(tenantId: string) {
     throw new Error("A autenticação expirou. Conecte novamente a conta Instagram.");
   }
   const { decryptMetaCredential } = await import("./encryption");
+  if (connection.instagram_account_id) {
+    const { default: db } = await import("./db");
+    const accountRows = (await db.query(
+      `SELECT facebook_user_access_token_encrypted
+       FROM instagram_accounts
+       WHERE id = ? AND tenant_id = ?
+       LIMIT 1`,
+      [connection.instagram_account_id, tenantId],
+    )) as Array<{ facebook_user_access_token_encrypted: string | null }>;
+    if (accountRows[0]?.facebook_user_access_token_encrypted) {
+      return {
+        connection,
+        accessToken: decryptMetaCredential(
+          accountRows[0].facebook_user_access_token_encrypted,
+        ),
+      };
+    }
+  }
   return {
     connection,
     accessToken: decryptMetaCredential(connection.user_access_token_encrypted),
@@ -616,6 +688,128 @@ export const connectInstagramPublicContent = createServerFn({ method: "POST" })
     };
   });
 
+export const reuseInstagramDirectConnection = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const { default: db } = await import("./db");
+    const { decryptMetaCredential, encryptMetaCredential } = await import("./encryption");
+    const reusable = await getReusableDirectConnection(context.tenantId);
+    if (!reusable) {
+      throw new Error("Nenhuma conexão ativa do Instagram foi encontrada para esta empresa.");
+    }
+    if (!reusable.facebook_user_access_token_encrypted) {
+      throw new Error(
+        "Esta conexão foi criada antes do compartilhamento seguro de autorização. Reconecte o Instagram uma única vez em Configurações.",
+      );
+    }
+
+    const accessToken = decryptMetaCredential(
+      reusable.facebook_user_access_token_encrypted,
+    );
+    const app = await resolveMetaAppConfig(reusable.meta_app_connection_id || undefined);
+    const permissions = await instagramPublicGraphRequest<{
+      data?: Array<{ permission?: string; status?: string }>;
+    }>({
+      path: "me/permissions",
+      accessToken,
+      graphVersion: app.graphVersion,
+      attempts: 1,
+    });
+    const granted = (permissions.data || [])
+      .filter((permission) => permission.status === "granted" && permission.permission)
+      .map((permission) => String(permission.permission));
+    const missing = REQUIRED_SCOPES.filter((scope) => !granted.includes(scope));
+    if (missing.length) {
+      throw new Error(
+        `A conexão existente não possui as permissões necessárias: ${missing.join(", ")}. Reconecte o Instagram uma única vez em Configurações.`,
+      );
+    }
+
+    const conflict = (await db.query(
+      `SELECT tenant_id
+       FROM instagram_public_connections
+       WHERE ig_user_id = ? AND tenant_id != ?
+       LIMIT 1`,
+      [reusable.ig_user_id, context.tenantId],
+    )) as Array<{ tenant_id: string }>;
+    if (conflict[0]) {
+      throw new Error("Esta conta Instagram já está vinculada a outra loja.");
+    }
+
+    let appReviewStatus: "api_available" | "required" | "error" = "api_available";
+    let status: "connected" | "permission_pending" | "error" = "connected";
+    let lastError: string | null = null;
+    try {
+      await instagramPublicGraphRequest({
+        path: `${encodeURIComponent(reusable.ig_user_id)}/recently_searched_hashtags`,
+        accessToken,
+        graphVersion: app.graphVersion,
+        params: { fields: "id,name", limit: 1 },
+        attempts: 1,
+      });
+    } catch (error) {
+      const metaError = error as InstagramPublicContentError;
+      appReviewStatus = classifyPublicContentApproval(metaError.metaCode);
+      status = appReviewStatus === "required" ? "permission_pending" : "error";
+      lastError =
+        appReviewStatus === "required"
+          ? "Instagram Public Content Access ainda não foi aprovado pela Meta para este aplicativo."
+          : metaError.message;
+    }
+
+    const existing = await getTenantConnection(context.tenantId);
+    const id = existing?.id || crypto.randomUUID();
+    await db.query(
+      `INSERT INTO instagram_public_connections (
+         id, tenant_id, instagram_account_id, meta_app_connection_id,
+         page_id, ig_user_id, username, user_access_token_encrypted,
+         granted_scopes, status, app_review_status, token_expires_at,
+         last_validated_at, last_error, disconnected_at, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NOW(), ?, NULL, NOW(), NOW())
+       ON DUPLICATE KEY UPDATE
+         instagram_account_id = VALUES(instagram_account_id),
+         meta_app_connection_id = VALUES(meta_app_connection_id),
+         page_id = VALUES(page_id),
+         ig_user_id = VALUES(ig_user_id),
+         username = VALUES(username),
+         user_access_token_encrypted = VALUES(user_access_token_encrypted),
+         granted_scopes = VALUES(granted_scopes),
+         status = VALUES(status),
+         app_review_status = VALUES(app_review_status),
+         token_expires_at = NULL,
+         last_validated_at = NOW(),
+         last_error = VALUES(last_error),
+         disconnected_at = NULL,
+         updated_at = NOW()`,
+      [
+        id,
+        context.tenantId,
+        reusable.instagram_account_id,
+        app.connectionId,
+        reusable.page_id,
+        reusable.ig_user_id,
+        reusable.username,
+        encryptMetaCredential(accessToken),
+        JSON.stringify(granted),
+        status,
+        appReviewStatus,
+        lastError,
+      ],
+    );
+    const storefront = await ensureStorefrontSettings(context.tenantId);
+    return {
+      ok: status === "connected",
+      status,
+      appReviewStatus,
+      username: reusable.username,
+      grantedScopes: granted,
+      missingScopes: missing,
+      storefrontSlug: storefront?.slug,
+      message: lastError,
+      reusedConnection: true,
+    };
+  });
+
 export const disconnectInstagramPublicContent = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
@@ -639,6 +833,9 @@ export const getInstagramPublicDashboard = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { default: db } = await import("./db");
     const connection = await getTenantConnection(context.tenantId);
+    const reusableConnection = connection
+      ? null
+      : await getReusableDirectConnection(context.tenantId);
     const storefront = await ensureStorefrontSettings(context.tenantId);
     const hashtagRows = (await db.query(
       `SELECT id, hashtag_id, hashtag, first_searched_at, last_searched_at, window_expires_at
@@ -681,6 +878,14 @@ export const getInstagramPublicDashboard = createServerFn({ method: "GET" })
             tokenExpiresAt: connection.token_expires_at,
             lastValidatedAt: connection.last_validated_at,
             lastError: connection.last_error,
+          }
+        : null,
+      reusableConnection: reusableConnection
+        ? {
+            username: reusableConnection.username,
+            hasReusableAuthorization: Boolean(
+              reusableConnection.facebook_user_access_token_encrypted,
+            ),
           }
         : null,
       hashtagUsage: {

@@ -1126,6 +1126,7 @@ CREATE TABLE IF NOT EXISTS `instagram_accounts` (
   `ig_user_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `username` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `access_token` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `facebook_user_access_token_encrypted` text COLLATE utf8mb4_unicode_ci,
   `app_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `app_secret` text COLLATE utf8mb4_unicode_ci,
   `token_expires_at` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,

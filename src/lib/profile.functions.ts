@@ -2524,6 +2524,19 @@ export const onboardInstagramFacebookLogin = createServerFn({ method: "POST" })
         throw new Error(getMetaErrorMessage(tokenBody, "Falha ao trocar o code por access token."));
       }
       userToken = String(tokenBody.access_token);
+
+      const longLivedUrl = new URL(
+        `https://graph.facebook.com/${graphVersion}/oauth/access_token`,
+      );
+      longLivedUrl.searchParams.set("grant_type", "fb_exchange_token");
+      longLivedUrl.searchParams.set("client_id", conn.app_id);
+      longLivedUrl.searchParams.set("client_secret", appSecret);
+      longLivedUrl.searchParams.set("fb_exchange_token", userToken);
+      const longLivedRes = await fetch(longLivedUrl.toString());
+      const longLivedBody = await longLivedRes.json();
+      if (longLivedRes.ok && longLivedBody?.access_token) {
+        userToken = String(longLivedBody.access_token);
+      }
     }
 
     const pagesRes = await fetch(
@@ -2597,12 +2610,16 @@ export const onboardInstagramFacebookLogin = createServerFn({ method: "POST" })
       }
 
       const id = crypto.randomUUID();
+      const { encryptMetaCredential } = await import("./encryption");
+      const encryptedUserToken = encryptMetaCredential(userToken);
       await db.query(
         `INSERT INTO instagram_accounts (
           id, tenant_id, user_id, page_id, instagram_business_account_id, ig_user_id,
-          page_name, instagram_username, username, access_token, token_expires_at, is_active, status, webhook_subscribed
+          page_name, instagram_username, username, access_token,
+          facebook_user_access_token_encrypted, token_expires_at,
+          is_active, status, webhook_subscribed
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 1, 'active', 0)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 1, 'active', 0)
         ON DUPLICATE KEY UPDATE
           tenant_id = VALUES(tenant_id),
           page_id = VALUES(page_id),
@@ -2612,6 +2629,7 @@ export const onboardInstagramFacebookLogin = createServerFn({ method: "POST" })
           instagram_username = VALUES(instagram_username),
           username = VALUES(username),
           access_token = VALUES(access_token),
+          facebook_user_access_token_encrypted = VALUES(facebook_user_access_token_encrypted),
           is_active = 1,
           status = 'active'`,
         [
@@ -2625,10 +2643,10 @@ export const onboardInstagramFacebookLogin = createServerFn({ method: "POST" })
           username,
           username,
           pageToken,
+          encryptedUserToken,
         ],
       );
 
-      const { encryptMetaCredential } = await import("./encryption");
       const activeChannels = (await db.query(
         `SELECT id, external_account_id
          FROM channel_connections
