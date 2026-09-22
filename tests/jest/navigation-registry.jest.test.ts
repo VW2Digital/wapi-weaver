@@ -8,6 +8,7 @@ import {
   NAVIGATION_REGISTRY,
   normalizeNavigationOrder,
   resolveNavigationRoute,
+  isNavigationPathActive,
 } from "../../src/lib/navigation-registry";
 
 describe("global navigation registry", () => {
@@ -81,5 +82,16 @@ describe("global navigation registry", () => {
 
   it("rejects unknown routes instead of redirecting to settings", () => {
     expect(resolveNavigationRoute("/unknown-sidebar-route")).toBeNull();
+  });
+
+  it("keeps trailing-slash index routes selected", () => {
+    expect(isNavigationPathActive("/contacts", "/contacts/")).toBe(true);
+    expect(isNavigationPathActive("/contacts/", "/contacts/")).toBe(true);
+    expect(isNavigationPathActive("/campaigns", "/campaigns/")).toBe(true);
+    expect(isNavigationPathActive("/licenses", "/licenses/")).toBe(true);
+    expect(isNavigationPathActive("/contacts/abc", "/contacts/")).toBe(true);
+    expect(isNavigationPathActive("/licenses/abc", "/licenses/")).toBe(true);
+    expect(isNavigationPathActive("/dashboard", "/contacts/")).toBe(false);
+    expect(isNavigationPathActive("/lists", "/contacts/")).toBe(false);
   });
 });

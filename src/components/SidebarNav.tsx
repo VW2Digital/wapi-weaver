@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronRight, PanelLeftClose, PanelLeftOpen, PanelRightOpen, Lock } from "lucide-react";
+import { isNavigationPathActive } from "@/lib/navigation-registry";
 
 export type SidebarNavItem = {
   id: string;
@@ -46,7 +47,7 @@ export function SidebarNav({ appName, logo, groups, activePath, onNavigate, foot
     const updates: Record<string, boolean> = {};
     for (const group of groups) {
       for (const item of group) {
-        if (item.children?.some((child) => activePath === child.id || activePath.startsWith(child.id + "/"))) {
+        if (item.children?.some((child) => isNavigationPathActive(activePath, child.id))) {
           updates[item.id] = true;
         }
       }
@@ -110,7 +111,9 @@ export function SidebarNav({ appName, logo, groups, activePath, onNavigate, foot
 
                   if (hasChildren) {
                     const children = item.children!;
-                    const isAnyChildActive = children.some((child) => activePath === child.id || activePath.startsWith(child.id + "/"));
+                    const isAnyChildActive = children.some((child) =>
+                      isNavigationPathActive(activePath, child.id),
+                    );
                     const isOpen = openMenus[item.id] ?? isAnyChildActive;
 
                     return (
@@ -139,7 +142,7 @@ export function SidebarNav({ appName, logo, groups, activePath, onNavigate, foot
                           <CollapsibleContent>
                             <SidebarMenuSub className="border-sidebar-border ml-[22px] mt-2 pl-3 group-data-[collapsible=icon]:hidden">
                               {children.map((child) => {
-                                const childActive = activePath === child.id || activePath.startsWith(child.id + "/");
+                                const childActive = isNavigationPathActive(activePath, child.id);
                                 const ChildIcon = child.icon;
                                 return (
                                   <SidebarMenuSubItem key={child.id}>
@@ -164,7 +167,7 @@ export function SidebarNav({ appName, logo, groups, activePath, onNavigate, foot
                     );
                   }
 
-                  const isActive = activePath === item.id || activePath.startsWith(item.id + "/");
+                  const isActive = isNavigationPathActive(activePath, item.id);
 
                   return (
                     <SidebarMenuItem key={item.id}>

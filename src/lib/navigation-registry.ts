@@ -180,6 +180,14 @@ function normalizeRoute(route: string) {
   return route.replace(/\/+$/, "");
 }
 
+export function isNavigationPathActive(pathname: string, itemPath: string) {
+  const current = normalizeRoute((pathname || "/").split(/[?#]/)[0] || "/");
+  const target = normalizeRoute((itemPath || "/").split(/[?#]/)[0] || "/");
+  if (current === target) return true;
+  if (target === "/") return current === "/";
+  return current.startsWith(`${target}/`);
+}
+
 const legacyRouteToId = new Map<string, string>(
   NAVIGATION_REGISTRY.map((item) => [normalizeRoute(item.to), item.id]),
 );
