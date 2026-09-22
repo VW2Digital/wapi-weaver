@@ -2432,6 +2432,19 @@ export const onboardInstagramFacebookLogin = createServerFn({ method: "POST" })
       ? connections.find((c) => c.id === data.meta_app_connection_id)
       : connections.find((c) => c.app_id === "1783038629742610") || connections[0];
 
+    if (!conn && data.meta_app_connection_id) {
+      const sharedRows = (await db.query(
+        `SELECT id, app_id, app_secret_encrypted
+         FROM meta_app_connections
+         WHERE id = ?
+           AND app_id = '1783038629742610'
+           AND status = 'active'
+         LIMIT 1`,
+        [data.meta_app_connection_id],
+      )) as Array<{ id: string; app_id: string; app_secret_encrypted: string }>;
+      conn = sharedRows[0];
+    }
+
     if (!conn) {
       const platformRows = (await db.query(
         `SELECT meta_app_id, meta_app_secret
@@ -2922,12 +2935,31 @@ export const listMetaAppConnectionsForEmbeddedSignup = createServerFn({ method: 
        LIMIT 1`,
     );
     const platform = platformRows?.[0];
-    if (!platform?.meta_app_id || !platform?.meta_app_secret) return [];
+    if (platform?.meta_app_id && platform?.meta_app_secret) {
+      return [{
+        id: "platform",
+        appId: platform.meta_app_id,
+        configId: platform.meta_config_id || null,
+      }];
+    }
+
+    const sharedRows = await query<
+      { id: string; app_id: string; meta_config_id: string | null }[]
+    >(
+      `SELECT id, app_id, meta_config_id
+       FROM meta_app_connections
+       WHERE app_id = '1783038629742610'
+         AND status = 'active'
+       ORDER BY created_at ASC
+       LIMIT 1`,
+    );
+    const shared = sharedRows?.[0];
+    if (!shared) return [];
 
     return [{
-      id: "platform",
-      appId: platform.meta_app_id,
-      configId: platform.meta_config_id || null,
+      id: shared.id,
+      appId: shared.app_id,
+      configId: shared.meta_config_id || null,
     }];
   });
 
