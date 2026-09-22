@@ -5,6 +5,7 @@ import { dbAdmin } from "@/integrations/mysql/client.server";
 import { query } from "@/lib/db";
 import { buildWhatsAppPayload } from "@/lib/whatsapp-payload";
 import { resolvePublicWebhookBaseUrl } from "@/lib/meta-webhook-url";
+import { hasMasterRole } from "@/lib/roles";
 import crypto from "crypto";
 
 export const PROFILE_MASKED_SECRET = "********";
@@ -33,6 +34,14 @@ function getMetaErrorMessage(body: unknown, fallback: string) {
   const bodyRecord = asRecord(body);
   const errorRecord = asRecord(bodyRecord?.error);
   return getStringField(errorRecord, "message") ?? fallback;
+}
+
+async function isMasterUser(userId: string): Promise<boolean> {
+  const rows = await query<Array<{ role: string }>>(
+    "SELECT role FROM user_roles WHERE user_id = ?",
+    [userId],
+  );
+  return hasMasterRole(rows.map(({ role }) => role));
 }
 
 interface CoexistencePhoneInfo {
@@ -88,6 +97,7 @@ export const getProfile = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const { default: db } = await import("./db");
+    const masterUser = await isMasterUser(context.userId);
 
     // Garante que a row de profile existe (cria se não existir)
     await db.query(`INSERT IGNORE INTO profiles (id) VALUES (?)`, [context.userId]);
@@ -116,9 +126,11 @@ export const getProfile = createServerFn({ method: "GET" })
       ? {
           ...data,
           hasAccessToken: Boolean(data.hasAccessToken),
-          hasAppSecret: Boolean(data.hasAppSecret),
+          hasAppSecret: masterUser && Boolean(data.hasAppSecret),
           whatsapp_access_token: data.hasAccessToken ? PROFILE_MASKED_SECRET : "",
-          whatsapp_app_secret: data.hasAppSecret ? PROFILE_MASKED_SECRET : "",
+          whatsapp_app_id: masterUser ? data.whatsapp_app_id : "",
+          whatsapp_verify_token: masterUser ? data.whatsapp_verify_token : "",
+          whatsapp_app_secret: masterUser && data.hasAppSecret ? PROFILE_MASKED_SECRET : "",
         }
       : { id: context.userId, hasAccessToken: false, hasAppSecret: false };
   });
@@ -126,6 +138,9 @@ export const getProfile = createServerFn({ method: "GET" })
 export const revealWhatsAppAccessToken = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
+    if (!(await isMasterUser(context.userId))) {
+      throw new Error("Acesso negado: credencial gerenciada pela plataforma.");
+    }
     const { default: db } = await import("./db");
     const rows = (await db.query(
       `SELECT whatsapp_access_token
@@ -143,6 +158,9 @@ export const revealWhatsAppAccessToken = createServerFn({ method: "GET" })
 export const revealWhatsAppAppSecret = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
+    if (!(await isMasterUser(context.userId))) {
+      throw new Error("Acesso negado: App Secret gerenciado pelo administrador master.");
+    }
     const { default: db } = await import("./db");
     const rows = (await db.query(
       `SELECT whatsapp_app_secret
@@ -190,11 +208,18 @@ export const updateProfile = createServerFn({ method: "POST" })
   .validator((d) => credSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { default: db } = await import("./db");
+    const masterUser = await isMasterUser(context.userId);
+    const masterOnlyFields = new Set([
+      "whatsapp_app_id",
+      "whatsapp_app_secret",
+      "whatsapp_verify_token",
+    ]);
 
     // Construir dinamicamente apenas os campos enviados
     const fields = Object.entries(data).filter(
       ([key, value]) =>
         value !== undefined &&
+        (masterUser || !masterOnlyFields.has(key)) &&
         !(
           (key === "whatsapp_access_token" || key === "whatsapp_app_secret") &&
           isMaskedProfileSecret(value)
@@ -225,7 +250,9 @@ export const updateProfile = createServerFn({ method: "POST" })
     )) as any[];
     const profile = profileRows?.[0];
 
-    const hasAppCredsInPayload = data.whatsapp_app_id !== undefined || data.whatsapp_app_secret !== undefined;
+    const hasAppCredsInPayload =
+      masterUser &&
+      (data.whatsapp_app_id !== undefined || data.whatsapp_app_secret !== undefined);
     if (
       hasAppCredsInPayload &&
       profile?.whatsapp_app_id &&
@@ -2238,6 +2265,9 @@ export const revealInstagramAccessToken = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .validator((d?: { id?: string }) => d)
   .handler(async ({ data, context }) => {
+    if (!(await isMasterUser(context.userId))) {
+      throw new Error("Acesso negado: token gerenciado pela plataforma.");
+    }
     const { default: db } = await import("./db");
     const where = data?.id ? "id = ? AND user_id = ?" : "user_id = ? ORDER BY created_at DESC LIMIT 1";
     const params = data?.id ? [data.id, context.userId] : [context.userId];
@@ -2414,14 +2444,15 @@ export const onboardInstagramFacebookLogin = createServerFn({ method: "POST" })
     const { decryptMetaCredential } = await import("./encryption");
     const graphVersion = "v26.0";
     const tenantId = context.tenantId;
+    const masterUser = await isMasterUser(context.userId);
 
-    const connections = (await db.query(
+    const connections = masterUser ? (await db.query(
       `SELECT id, app_id, app_secret_encrypted
        FROM meta_app_connections
        WHERE tenant_id = ?
        ORDER BY CASE WHEN app_id = '1783038629742610' THEN 0 ELSE 1 END, created_at DESC`,
       [tenantId],
-    )) as Array<{ id: string; app_id: string; app_secret_encrypted: string }>;
+    )) as Array<{ id: string; app_id: string; app_secret_encrypted: string }> : [];
 
     let conn: {
       id: string;
@@ -2434,11 +2465,14 @@ export const onboardInstagramFacebookLogin = createServerFn({ method: "POST" })
 
     if (!conn && data.meta_app_connection_id) {
       const sharedRows = (await db.query(
-        `SELECT id, app_id, app_secret_encrypted
-         FROM meta_app_connections
-         WHERE id = ?
-           AND app_id = '1783038629742610'
-           AND status = 'active'
+        `SELECT mac.id, mac.app_id, mac.app_secret_encrypted
+         FROM meta_app_connections mac
+         JOIN user_roles ur
+           ON ur.user_id = mac.tenant_id
+          AND ur.role IN ('admin_master', 'adminmaster')
+         WHERE mac.id = ?
+           AND mac.app_id = '1783038629742610'
+           AND mac.status = 'active'
          LIMIT 1`,
         [data.meta_app_connection_id],
       )) as Array<{ id: string; app_id: string; app_secret_encrypted: string }>;
@@ -2649,18 +2683,58 @@ export const onboardMessengerFacebookLogin = createServerFn({ method: "POST" })
     const { default: db } = await import("./db");
     const { decryptMetaCredential } = await import("./encryption");
     const graphVersion = "v26.0";
+    const tenantId = context.tenantId;
+    const masterUser = await isMasterUser(context.userId);
 
-    const connections = (await db.query(
+    const connections = masterUser ? (await db.query(
       `SELECT id, app_id, app_secret_encrypted
        FROM meta_app_connections
        WHERE tenant_id = ?
        ORDER BY CASE WHEN app_id = '1783038629742610' THEN 0 ELSE 1 END, created_at DESC`,
-      [context.userId],
-    )) as Array<{ id: string; app_id: string; app_secret_encrypted: string }>;
+      [tenantId],
+    )) as Array<{ id: string; app_id: string; app_secret_encrypted: string }> : [];
 
-    const conn = data.meta_app_connection_id
+    let conn: {
+      id: string;
+      app_id: string;
+      app_secret_encrypted?: string;
+      app_secret_plain?: string;
+    } | undefined = data.meta_app_connection_id
       ? connections.find((c) => c.id === data.meta_app_connection_id)
       : connections.find((c) => c.app_id === "1783038629742610") || connections[0];
+
+    if (!conn && data.meta_app_connection_id) {
+      const sharedRows = (await db.query(
+        `SELECT mac.id, mac.app_id, mac.app_secret_encrypted
+         FROM meta_app_connections mac
+         JOIN user_roles ur
+           ON ur.user_id = mac.tenant_id
+          AND ur.role IN ('admin_master', 'adminmaster')
+         WHERE mac.id = ?
+           AND mac.app_id = '1783038629742610'
+           AND mac.status = 'active'
+         LIMIT 1`,
+        [data.meta_app_connection_id],
+      )) as Array<{ id: string; app_id: string; app_secret_encrypted: string }>;
+      conn = sharedRows[0];
+    }
+
+    if (!conn) {
+      const platformRows = (await db.query(
+        `SELECT meta_app_id, meta_app_secret
+         FROM platform_settings
+         WHERE id = 1
+         LIMIT 1`,
+      )) as Array<{ meta_app_id: string | null; meta_app_secret: string | null }>;
+      const platform = platformRows[0];
+      if (platform?.meta_app_id && platform?.meta_app_secret) {
+        conn = {
+          id: "platform",
+          app_id: platform.meta_app_id,
+          app_secret_plain: platform.meta_app_secret,
+        };
+      }
+    }
 
     if (!conn?.app_id) {
       throw new Error("Nenhuma Meta App Connection encontrada para este tenant.");
@@ -2671,11 +2745,13 @@ export const onboardMessengerFacebookLogin = createServerFn({ method: "POST" })
       if (!data.redirect_uri) {
         throw new Error("redirect_uri é obrigatório para trocar o code.");
       }
-      let appSecret = "";
-      try {
-        appSecret = decryptMetaCredential(conn.app_secret_encrypted);
-      } catch {
-        throw new Error("Falha ao ler o App Secret da Meta App Connection.");
+      let appSecret = conn.app_secret_plain || "";
+      if (!appSecret) {
+        try {
+          appSecret = decryptMetaCredential(conn.app_secret_encrypted || "");
+        } catch {
+          throw new Error("Falha ao ler o App Secret da Meta App Connection.");
+        }
       }
       const tokenUrl = new URL(`https://graph.facebook.com/${graphVersion}/oauth/access_token`);
       tokenUrl.searchParams.set("client_id", conn.app_id);
@@ -2714,7 +2790,7 @@ export const onboardMessengerFacebookLogin = createServerFn({ method: "POST" })
 
       const conflicts = (await db.query(
         `SELECT id FROM facebook_pages WHERE page_id = ? AND user_id != ? LIMIT 1`,
-        [pageId, context.userId],
+        [pageId, tenantId],
       )) as Array<{ id: string }>;
       if (conflicts?.[0]) {
         throw new Error("Esta Página do Facebook já está vinculada a outro usuário.");
@@ -2744,7 +2820,7 @@ export const onboardMessengerFacebookLogin = createServerFn({ method: "POST" })
            page_access_token = VALUES(page_access_token),
            status = 'active',
            webhook_subscribed = VALUES(webhook_subscribed)`,
-        [id, context.userId, pageId, pageName, pageToken, webhookSubscribed ? 1 : 0],
+        [id, tenantId, pageId, pageName, pageToken, webhookSubscribed ? 1 : 0],
       );
       connected.push({ pageId, pageName, webhookSubscribed });
     }
@@ -2774,7 +2850,7 @@ export const listFacebookPages = createServerFn({ method: "GET" })
     const { default: db } = await import("./db");
     const rows = await db.query(
       "SELECT * FROM facebook_pages WHERE user_id = ? ORDER BY created_at DESC",
-      [context.userId],
+      [context.tenantId],
     );
     return rows;
   });
@@ -2797,7 +2873,7 @@ export const connectFacebookPage = createServerFn({ method: "POST" })
       `INSERT INTO facebook_pages (id, user_id, page_id, page_name, page_access_token, status, webhook_subscribed)
        VALUES (?, ?, ?, ?, ?, 'active', 1)
        ON DUPLICATE KEY UPDATE page_name = VALUES(page_name), page_access_token = VALUES(page_access_token), status = 'active', webhook_subscribed = 1`,
-      [id, context.userId, data.page_id, data.page_name, data.page_access_token],
+      [id, context.tenantId, data.page_id, data.page_name, data.page_access_token],
     );
     return { ok: true };
   });
@@ -2809,7 +2885,7 @@ export const disconnectFacebookPage = createServerFn({ method: "POST" })
     const { default: db } = await import("./db");
     await db.query("DELETE FROM facebook_pages WHERE id = ? AND user_id = ?", [
       data.id,
-      context.userId,
+      context.tenantId,
     ]);
     return { ok: true };
   });
@@ -2911,13 +2987,15 @@ export const testInstagramConnection = createServerFn({ method: "POST" })
 export const listMetaAppConnectionsForEmbeddedSignup = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const rows = await query<{ id: string; app_id: string | null; meta_config_id: string | null }[]>(
-      `SELECT id, app_id, meta_config_id
-       FROM meta_app_connections
-       WHERE tenant_id = ?
-       ORDER BY created_at DESC`,
-      [context.tenantId],
-    );
+    const rows = (await isMasterUser(context.userId))
+      ? await query<{ id: string; app_id: string | null; meta_config_id: string | null }[]>(
+          `SELECT id, app_id, meta_config_id
+           FROM meta_app_connections
+           WHERE tenant_id = ?
+           ORDER BY created_at DESC`,
+          [context.tenantId],
+        )
+      : [];
     if (rows?.length) {
       return rows.map((r) => ({
         id: r.id,
@@ -2946,11 +3024,14 @@ export const listMetaAppConnectionsForEmbeddedSignup = createServerFn({ method: 
     const sharedRows = await query<
       { id: string; app_id: string; meta_config_id: string | null }[]
     >(
-      `SELECT id, app_id, meta_config_id
-       FROM meta_app_connections
-       WHERE app_id = '1783038629742610'
-         AND status = 'active'
-       ORDER BY created_at ASC
+      `SELECT mac.id, mac.app_id, mac.meta_config_id
+       FROM meta_app_connections mac
+       JOIN user_roles ur
+         ON ur.user_id = mac.tenant_id
+        AND ur.role IN ('admin_master', 'adminmaster')
+       WHERE mac.app_id = '1783038629742610'
+         AND mac.status = 'active'
+       ORDER BY mac.created_at ASC
        LIMIT 1`,
     );
     const shared = sharedRows?.[0];

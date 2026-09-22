@@ -1915,7 +1915,11 @@ function SettingsPage() {
                             form.hasAccessToken
                           )
                         }
-                        webhookComplete={!!(form.whatsapp_verify_token && form.hasAppSecret)}
+                        webhookComplete={
+                          isAdminMaster
+                            ? !!(form.whatsapp_verify_token && form.hasAppSecret)
+                            : true
+                        }
                         testComplete={!!testResult?.ok}
                       >
                         {(step) => (
@@ -1992,6 +1996,8 @@ function SettingsPage() {
                                   </Button>
                                 </div>
 
+                                {isAdminMaster && (
+                                <>
                                 <div className="grid gap-6 md:grid-cols-2">
                                   <Field
                                     label="ID do Número de Telefone"
@@ -2623,6 +2629,8 @@ function SettingsPage() {
                                     fallback="Não conseguimos conectar. Confira se os dados acima foram copiados corretamente."
                                   />
                                 )}
+                                </>
+                                )}
                               </div>
                             )}
 
@@ -2765,7 +2773,7 @@ function SettingsPage() {
                               </div>
                             )}
 
-                            {step === 1 && (
+                            {step === 1 && isAdminMaster && (
                               <div className="space-y-4">
                                 <div className="flex items-start gap-3">
                                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
@@ -3026,11 +3034,23 @@ function SettingsPage() {
               </TabsContent>
 
               <TabsContent value="instagram" className="space-y-6 outline-none m-0 border-none p-0">
-                <InstagramSettingsTab form={form} setForm={setForm} saveMut={saveMut} revealAppSecretMut={revealAppSecretMut} />
+                <InstagramSettingsTab
+                  form={form}
+                  setForm={setForm}
+                  saveMut={saveMut}
+                  revealAppSecretMut={revealAppSecretMut}
+                  isAdminMaster={isAdminMaster}
+                />
               </TabsContent>
 
               <TabsContent value="facebook" className="space-y-6 outline-none m-0 border-none p-0">
-                <FacebookSettingsTab form={form} setForm={setForm} saveMut={saveMut} revealAppSecretMut={revealAppSecretMut} />
+                <FacebookSettingsTab
+                  form={form}
+                  setForm={setForm}
+                  saveMut={saveMut}
+                  revealAppSecretMut={revealAppSecretMut}
+                  isAdminMaster={isAdminMaster}
+                />
               </TabsContent>
 
               <TabsContent value="crm" className="outline-none">
@@ -8683,11 +8703,13 @@ function InstagramSettingsTab({
   setForm,
   saveMut,
   revealAppSecretMut,
+  isAdminMaster,
 }: {
   form: any;
   setForm: any;
   saveMut: any;
   revealAppSecretMut: any;
+  isAdminMaster: boolean;
 }) {
   const fetchIg = useServerFn(listInstagramAccounts);
   const connectIg = useServerFn(connectInstagramAccount);
@@ -8900,7 +8922,7 @@ function InstagramSettingsTab({
               <p className="text-sm font-semibold text-foreground">Conexão via Facebook Login</p>
               <p className="text-xs text-muted-foreground text-center max-w-md">
                 Autoriza Páginas com Instagram Business (instagram_basic, pages_show_list e mensagens).
-                App Meta: 1783038629742610.
+                As credenciais do aplicativo são gerenciadas com segurança pela plataforma.
               </p>
               <Button
                 type="button"
@@ -8917,6 +8939,8 @@ function InstagramSettingsTab({
               </Button>
             </div>
 
+            {isAdminMaster && (
+            <>
             {/* IDENTIFICAÇÃO DA CONTA */}
             <div className="space-y-4">
               <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -9055,8 +9079,11 @@ function InstagramSettingsTab({
                 </p>
               </div>
             </div>
+            </>
+            )}
           </div>
 
+          {isAdminMaster && (
           <div className="px-6 py-4 bg-muted/20 border-t border-border/40 flex items-center justify-between">
             <Button
               type="button"
@@ -9078,6 +9105,7 @@ function InstagramSettingsTab({
               )}
             </Button>
           </div>
+          )}
         </form>
       </Card>
 
@@ -9138,11 +9166,13 @@ function FacebookSettingsTab({
   setForm,
   saveMut,
   revealAppSecretMut,
+  isAdminMaster,
 }: {
   form: any;
   setForm: any;
   saveMut: any;
   revealAppSecretMut: any;
+  isAdminMaster: boolean;
 }) {
   const fetchFb = useServerFn(listFacebookPages);
   const connectFb = useServerFn(connectFacebookPage);
@@ -9282,7 +9312,9 @@ function FacebookSettingsTab({
   const fbWebhookUrl = `${origin}/api/public/facebook-webhook`;
 
   const credentialsComplete = !!(pages && pages.length > 0);
-  const webhookComplete = !!(form.whatsapp_verify_token && form.hasAppSecret);
+  const webhookComplete = isAdminMaster
+    ? !!(form.whatsapp_verify_token && form.hasAppSecret)
+    : true;
 
   return (
     <div className="space-y-6">
@@ -9304,7 +9336,7 @@ function FacebookSettingsTab({
                       <p className="text-sm font-semibold text-foreground">Conexão via Facebook Login</p>
                       <p className="text-xs text-muted-foreground text-center max-w-md">
                         Autoriza as Páginas que você administra e inscreve o Messenger no webhook.
-                        App Meta: 1783038629742610.
+                        As credenciais do aplicativo são gerenciadas com segurança pela plataforma.
                       </p>
                       <Button
                         type="button"
@@ -9320,6 +9352,8 @@ function FacebookSettingsTab({
                         Conectar Messenger
                       </Button>
                     </div>
+                    {isAdminMaster && (
+                    <>
                     <p className="text-sm text-muted-foreground">
                       Ou informe manualmente as credenciais da Página geradas no Meta Developers.
                     </p>
@@ -9362,6 +9396,8 @@ function FacebookSettingsTab({
                     <Button type="submit" disabled={isSubmitting}>
                       {isSubmitting ? "Conectando..." : "Conectar Página"}
                     </Button>
+                    </>
+                    )}
                   </form>
                 </Card>
 
@@ -9396,7 +9432,7 @@ function FacebookSettingsTab({
               </div>
             )}
 
-            {step === 1 && (
+            {step === 1 && isAdminMaster && (
               <Card className="p-6 space-y-6">
                 <div>
                   <h2 className="font-display text-lg font-semibold">

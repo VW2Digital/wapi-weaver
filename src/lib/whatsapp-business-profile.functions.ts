@@ -212,22 +212,78 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
       throw new Error("META_APP_CONNECTION_NOT_RESOLVED: meta_app_connection_id é obrigatório.");
     }
 
-    const connRows = await db.query<{ app_id: string; app_secret_encrypted: string; graph_version: string }[]>(
-      "SELECT app_id, app_secret_encrypted, graph_version FROM meta_app_connections WHERE id = ? AND tenant_id = ? LIMIT 1",
-      [connectionId, effectiveUserId],
+    const roleRows = await db.query<Array<{ role: string }>>(
+      "SELECT role FROM user_roles WHERE user_id = ?",
+      [context.userId],
     );
-    const conn = connRows?.[0];
+    const masterUser = roleRows.some(
+      ({ role }) => role === "admin_master" || role === "adminmaster",
+    );
+    const connRows = masterUser
+      ? await db.query<
+          { app_id: string; app_secret_encrypted: string; graph_version: string }[]
+        >(
+          "SELECT app_id, app_secret_encrypted, graph_version FROM meta_app_connections WHERE id = ? AND tenant_id = ? LIMIT 1",
+          [connectionId, effectiveUserId],
+        )
+      : [];
+    let conn: {
+      app_id: string;
+      app_secret_encrypted?: string;
+      app_secret_plain?: string;
+      graph_version: string;
+    } | undefined = connRows?.[0];
+
+    if (!conn && connectionId !== "platform") {
+      const sharedRows = await db.query<
+        { app_id: string; app_secret_encrypted: string; graph_version: string }[]
+      >(
+        `SELECT mac.app_id, mac.app_secret_encrypted, mac.graph_version
+         FROM meta_app_connections mac
+         JOIN user_roles ur
+           ON ur.user_id = mac.tenant_id
+          AND ur.role IN ('admin_master', 'adminmaster')
+         WHERE mac.id = ?
+           AND mac.app_id = '1783038629742610'
+           AND mac.status = 'active'
+         LIMIT 1`,
+        [connectionId],
+      );
+      conn = sharedRows?.[0];
+    }
+
+    if (!conn && connectionId === "platform") {
+      const platformRows = await db.query<
+        { meta_app_id: string; meta_app_secret: string; meta_graph_version: string | null }[]
+      >(
+        `SELECT meta_app_id, meta_app_secret, meta_graph_version
+         FROM platform_settings
+         WHERE id = 1
+         LIMIT 1`,
+      );
+      const platform = platformRows?.[0];
+      if (platform?.meta_app_id && platform?.meta_app_secret) {
+        conn = {
+          app_id: platform.meta_app_id,
+          app_secret_plain: platform.meta_app_secret,
+          graph_version: platform.meta_graph_version || "v26.0",
+        };
+      }
+    }
+
     if (!conn) {
-      throw new Error("Meta App Connection não encontrada ou não pertence ao tenant.");
+      throw new Error("Meta App Connection master não encontrada.");
     }
 
     const APP_ID = conn.app_id;
     const GRAPH_VERSION = conn.graph_version || "v26.0";
-    let APP_SECRET = "";
-    try {
-      APP_SECRET = decryptMetaCredential(conn.app_secret_encrypted);
-    } catch (err) {
-      throw new Error("Falha ao descriptografar o App Secret da Meta App Connection.");
+    let APP_SECRET = conn.app_secret_plain || "";
+    if (!APP_SECRET) {
+      try {
+        APP_SECRET = decryptMetaCredential(conn.app_secret_encrypted || "");
+      } catch (err) {
+        throw new Error("Falha ao descriptografar o App Secret da Meta App Connection.");
+      }
     }
 
     if (!APP_ID || !APP_SECRET) {
