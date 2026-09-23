@@ -236,11 +236,15 @@ export function validateTemplateInput(input: BuildTemplateInput): FieldErrors {
     input.header.format === "VIDEO" ||
     input.header.format === "DOCUMENT"
   ) {
-    if (!input.header.header_handle?.trim()) {
-      fields.header_media = "Envie um arquivo de exemplo. A Meta não aceita URL comum no header_handle.";
-    } else if (looksLikeHttpUrl(input.header.header_handle)) {
+    const handle = input.header.header_handle?.trim() || "";
+    if (!handle) {
+      fields.header_media =
+        "Envie o arquivo de exemplo para a Meta (upload oficial). Uma URL comum não pode ir em header_handle.";
+    } else if (looksLikeHttpUrl(handle)) {
       fields.header_media =
         "header_handle deve ser o identificador do upload resumable da Meta, não uma URL http(s).";
+    } else if (!looksLikeMetaUploadHandle(handle)) {
+      fields.header_media = "O identificador de mídia da Meta é inválido. Envie o arquivo novamente.";
     }
   }
 
@@ -353,6 +357,16 @@ export function buildMetaComponents(input: BuildTemplateInput): Record<string, u
   return components;
 }
 
+export function stripBlivTemplateFields(
+  components: Record<string, unknown>[],
+): Record<string, unknown>[] {
+  return components.map((component) => {
+    const copy = { ...component } as Record<string, unknown>;
+    delete copy._bliv;
+    return copy;
+  });
+}
+
 export function compactMetaCreatePayload(
   input: BuildTemplateInput,
   components: Record<string, unknown>[],
@@ -363,7 +377,7 @@ export function compactMetaCreatePayload(
     name: input.name,
     language: input.language,
     category: input.category,
-    components,
+    components: stripBlivTemplateFields(components),
   };
   if (input.parameter_format === "NAMED" || inferred === "NAMED") {
     payload.parameter_format = "NAMED";

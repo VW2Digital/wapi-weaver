@@ -51,8 +51,10 @@ import { Route as ApiWhatsappGroupsRouteImport } from './routes/api/whatsapp/gro
 import { Route as ApiWhatsappBusinessProfileRouteImport } from './routes/api/whatsapp/business-profile'
 import { Route as ApiWebhooksMercadopagoRouteImport } from './routes/api/webhooks/mercadopago'
 import { Route as ApiWebhooksAsaasRouteImport } from './routes/api/webhooks/asaas'
+import { Route as ApiTemplatesHeaderMediaRouteImport } from './routes/api/templates/header-media'
 import { Route as ApiStorageUploadRouteImport } from './routes/api/storage/upload'
 import { Route as ApiStorageRemoveRouteImport } from './routes/api/storage/remove'
+import { Route as ApiStorageListRouteImport } from './routes/api/storage/list'
 import { Route as ApiStorageGlobalUploadRouteImport } from './routes/api/storage/global-upload'
 import { Route as ApiStorageGlobalFileRouteImport } from './routes/api/storage/global-file'
 import { Route as ApiStorageFileRouteImport } from './routes/api/storage/file'
@@ -328,6 +330,11 @@ const ApiWebhooksAsaasRoute = ApiWebhooksAsaasRouteImport.update({
   path: '/api/webhooks/asaas',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTemplatesHeaderMediaRoute = ApiTemplatesHeaderMediaRouteImport.update({
+  id: '/api/templates/header-media',
+  path: '/api/templates/header-media',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiStorageUploadRoute = ApiStorageUploadRouteImport.update({
   id: '/api/storage/upload',
   path: '/api/storage/upload',
@@ -336,6 +343,11 @@ const ApiStorageUploadRoute = ApiStorageUploadRouteImport.update({
 const ApiStorageRemoveRoute = ApiStorageRemoveRouteImport.update({
   id: '/api/storage/remove',
   path: '/api/storage/remove',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStorageListRoute = ApiStorageListRouteImport.update({
+  id: '/api/storage/list',
+  path: '/api/storage/list',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiStorageGlobalUploadRoute = ApiStorageGlobalUploadRouteImport.update({
@@ -743,8 +755,10 @@ export interface FileRoutesByFullPath {
   '/api/storage/file': typeof ApiStorageFileRoute
   '/api/storage/global-file': typeof ApiStorageGlobalFileRoute
   '/api/storage/global-upload': typeof ApiStorageGlobalUploadRoute
+  '/api/storage/list': typeof ApiStorageListRoute
   '/api/storage/remove': typeof ApiStorageRemoveRoute
   '/api/storage/upload': typeof ApiStorageUploadRoute
+  '/api/templates/header-media': typeof ApiTemplatesHeaderMediaRoute
   '/api/webhooks/asaas': typeof ApiWebhooksAsaasRoute
   '/api/webhooks/mercadopago': typeof ApiWebhooksMercadopagoRoute
   '/api/whatsapp/business-profile': typeof ApiWhatsappBusinessProfileRouteWithChildren
@@ -850,8 +864,10 @@ export interface FileRoutesByTo {
   '/api/storage/file': typeof ApiStorageFileRoute
   '/api/storage/global-file': typeof ApiStorageGlobalFileRoute
   '/api/storage/global-upload': typeof ApiStorageGlobalUploadRoute
+  '/api/storage/list': typeof ApiStorageListRoute
   '/api/storage/remove': typeof ApiStorageRemoveRoute
   '/api/storage/upload': typeof ApiStorageUploadRoute
+  '/api/templates/header-media': typeof ApiTemplatesHeaderMediaRoute
   '/api/webhooks/asaas': typeof ApiWebhooksAsaasRoute
   '/api/webhooks/mercadopago': typeof ApiWebhooksMercadopagoRoute
   '/api/whatsapp/business-profile': typeof ApiWhatsappBusinessProfileRouteWithChildren
@@ -959,8 +975,10 @@ export interface FileRoutesById {
   '/api/storage/file': typeof ApiStorageFileRoute
   '/api/storage/global-file': typeof ApiStorageGlobalFileRoute
   '/api/storage/global-upload': typeof ApiStorageGlobalUploadRoute
+  '/api/storage/list': typeof ApiStorageListRoute
   '/api/storage/remove': typeof ApiStorageRemoveRoute
   '/api/storage/upload': typeof ApiStorageUploadRoute
+  '/api/templates/header-media': typeof ApiTemplatesHeaderMediaRoute
   '/api/webhooks/asaas': typeof ApiWebhooksAsaasRoute
   '/api/webhooks/mercadopago': typeof ApiWebhooksMercadopagoRoute
   '/api/whatsapp/business-profile': typeof ApiWhatsappBusinessProfileRouteWithChildren
@@ -1068,8 +1086,10 @@ export interface FileRouteTypes {
     | '/api/storage/file'
     | '/api/storage/global-file'
     | '/api/storage/global-upload'
+    | '/api/storage/list'
     | '/api/storage/remove'
     | '/api/storage/upload'
+    | '/api/templates/header-media'
     | '/api/webhooks/asaas'
     | '/api/webhooks/mercadopago'
     | '/api/whatsapp/business-profile'
@@ -1175,8 +1195,10 @@ export interface FileRouteTypes {
     | '/api/storage/file'
     | '/api/storage/global-file'
     | '/api/storage/global-upload'
+    | '/api/storage/list'
     | '/api/storage/remove'
     | '/api/storage/upload'
+    | '/api/templates/header-media'
     | '/api/webhooks/asaas'
     | '/api/webhooks/mercadopago'
     | '/api/whatsapp/business-profile'
@@ -1283,8 +1305,10 @@ export interface FileRouteTypes {
     | '/api/storage/file'
     | '/api/storage/global-file'
     | '/api/storage/global-upload'
+    | '/api/storage/list'
     | '/api/storage/remove'
     | '/api/storage/upload'
+    | '/api/templates/header-media'
     | '/api/webhooks/asaas'
     | '/api/webhooks/mercadopago'
     | '/api/whatsapp/business-profile'
@@ -1367,8 +1391,10 @@ export interface RootRouteChildren {
   ApiStorageFileRoute: typeof ApiStorageFileRoute
   ApiStorageGlobalFileRoute: typeof ApiStorageGlobalFileRoute
   ApiStorageGlobalUploadRoute: typeof ApiStorageGlobalUploadRoute
+  ApiStorageListRoute: typeof ApiStorageListRoute
   ApiStorageRemoveRoute: typeof ApiStorageRemoveRoute
   ApiStorageUploadRoute: typeof ApiStorageUploadRoute
+  ApiTemplatesHeaderMediaRoute: typeof ApiTemplatesHeaderMediaRoute
   ApiWebhooksAsaasRoute: typeof ApiWebhooksAsaasRoute
   ApiWebhooksMercadopagoRoute: typeof ApiWebhooksMercadopagoRoute
   ApiWhatsappBusinessProfileRoute: typeof ApiWhatsappBusinessProfileRouteWithChildren
@@ -1692,6 +1718,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWebhooksAsaasRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/templates/header-media': {
+      id: '/api/templates/header-media'
+      path: '/api/templates/header-media'
+      fullPath: '/api/templates/header-media'
+      preLoaderRoute: typeof ApiTemplatesHeaderMediaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/storage/upload': {
       id: '/api/storage/upload'
       path: '/api/storage/upload'
@@ -1704,6 +1737,13 @@ declare module '@tanstack/react-router' {
       path: '/api/storage/remove'
       fullPath: '/api/storage/remove'
       preLoaderRoute: typeof ApiStorageRemoveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/storage/list': {
+      id: '/api/storage/list'
+      path: '/api/storage/list'
+      fullPath: '/api/storage/list'
+      preLoaderRoute: typeof ApiStorageListRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/storage/global-upload': {
@@ -2343,8 +2383,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiStorageFileRoute: ApiStorageFileRoute,
   ApiStorageGlobalFileRoute: ApiStorageGlobalFileRoute,
   ApiStorageGlobalUploadRoute: ApiStorageGlobalUploadRoute,
+  ApiStorageListRoute: ApiStorageListRoute,
   ApiStorageRemoveRoute: ApiStorageRemoveRoute,
   ApiStorageUploadRoute: ApiStorageUploadRoute,
+  ApiTemplatesHeaderMediaRoute: ApiTemplatesHeaderMediaRoute,
   ApiWebhooksAsaasRoute: ApiWebhooksAsaasRoute,
   ApiWebhooksMercadopagoRoute: ApiWebhooksMercadopagoRoute,
   ApiWhatsappBusinessProfileRoute: ApiWhatsappBusinessProfileRouteWithChildren,

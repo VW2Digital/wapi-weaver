@@ -16,6 +16,10 @@ import {
   PhoneCall,
   Settings,
   ChevronDown,
+  Upload,
+  FolderOpen,
+  Link2,
+  Loader2,
 } from "lucide-react";
 
 import {
@@ -52,10 +56,21 @@ import {
   type BuildTemplateInput,
 } from "@/lib/whatsapp-template-payload";
 
+type MediaUploadPhase = "idle" | "selecting" | "validating" | "uploading" | "done" | "error";
+
 type HeaderState =
   | { format: "NONE" }
   | { format: "TEXT"; text: string; examples?: string[] }
-  | { format: "IMAGE" | "VIDEO" | "DOCUMENT"; example_url: string }
+  | {
+      format: "IMAGE" | "VIDEO" | "DOCUMENT";
+      header_handle: string;
+      previewUrl: string;
+      localPath?: string;
+      filename?: string;
+      pendingUrl: string;
+      uploadPhase: MediaUploadPhase;
+      uploadError?: string;
+    }
   | { format: "LOCATION" };
 
 type ButtonState =
@@ -91,6 +106,24 @@ const LANGS = [
   { v: "it_IT", l: "Italiano" },
   { v: "de_DE", l: "Deutsch" },
 ];
+
+function emptyMediaHeader(format: "IMAGE" | "VIDEO" | "DOCUMENT"): Extract<
+  HeaderState,
+  { format: "IMAGE" | "VIDEO" | "DOCUMENT" }
+> {
+  return {
+    format,
+    header_handle: "",
+    previewUrl: "",
+    pendingUrl: "",
+    uploadPhase: "idle",
+  };
+}
+
+function authHeaders(): HeadersInit {
+  const token = typeof window !== "undefined" ? localStorage.getItem("app-token") : null;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 function extractVarCount(text: string) {
   const matches = text.match(/\{\{\s*([^}]+)\s*\}\}/g) ?? [];
@@ -176,7 +209,25 @@ export function TemplateBuilderDialog({
         } else if (["IMAGE", "VIDEO", "DOCUMENT"].includes(headerComp.format)) {
           setHeader({
             format: headerComp.format,
-            example_url: headerComp.example?.header_handle?.[0] || "",
+            header_handle:
+              headerComp.example?.header_handle?.[0] &&
+              !String(headerComp.example.header_handle[0]).startsWith("http")
+                ? String(headerComp.example.header_handle[0])
+                : "",
+            previewUrl:
+              headerComp._bliv?.preview ||
+              (headerComp._bliv?.local_path
+                ? `/api/storage/file?path=${encodeURIComponent(headerComp._bliv.local_path)}`
+                : ""),
+            localPath: headerComp._bliv?.local_path,
+            pendingUrl: String(headerComp.example?.header_handle?.[0] || "").startsWith("http")
+              ? String(headerComp.example.header_handle[0])
+              : "",
+            uploadPhase:
+              headerComp.example?.header_handle?.[0] &&
+              !String(headerComp.example.header_handle[0]).startsWith("http")
+                ? "done"
+                : "idle",
           });
         } else {
           setHeader({ format: "NONE" });
@@ -236,7 +287,7 @@ export function TemplateBuilderDialog({
     previewComponents.push({
       type: "HEADER",
       format: header.format,
-      example: { header_handle: [header.example_url] },
+      example: { header_handle: [header.previewUrl] },
     });
   } else if (header.format === "LOCATION") {
     previewComponents.push({ type: "HEADER", format: "LOCATION" });
@@ -258,7 +309,12 @@ export function TemplateBuilderDialog({
               ? { format: "TEXT", text: header.text, examples: header.examples }
               : header.format === "LOCATION"
                 ? { format: "LOCATION" }
-                : { format: header.format, example_url: header.example_url },
+                : {
+                    format: header.format,
+                    example_url: header.previewUrl || header.pendingUrl || undefined,
+                    header_handle: header.header_handle || undefined,
+                    local_path: header.localPath || undefined,
+                  },
         body,
         body_examples: bodyExamples.filter((s) => s.length > 0),
         footer: footer || undefined,
@@ -387,7 +443,7 @@ export function TemplateBuilderDialog({
           ? { format: "TEXT", text: header.text, examples: header.examples }
           : header.format === "LOCATION"
             ? { format: "LOCATION" }
-            : { format: header.format, header_handle: header.example_url },
+            : { format: header.format, header_handle: header.header_handle },
     body,
     body_examples: bodyExamples,
     footer,
@@ -410,6 +466,113 @@ export function TemplateBuilderDialog({
     }
     mutation.mutate(saveLocalOnly);
   }
+
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [libraryFiles, setLibraryFiles] = useState<Array<{ path: string; name: string; size: number }>>(
+    [],
+  );
+  const uploading =
+    header.format === "IMAGE" || header.format === "VIDEO" || header.format === "DOCUMENT"
+      ? header.uploadPhase === "validating" || header.uploadPhase === "uploading"
+      : false;
+
+  async function applyHeaderUploadResult(
+    format: "IMAGE" | "VIDEO" | "DOCUMENT",
+    json: any,
+    previewUrl: string,
+  ) {
+    if (!json?.handle) throw new Error(json?.error || "A Meta não devolveu o handle.");
+    setHeader({
+      format,
+      header_handle: json.handle,
+      previewUrl: json.preview_url || previewUrl,
+      localPath: json.local_path,
+      filename: json.filename,
+      pendingUrl: "",
+      uploadPhase: "done",
+    });
+  }
+
+  async function uploadHeaderForm(form: FormData, previewUrl: string) {
+    if (header.format !== "IMAGE" && header.format !== "VIDEO" && header.format !== "DOCUMENT") {
+      return;
+    }
+    const format = header.format;
+    setHeader({ ...header, uploadPhase: "validating", uploadError: undefined });
+    setHeader((prev) =>
+      prev.format === format ? { ...prev, uploadPhase: "uploading" } : prev,
+    );
+    const res = await fetch("/api/templates/header-media", {
+      method: "POST",
+      headers: authHeaders(),
+      credentials: "include",
+      body: form,
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setHeader({
+        ...emptyMediaHeader(format),
+        pendingUrl: header.format === format ? header.pendingUrl : "",
+        previewUrl,
+        uploadPhase: "error",
+        uploadError: json.error || "Falha no upload para a Meta.",
+      });
+      return;
+    }
+    await applyHeaderUploadResult(format, json, previewUrl);
+  }
+
+  async function uploadLocalFile(file: File) {
+    if (header.format !== "IMAGE" && header.format !== "VIDEO" && header.format !== "DOCUMENT") {
+      return;
+    }
+    const previewUrl = URL.createObjectURL(file);
+    const form = new FormData();
+    form.append("format", header.format);
+    form.append("source", "file");
+    form.append("file", file);
+    await uploadHeaderForm(form, previewUrl);
+  }
+
+  async function uploadFromUrl() {
+    if (header.format !== "IMAGE" && header.format !== "VIDEO" && header.format !== "DOCUMENT") {
+      return;
+    }
+    const url = header.pendingUrl.trim();
+    const form = new FormData();
+    form.append("format", header.format);
+    form.append("source", "url");
+    form.append("url", url);
+    await uploadHeaderForm(form, url);
+  }
+
+  async function openLibrary() {
+    setLibraryOpen(true);
+    const res = await fetch("/api/storage/list", { headers: authHeaders(), credentials: "include" });
+    const json = await res.json().catch(() => ({}));
+    setLibraryFiles(json.files || []);
+  }
+
+  async function pickLibrary(filePath: string) {
+    if (header.format !== "IMAGE" && header.format !== "VIDEO" && header.format !== "DOCUMENT") {
+      return;
+    }
+    const form = new FormData();
+    form.append("format", header.format);
+    form.append("source", "library");
+    form.append("library_path", filePath);
+    setLibraryOpen(false);
+    await uploadHeaderForm(form, `/api/storage/file?path=${encodeURIComponent(filePath)}`);
+  }
+
+  const uploadPhaseLabel: Record<MediaUploadPhase, string> = {
+    idle: "",
+    selecting: "Selecionando arquivo…",
+    validating: "Validando arquivo…",
+    uploading: "Enviando para a Meta…",
+    done: "Upload concluído.",
+    error: "Erro no upload.",
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -496,7 +659,7 @@ export function TemplateBuilderDialog({
                     if (v === "NONE") setHeader({ format: "NONE" });
                     else if (v === "TEXT") setHeader({ format: "TEXT", text: "" });
                     else if (v === "LOCATION") setHeader({ format: "LOCATION" });
-                    else setHeader({ format: v, example_url: "" });
+                    else setHeader(emptyMediaHeader(v));
                   }}
                 >
                   <SelectTrigger className="w-44">
@@ -550,24 +713,121 @@ export function TemplateBuilderDialog({
               {(header.format === "IMAGE" ||
                 header.format === "VIDEO" ||
                 header.format === "DOCUMENT") && (
-                <div>
+                <div className="space-y-3">
                   <Label>Arquivo de exemplo ({header.format.toLowerCase()})</Label>
-                  <Input
-                    placeholder="https://… (a Bliv faz o upload e envia o handle, não a URL)"
-                    value={header.example_url}
-                    onChange={(e) =>
-                      setHeader({ format: header.format, example_url: e.target.value })
-                    }
-                  />
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    A Meta rejeita URL comum em header_handle (#100). A Bliv baixa o arquivo,
-                    valida MIME/tamanho e envia pelo upload resumable do App ID.
-                    {header.format === "IMAGE" ? " JPEG/PNG até 5 MB." : ""}
-                    {header.format === "VIDEO" ? " MP4 até 16 MB." : ""}
-                    {header.format === "DOCUMENT" ? " PDF até 100 MB." : ""}
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={uploading}
+                      onClick={() => {
+                        setHeader({ ...header, uploadPhase: "selecting" });
+                        document.getElementById("template-header-file")?.click();
+                      }}
+                    >
+                      <Upload className="mr-1 h-3.5 w-3.5" />
+                      Enviar do computador
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={uploading}
+                      onClick={() => openLibrary()}
+                    >
+                      <FolderOpen className="mr-1 h-3.5 w-3.5" />
+                      Biblioteca Bliv
+                    </Button>
+                    <input
+                      id="template-header-file"
+                      type="file"
+                      className="hidden"
+                      accept={
+                        header.format === "IMAGE"
+                          ? "image/jpeg,image/png,.jpg,.jpeg,.png"
+                          : header.format === "VIDEO"
+                            ? "video/mp4,.mp4"
+                            : "application/pdf,.pdf"
+                      }
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (file) void uploadLocalFile(file);
+                      }}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Ou cole uma URL pública para a Bliv baixar e enviar à Meta"
+                      value={header.pendingUrl}
+                      disabled={uploading}
+                      onChange={(e) =>
+                        setHeader({ ...header, pendingUrl: e.target.value, uploadPhase: "idle" })
+                      }
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      disabled={uploading || !header.pendingUrl.trim()}
+                      onClick={() => void uploadFromUrl()}
+                    >
+                      <Link2 className="mr-1 h-3.5 w-3.5" />
+                      Processar URL
+                    </Button>
+                  </div>
+                  {(header.uploadPhase === "validating" ||
+                    header.uploadPhase === "uploading" ||
+                    header.uploadPhase === "selecting") && (
+                    <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      {uploadPhaseLabel[header.uploadPhase]}
+                    </p>
+                  )}
+                  {header.uploadPhase === "done" && (
+                    <p className="text-xs text-muted-foreground">{uploadPhaseLabel.done}</p>
+                  )}
+                  {header.uploadPhase === "error" && (
+                    <p className="text-xs text-destructive">{header.uploadError}</p>
+                  )}
+                  {header.previewUrl && header.format === "IMAGE" && (
+                    <img
+                      src={header.previewUrl}
+                      alt="Pré-visualização do cabeçalho"
+                      className="max-h-40 rounded border object-contain"
+                    />
+                  )}
+                  {header.previewUrl && header.format === "VIDEO" && (
+                    <video src={header.previewUrl} controls className="max-h-40 rounded border" />
+                  )}
+                  {header.filename && (
+                    <p className="text-[11px] text-muted-foreground">{header.filename}</p>
+                  )}
+                  {libraryOpen && (
+                    <div className="max-h-40 space-y-1 overflow-y-auto rounded border p-2">
+                      {libraryFiles.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">Nenhum arquivo compatível.</p>
+                      ) : (
+                        libraryFiles.map((file) => (
+                          <button
+                            key={file.path}
+                            type="button"
+                            className="block w-full truncate rounded px-2 py-1 text-left text-xs hover:bg-muted"
+                            onClick={() => void pickLibrary(file.path)}
+                          >
+                            {file.name}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                  <p className="text-[11px] text-muted-foreground">
+                    O identificador da Meta é gerado no servidor. JPEG/PNG até 5 MB, MP4 até 16 MB,
+                    PDF até 100 MB.
                   </p>
-                  {liveErrors.header_media && (
-                    <p className="mt-1 text-xs text-destructive">{liveErrors.header_media}</p>
+                  {liveErrors.header_media && header.uploadPhase !== "done" && (
+                    <p className="text-xs text-destructive">{liveErrors.header_media}</p>
                   )}
                 </div>
               )}

@@ -8,6 +8,7 @@ import {
   buildMetaComponents,
   compactMetaCreatePayload,
   looksLikeHttpUrl,
+  looksLikeMetaUploadHandle,
   sanitizePayloadForLog,
   serializeTemplateFieldError,
   TemplateFieldError,
@@ -70,9 +71,24 @@ const createTemplateInput = z.object({
       text: z.string().min(1).max(60),
       examples: z.array(z.string().max(200)).max(10).optional(),
     }),
-    z.object({ format: z.literal("IMAGE"), example_url: z.string().min(8).max(4000) }),
-    z.object({ format: z.literal("VIDEO"), example_url: z.string().min(8).max(4000) }),
-    z.object({ format: z.literal("DOCUMENT"), example_url: z.string().min(8).max(4000) }),
+    z.object({
+      format: z.literal("IMAGE"),
+      example_url: z.string().max(4000).optional(),
+      header_handle: z.string().max(4000).optional(),
+      local_path: z.string().max(1000).optional(),
+    }),
+    z.object({
+      format: z.literal("VIDEO"),
+      example_url: z.string().max(4000).optional(),
+      header_handle: z.string().max(4000).optional(),
+      local_path: z.string().max(1000).optional(),
+    }),
+    z.object({
+      format: z.literal("DOCUMENT"),
+      example_url: z.string().max(4000).optional(),
+      header_handle: z.string().max(4000).optional(),
+      local_path: z.string().max(1000).optional(),
+    }),
     z.object({ format: z.literal("LOCATION") }),
   ]),
   body: z.string().min(1).max(1024),
@@ -101,12 +117,19 @@ const createTemplateInput = z.object({
 
 export type CreateTemplateInput = z.infer<typeof createTemplateInput>;
 
+function mediaHeaderSource(header: CreateTemplateInput["header"]): string {
+  if (header.format !== "IMAGE" && header.format !== "VIDEO" && header.format !== "DOCUMENT") {
+    return "";
+  }
+  return String(header.header_handle || header.example_url || "").trim();
+}
+
 function toBuildInput(data: CreateTemplateInput, headerHandle?: string): BuildTemplateInput {
   const header =
     data.header.format === "IMAGE" ||
     data.header.format === "VIDEO" ||
     data.header.format === "DOCUMENT"
-      ? { format: data.header.format, header_handle: headerHandle ?? data.header.example_url }
+      ? { format: data.header.format, header_handle: headerHandle ?? mediaHeaderSource(data.header) }
       : data.header;
   return {
     name: data.name,
@@ -134,6 +157,43 @@ function encodeCreateError(err: unknown): never {
   throw err instanceof Error ? err : new Error(String(err));
 }
 
+function attachBlivMediaMeta(
+  components: Record<string, unknown>[],
+  data: CreateTemplateInput,
+  handle?: string,
+) {
+  if (
+    data.header.format !== "IMAGE" &&
+    data.header.format !== "VIDEO" &&
+    data.header.format !== "DOCUMENT"
+  ) {
+    return;
+  }
+  const headerComp = components.find((c) => c.type === "HEADER") as Record<string, unknown> | undefined;
+  if (!headerComp) return;
+  const source = mediaHeaderSource(data.header);
+  const finalHandle =
+    handle && looksLikeMetaUploadHandle(handle) && !looksLikeHttpUrl(handle)
+      ? handle
+      : looksLikeMetaUploadHandle(source) && !looksLikeHttpUrl(source)
+        ? source
+        : undefined;
+  if (finalHandle) {
+    headerComp.example = { header_handle: [finalHandle] };
+  } else {
+    delete headerComp.example;
+  }
+  headerComp._bliv = {
+    local_path: "local_path" in data.header ? data.header.local_path || null : null,
+    preview:
+      looksLikeHttpUrl(String("example_url" in data.header ? data.header.example_url : ""))
+        ? data.header.example_url
+        : data.header.local_path
+          ? `/api/storage/file?path=${encodeURIComponent(data.header.local_path)}`
+          : null,
+  };
+}
+
 async function resolveMediaHeaderValue(
   data: CreateTemplateInput,
   account: { appId: string; accessToken: string; graphVersion: string },
@@ -153,7 +213,7 @@ async function resolveMediaHeaderValue(
   }
   return resolveHeaderHandle({
     format: data.header.format,
-    value: data.header.example_url,
+    value: mediaHeaderSource(data.header),
     appId: account.appId,
     accessToken: account.accessToken,
     apiVersion: account.graphVersion,
@@ -255,6 +315,12 @@ export const createTemplate = createServerFn({ method: "POST" })
           data.header.format === "DOCUMENT")
       ) {
         headerHandle = await resolveMediaHeaderValue(data, account);
+        if (!headerHandle || looksLikeHttpUrl(headerHandle) || !looksLikeMetaUploadHandle(headerHandle)) {
+          throw new TemplateFieldError(
+            "Faça o upload oficial da mídia de cabeçalho antes de criar o template na Meta.",
+            { header_media: "header_handle inválido. Uma URL comum não pode ser enviada à Meta." },
+          );
+        }
       }
 
       const buildInput = toBuildInput(data, headerHandle);
@@ -264,24 +330,18 @@ export const createTemplate = createServerFn({ method: "POST" })
           data.header.format === "VIDEO" ||
           data.header.format === "DOCUMENT")
       ) {
+        const source = mediaHeaderSource(data.header);
         buildInput.header = {
           format: data.header.format,
-          header_handle: looksLikeHttpUrl(data.header.example_url)
-            ? "4:local-draft-placeholder"
-            : data.header.example_url,
+          header_handle:
+            looksLikeMetaUploadHandle(source) && !looksLikeHttpUrl(source)
+              ? source
+              : "4:local-draft-placeholder",
         };
       }
 
       const components = buildMetaComponents(buildInput);
-      if (
-        saveLocalOnly &&
-        (data.header.format === "IMAGE" ||
-          data.header.format === "VIDEO" ||
-          data.header.format === "DOCUMENT")
-      ) {
-        const headerComp = components.find((c) => c.type === "HEADER") as any;
-        if (headerComp) headerComp.example = { header_handle: [data.header.example_url] };
-      }
+      attachBlivMediaMeta(components, data, headerHandle);
 
       let status = "PENDING";
       let meta_template_id: string | null = `local_${data.name}_${data.language}`;
@@ -367,6 +427,12 @@ export const updateTemplate = createServerFn({ method: "POST" })
           data.header.format === "DOCUMENT")
       ) {
         headerHandle = await resolveMediaHeaderValue(data, account);
+        if (!headerHandle || looksLikeHttpUrl(headerHandle) || !looksLikeMetaUploadHandle(headerHandle)) {
+          throw new TemplateFieldError(
+            "Faça o upload oficial da mídia de cabeçalho antes de enviar o template à Meta.",
+            { header_media: "header_handle inválido. Uma URL comum não pode ser enviada à Meta." },
+          );
+        }
       }
 
       const buildInput = toBuildInput(data, headerHandle);
@@ -376,24 +442,18 @@ export const updateTemplate = createServerFn({ method: "POST" })
           data.header.format === "VIDEO" ||
           data.header.format === "DOCUMENT")
       ) {
+        const source = mediaHeaderSource(data.header);
         buildInput.header = {
           format: data.header.format,
-          header_handle: looksLikeHttpUrl(data.header.example_url)
-            ? "4:local-draft-placeholder"
-            : data.header.example_url,
+          header_handle:
+            looksLikeMetaUploadHandle(source) && !looksLikeHttpUrl(source)
+              ? source
+              : "4:local-draft-placeholder",
         };
       }
 
       const components = buildMetaComponents(buildInput);
-      if (
-        saveLocalOnly &&
-        (data.header.format === "IMAGE" ||
-          data.header.format === "VIDEO" ||
-          data.header.format === "DOCUMENT")
-      ) {
-        const headerComp = components.find((c) => c.type === "HEADER") as any;
-        if (headerComp) headerComp.example = { header_handle: [data.header.example_url] };
-      }
+      attachBlivMediaMeta(components, data, headerHandle);
 
       let status: string = isRemote ? (tpl.status ?? "PENDING") : "PENDING";
       let meta_template_id: string | null = tpl.meta_template_id;
