@@ -731,14 +731,27 @@ export const listQRCodes = createServerFn({ method: "POST" })
     }
     const apiVersion = p.meta_graph_version || "v26.0";
     const r = await fetch(
-      `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/message_qrdls?fields=code,prefilled_message,qr_image_url.format(PNG)`,
+      `https://graph.facebook.com/${apiVersion}/${p.whatsapp_phone_number_id}/message_qrdls?fields=code,prefilled_message,deep_link_url,qr_image_url.format(PNG)`,
       {
         headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
       },
     );
     const body = await r.json();
     if (!r.ok) return { ok: false, error: body?.error?.message ?? "Falha ao listar QR Codes" };
-    return { ok: true, data: body.data || [] };
+    const data = (body.data || []).map((item: Record<string, unknown>) => {
+      const code = String(item?.code || "").trim();
+      const deepLink = String(item?.deep_link_url || "").trim();
+      return {
+        ...item,
+        deep_link_url:
+          deepLink && deepLink !== "undefined"
+            ? deepLink
+            : code
+              ? `https://wa.me/message/${code}`
+              : "",
+      };
+    });
+    return { ok: true, data };
   });
 
 export const createQRCode = createServerFn({ method: "POST" })

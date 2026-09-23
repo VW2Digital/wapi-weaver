@@ -5953,6 +5953,14 @@ function SchemaBackupsHistory() {
   );
 }
 
+function whatsappQrDeepLink(qr: { code?: string; deep_link_url?: string } | null | undefined) {
+  const fromApi = String(qr?.deep_link_url || "").trim();
+  if (fromApi && fromApi !== "undefined") return fromApi;
+  const code = String(qr?.code || "").trim();
+  if (code) return `https://wa.me/message/${code}`;
+  return "";
+}
+
 function QRCodeSection() {
   const fetchQRList = useServerFn(listQRCodes);
   const createQR = useServerFn(createQRCode);
@@ -6145,7 +6153,9 @@ function QRCodeSection() {
 
           {qrList && qrList.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {qrList.map((qr: any) => (
+              {qrList.map((qr: any) => {
+                const qrLink = whatsappQrDeepLink(qr);
+                return (
                 <Card
                   key={qr.code}
                   className="overflow-hidden flex flex-col group hover:border-primary/50 transition-all duration-300"
@@ -6207,11 +6217,11 @@ function QRCodeSection() {
 
                     <div className="mt-auto pt-2 flex items-center justify-between border-t gap-2">
                       <a
-                        href={qr.deep_link_url}
+                        href={qrLink || undefined}
                         target="_blank"
                         rel="noreferrer"
                         className="text-xs text-primary hover:underline font-mono truncate max-w-[150px]"
-                        title={qr.deep_link_url}
+                        title={qrLink}
                       >
                         wa.me/...
                       </a>
@@ -6219,9 +6229,17 @@ function QRCodeSection() {
                         variant="ghost"
                         size="sm"
                         className="h-7 px-2"
-                        onClick={() => {
-                          navigator.clipboard.writeText(qr.deep_link_url);
-                          toast.success("Link copiado!");
+                        onClick={async () => {
+                          if (!qrLink) {
+                            toast.error("Link do QR Code indisponível.");
+                            return;
+                          }
+                          try {
+                            await navigator.clipboard.writeText(qrLink);
+                            toast.success("Link copiado!");
+                          } catch {
+                            toast.error("Não foi possível copiar o link.");
+                          }
                         }}
                       >
                         <Copy className="h-3 w-3 mr-1" /> Copiar
@@ -6229,7 +6247,8 @@ function QRCodeSection() {
                     </div>
                   </div>
                 </Card>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
