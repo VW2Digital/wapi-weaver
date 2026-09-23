@@ -5,13 +5,14 @@ import { randomUUID } from "node:crypto";
 import { resolveOfficialWhatsAppTemplateAccount } from "@/lib/whatsapp-template-credentials";
 import {
   fetchExternalTemplateMedia,
+  loadTemplateMediaFromLibrary,
+  parseBlivStorageFilePath,
   TemplateMediaError,
   uploadTemplateMediaHandle,
   validateTemplateMediaBytes,
   type TemplateMediaFormat,
 } from "@/lib/whatsapp-template-media";
 import {
-  assertTenantStoragePath,
   resolveUploadFilePath,
   tenantUploadPath,
   verifyStorageUser,
@@ -86,19 +87,27 @@ export const Route = createFileRoute("/api/templates/header-media")({
           }
 
           if (source === "url") {
+            const stored = parseBlivStorageFilePath(sourceUrl);
+            if (stored) {
+              source = "library";
+              libraryPath = stored;
+            }
+          }
+
+          if (source === "url") {
             const fetched = await fetchExternalTemplateMedia({ format, sourceUrl });
             bytes = fetched.bytes;
             filename = fetched.filename;
             claimedMime = fetched.mimeType;
           } else if (source === "library") {
-            const safePath = await assertTenantStoragePath(libraryPath, user);
-            const uploadsRoot = path.resolve(__dirname, "public", "uploads");
-            const fullPath = resolveUploadFilePath(uploadsRoot, safePath);
-            if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile()) {
-              return json({ error: "Arquivo da biblioteca não encontrado." }, 404);
-            }
-            bytes = new Uint8Array(fs.readFileSync(fullPath));
-            filename = path.basename(fullPath);
+            const loaded = await loadTemplateMediaFromLibrary({
+              format,
+              libraryPath,
+              user,
+            });
+            bytes = loaded.bytes;
+            filename = loaded.filename;
+            claimedMime = loaded.mimeType;
           }
 
           if (!bytes) {

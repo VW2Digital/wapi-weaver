@@ -2,6 +2,8 @@ import { describe, expect, it, jest, beforeEach } from "@jest/globals";
 import {
   assertPublicHttpUrl,
   detectTemplateMediaKind,
+  fetchExternalTemplateMedia,
+  parseBlivStorageFilePath,
   uploadTemplateMediaHandle,
   validateTemplateMediaBytes,
   TemplateMediaError,
@@ -82,6 +84,27 @@ describe("SSRF guards", () => {
     await expect(assertPublicHttpUrl("http://127.0.0.1/secret.jpg")).rejects.toThrow(/SSRF|privado/i);
     await expect(assertPublicHttpUrl("http://10.1.2.3/x")).rejects.toThrow(/SSRF|privado/i);
     await expect(assertPublicHttpUrl("http://localhost/x")).rejects.toThrow(/SSRF|interna/i);
+  });
+});
+
+describe("Bliv storage URLs", () => {
+  it("extracts tenant path from authenticated storage URLs", () => {
+    expect(
+      parseBlivStorageFilePath(
+        "https://app.blivcrm.com/api/storage/file?path=eb98852e-25a1-4aaa-8bbb-ccc%2Fbanner.png&token=secret",
+      ),
+    ).toBe("eb98852e-25a1-4aaa-8bbb-ccc/banner.png");
+    expect(parseBlivStorageFilePath("/api/storage/file?path=tenant%2Fimg.jpg")).toBe("tenant/img.jpg");
+    expect(parseBlivStorageFilePath("https://cdn.example.com/photo.jpg")).toBeNull();
+  });
+
+  it("refuses to HTTP-fetch authenticated library URLs", async () => {
+    await expect(
+      fetchExternalTemplateMedia({
+        format: "IMAGE",
+        sourceUrl: "https://app.blivcrm.com/api/storage/file?path=tenant%2Fa.png",
+      }),
+    ).rejects.toThrow(/biblioteca|disco/i);
   });
 });
 

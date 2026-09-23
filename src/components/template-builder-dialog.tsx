@@ -56,6 +56,7 @@ import {
   validateTemplateInput,
   type BuildTemplateInput,
 } from "@/lib/whatsapp-template-payload";
+import { parseBlivStorageFilePath } from "@/lib/whatsapp-template-media";
 
 type MediaUploadPhase = "idle" | "selecting" | "validating" | "uploading" | "done" | "error";
 
@@ -131,6 +132,13 @@ function storageFileUrl(filePath: string) {
   const token = typeof window !== "undefined" ? localStorage.getItem("app-token") : null;
   if (token) params.set("token", token);
   return `/api/storage/file?${params.toString()}`;
+}
+
+function authenticatedMediaSrc(url: string) {
+  if (!url || url.startsWith("blob:") || url.startsWith("data:")) return url;
+  const stored = parseBlivStorageFilePath(url);
+  if (stored) return storageFileUrl(stored);
+  return url;
 }
 
 function libraryFileKind(name: string): "IMAGE" | "VIDEO" | "DOCUMENT" | null {
@@ -233,7 +241,7 @@ export function TemplateBuilderDialog({
             previewUrl:
               headerComp._bliv?.preview ||
               (headerComp._bliv?.local_path
-                ? `/api/storage/file?path=${encodeURIComponent(headerComp._bliv.local_path)}`
+                ? storageFileUrl(headerComp._bliv.local_path)
                 : ""),
             localPath: headerComp._bliv?.local_path,
             pendingUrl: String(headerComp.example?.header_handle?.[0] || "").startsWith("http")
@@ -501,7 +509,7 @@ export function TemplateBuilderDialog({
     setHeader({
       format,
       header_handle: json.handle,
-      previewUrl: json.preview_url || previewUrl,
+      previewUrl: json.local_path ? storageFileUrl(json.local_path) : json.preview_url || previewUrl,
       localPath: json.local_path,
       filename: json.filename,
       pendingUrl: "",
@@ -555,8 +563,15 @@ export function TemplateBuilderDialog({
       return;
     }
     const url = header.pendingUrl.trim();
+    const stored = parseBlivStorageFilePath(url);
     const form = new FormData();
     form.append("format", header.format);
+    if (stored) {
+      form.append("source", "library");
+      form.append("library_path", stored);
+      await uploadHeaderForm(form, storageFileUrl(stored));
+      return;
+    }
     form.append("source", "url");
     form.append("url", url);
     await uploadHeaderForm(form, url);
@@ -578,7 +593,7 @@ export function TemplateBuilderDialog({
     form.append("source", "library");
     form.append("library_path", filePath);
     setLibraryOpen(false);
-    await uploadHeaderForm(form, `/api/storage/file?path=${encodeURIComponent(filePath)}`);
+    await uploadHeaderForm(form, storageFileUrl(filePath));
   }
 
   const uploadPhaseLabel: Record<MediaUploadPhase, string> = {
@@ -809,13 +824,13 @@ export function TemplateBuilderDialog({
                   )}
                   {header.previewUrl && header.format === "IMAGE" && (
                     <img
-                      src={header.previewUrl}
+                      src={authenticatedMediaSrc(header.previewUrl)}
                       alt="Pré-visualização do cabeçalho"
                       className="max-h-40 rounded border object-contain"
                     />
                   )}
                   {header.previewUrl && header.format === "VIDEO" && (
-                    <video src={header.previewUrl} controls className="max-h-40 rounded border" />
+                    <video src={authenticatedMediaSrc(header.previewUrl)} controls className="max-h-40 rounded border" />
                   )}
                   {header.filename && (
                     <p className="text-[11px] text-muted-foreground">{header.filename}</p>

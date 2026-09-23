@@ -1,7 +1,11 @@
 import { lookup } from "node:dns/promises";
+import fs from "node:fs";
 import { isIP } from "node:net";
+import path from "node:path";
 import { looksLikeHttpUrl, looksLikeMetaUploadHandle } from "@/lib/whatsapp-template-payload";
 import { logTemplateMetaFailure, toFriendlyTemplateError } from "@/lib/meta-errors";
+import type { AuthenticatedUser } from "@/lib/subscription-helpers";
+import { assertTenantStoragePath, resolveUploadFilePath } from "@/lib/tenant-storage";
 
 export const TEMPLATE_MEDIA_LIMITS = {
   IMAGE: { maxBytes: 5 * 1024 * 1024, mime: ["image/jpeg", "image/jpg", "image/png"], ext: ["jpg", "jpeg", "png"] },
@@ -71,6 +75,62 @@ function isPrivateIp(ip: string): boolean {
   const lower = ip.toLowerCase();
   if (lower.startsWith("fc") || lower.startsWith("fd") || lower.startsWith("fe80")) return true;
   return false;
+}
+
+export function parseBlivStorageFilePath(raw: string): string | null {
+  const value = String(raw || "").trim();
+  if (!value) return null;
+
+  const fromUrl = (href: string, base?: string): string | null => {
+    try {
+      const url = base ? new URL(href, base) : new URL(href);
+      const pathname = url.pathname.replace(/\/+$/, "");
+      if (
+        pathname.endsWith("/api/storage/file") ||
+        pathname.endsWith("/api/storage/global-file")
+      ) {
+        const filePath = url.searchParams.get("path")?.trim();
+        return filePath || null;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  };
+
+  if (/^https?:\/\//i.test(value)) return fromUrl(value);
+  if (value.startsWith("/")) return fromUrl(value, "https://bliv.invalid");
+  const marker = value.indexOf("/api/storage/file");
+  if (marker >= 0) {
+    const query = value.slice(value.indexOf("?", marker));
+    if (query.startsWith("?")) {
+      const filePath = new URLSearchParams(query.slice(1)).get("path")?.trim();
+      if (filePath) return filePath;
+    }
+  }
+  return null;
+}
+
+export async function loadTemplateMediaFromLibrary(params: {
+  format: TemplateMediaFormat;
+  libraryPath: string;
+  user: AuthenticatedUser;
+}): Promise<{ bytes: Uint8Array; mimeType: string; filename: string }> {
+  const safePath = await assertTenantStoragePath(params.libraryPath, params.user);
+  const uploadsRoot = path.resolve(process.cwd(), "public", "uploads");
+  const fullPath = resolveUploadFilePath(uploadsRoot, safePath);
+  if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile()) {
+    throw new TemplateMediaError("Arquivo da biblioteca não encontrado.", "library_missing");
+  }
+  const bytes = new Uint8Array(fs.readFileSync(fullPath));
+  return {
+    bytes,
+    ...validateTemplateMediaBytes({
+      format: params.format,
+      bytes,
+      filename: path.basename(fullPath),
+    }),
+  };
 }
 
 export async function assertPublicHttpUrl(raw: string): Promise<URL> {
@@ -157,6 +217,12 @@ export async function fetchExternalTemplateMedia(params: {
   format: TemplateMediaFormat;
   sourceUrl: string;
 }): Promise<{ bytes: Uint8Array; mimeType: string; filename: string }> {
+  if (parseBlivStorageFilePath(params.sourceUrl)) {
+    throw new TemplateMediaError(
+      "Mídia da biblioteca deve ser lida no disco, não baixada por HTTP autenticado.",
+      "storage_http",
+    );
+  }
   const spec = TEMPLATE_MEDIA_LIMITS[params.format];
   let current = String(params.sourceUrl || "").trim();
   let res: Response | null = null;
@@ -309,10 +375,17 @@ export async function resolveHeaderHandle(params: {
   accessToken: string;
   apiVersion?: string;
   expectedAppId?: string;
+  libraryPath?: string;
+  user?: AuthenticatedUser;
 }): Promise<string> {
   const value = String(params.value || "").trim();
-  if (!value) throw new TemplateMediaError("Informe a mídia de exemplo do cabeçalho.", "missing");
-  if (looksLikeMetaUploadHandle(value) && !looksLikeHttpUrl(value)) {
+  const fromStorageUrl = parseBlivStorageFilePath(value);
+  const libraryPath =
+    fromStorageUrl ||
+    String(params.libraryPath || "").trim() ||
+    (!looksLikeHttpUrl(value) && !value.startsWith("4:") && value.includes("/") ? value : "");
+
+  if (value.startsWith("4:") && looksLikeMetaUploadHandle(value) && !looksLikeHttpUrl(value)) {
     if (params.expectedAppId && params.appId && params.expectedAppId !== params.appId) {
       throw new TemplateMediaError(
         "Este handle de mídia pertence a outra conexão Meta. Envie o arquivo novamente.",
@@ -321,22 +394,42 @@ export async function resolveHeaderHandle(params: {
     }
     return value;
   }
+
+  const uploadFile = async (file: { bytes: Uint8Array; mimeType: string; filename: string }) =>
+    uploadTemplateMediaHandle({
+      appId: params.appId,
+      accessToken: params.accessToken,
+      apiVersion: params.apiVersion,
+      format: params.format,
+      filename: file.filename,
+      mimeType: file.mimeType,
+      bytes: file.bytes,
+    });
+
+  if (libraryPath) {
+    if (!params.user) {
+      throw new TemplateMediaError(
+        "Não foi possível autenticar a leitura da mídia na biblioteca.",
+        "library_auth",
+      );
+    }
+    return uploadFile(
+      await loadTemplateMediaFromLibrary({
+        format: params.format,
+        libraryPath,
+        user: params.user,
+      }),
+    );
+  }
+
+  if (!value) throw new TemplateMediaError("Informe a mídia de exemplo do cabeçalho.", "missing");
   if (!looksLikeHttpUrl(value)) {
     throw new TemplateMediaError(
       "Informe um arquivo, um item da biblioteca ou uma URL http(s) pública para processar na Meta.",
       "source",
     );
   }
-  const file = await fetchExternalTemplateMedia({ format: params.format, sourceUrl: value });
-  return uploadTemplateMediaHandle({
-    appId: params.appId,
-    accessToken: params.accessToken,
-    apiVersion: params.apiVersion,
-    format: params.format,
-    filename: file.filename,
-    mimeType: file.mimeType,
-    bytes: file.bytes,
-  });
+  return uploadFile(await fetchExternalTemplateMedia({ format: params.format, sourceUrl: value }));
 }
 
 /** @deprecated use fetchExternalTemplateMedia */

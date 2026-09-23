@@ -197,6 +197,7 @@ function attachBlivMediaMeta(
 async function resolveMediaHeaderValue(
   data: CreateTemplateInput,
   account: { appId: string; accessToken: string; graphVersion: string },
+  user: { userId: string; tenantId: string; role?: string },
 ): Promise<string | undefined> {
   if (
     data.header.format !== "IMAGE" &&
@@ -214,6 +215,13 @@ async function resolveMediaHeaderValue(
   return resolveHeaderHandle({
     format: data.header.format,
     value: mediaHeaderSource(data.header),
+    libraryPath: "local_path" in data.header ? data.header.local_path : undefined,
+    user: {
+      userId: user.userId,
+      tenantId: user.tenantId,
+      email: "",
+      role: user.role || "user",
+    },
     appId: account.appId,
     accessToken: account.accessToken,
     apiVersion: account.graphVersion,
@@ -314,7 +322,11 @@ export const createTemplate = createServerFn({ method: "POST" })
           data.header.format === "VIDEO" ||
           data.header.format === "DOCUMENT")
       ) {
-        headerHandle = await resolveMediaHeaderValue(data, account);
+        headerHandle = await resolveMediaHeaderValue(data, account, {
+          userId: context.userId,
+          tenantId: context.tenantId,
+          role: context.claims?.role,
+        });
         if (!headerHandle || looksLikeHttpUrl(headerHandle) || !looksLikeMetaUploadHandle(headerHandle)) {
           throw new TemplateFieldError(
             "Faça o upload oficial da mídia de cabeçalho antes de criar o template na Meta.",
@@ -426,7 +438,11 @@ export const updateTemplate = createServerFn({ method: "POST" })
           data.header.format === "VIDEO" ||
           data.header.format === "DOCUMENT")
       ) {
-        headerHandle = await resolveMediaHeaderValue(data, account);
+        headerHandle = await resolveMediaHeaderValue(data, account, {
+          userId: context.userId,
+          tenantId: context.tenantId,
+          role: context.claims?.role,
+        });
         if (!headerHandle || looksLikeHttpUrl(headerHandle) || !looksLikeMetaUploadHandle(headerHandle)) {
           throw new TemplateFieldError(
             "Faça o upload oficial da mídia de cabeçalho antes de enviar o template à Meta.",
