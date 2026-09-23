@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
 import { logTemplateMetaFailure, toFriendlyError, toFriendlyTemplateError } from "@/lib/meta-errors";
 import { resolveOfficialWhatsAppTemplateAccount } from "@/lib/whatsapp-template-credentials";
-import { resolveHeaderHandle } from "@/lib/whatsapp-template-media";
+import { resolveHeaderHandle, TemplateMediaError } from "@/lib/whatsapp-template-media";
 import {
   buildMetaComponents,
   compactMetaCreatePayload,
@@ -11,6 +11,7 @@ import {
   looksLikeMetaUploadHandle,
   sanitizePayloadForLog,
   serializeTemplateFieldError,
+  stripBlivTemplateFields,
   TemplateFieldError,
   type BuildTemplateInput,
 } from "@/lib/whatsapp-template-payload";
@@ -153,6 +154,13 @@ function toBuildInput(data: CreateTemplateInput, headerHandle?: string): BuildTe
 function encodeCreateError(err: unknown): never {
   if (err instanceof TemplateFieldError) {
     throw new Error(serializeTemplateFieldError(err));
+  }
+  if (err instanceof TemplateMediaError) {
+    throw new Error(
+      serializeTemplateFieldError(
+        new TemplateFieldError(err.message, { header_media: err.message }),
+      ),
+    );
   }
   throw err instanceof Error ? err : new Error(String(err));
 }
@@ -305,7 +313,7 @@ export const createTemplate = createServerFn({ method: "POST" })
   .validator((d) => createTemplateInput.parse(d))
   .handler(async ({ data, context }) => {
     try {
-      const account = await resolveOfficialWhatsAppTemplateAccount(context.userId);
+      const account = await resolveOfficialWhatsAppTemplateAccount(context.tenantId || context.userId);
       const saveLocalOnly = data.save_local_only === true;
 
       if (!saveLocalOnly && !account) {
@@ -348,7 +356,7 @@ export const createTemplate = createServerFn({ method: "POST" })
           header_handle:
             looksLikeMetaUploadHandle(source) && !looksLikeHttpUrl(source)
               ? source
-              : "4:local-draft-placeholder",
+              : "4:aaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         };
       }
 
@@ -417,7 +425,7 @@ export const updateTemplate = createServerFn({ method: "POST" })
 
       if (!tpl) throw new Error("Template não encontrado.");
 
-      const account = await resolveOfficialWhatsAppTemplateAccount(context.userId);
+      const account = await resolveOfficialWhatsAppTemplateAccount(context.tenantId || context.userId);
       const saveLocalOnly = data.save_local_only === true;
       const isRemote =
         tpl.meta_template_id &&
@@ -464,7 +472,7 @@ export const updateTemplate = createServerFn({ method: "POST" })
           header_handle:
             looksLikeMetaUploadHandle(source) && !looksLikeHttpUrl(source)
               ? source
-              : "4:local-draft-placeholder",
+              : "4:aaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         };
       }
 
@@ -1154,7 +1162,7 @@ export const submitTemplateToMeta = createServerFn({ method: "POST" })
       throw new Error("Template não encontrado.");
     }
 
-    const account = await resolveOfficialWhatsAppTemplateAccount(context.userId);
+    const account = await resolveOfficialWhatsAppTemplateAccount(context.tenantId || context.userId);
     if (!account) {
       throw new Error(
         "Configure a conexão oficial da Meta (WABA ID + token) antes de enviar. Evolution API não cadastra templates.",
@@ -1167,20 +1175,25 @@ export const submitTemplateToMeta = createServerFn({ method: "POST" })
       header &&
       (header.format === "IMAGE" || header.format === "VIDEO" || header.format === "DOCUMENT")
     ) {
-      const current = String(header.example?.header_handle?.[0] || "");
-      if (looksLikeHttpUrl(current) || !current) {
-        if (!account.appId) {
-          throw new Error("App ID da conexão Meta é obrigatório para upload do cabeçalho de mídia.");
-        }
-        const handle = await resolveHeaderHandle({
-          format: header.format,
-          value: current,
-          appId: account.appId,
-          accessToken: account.accessToken,
-          apiVersion: account.graphVersion,
-        });
-        header.example = { header_handle: [handle] };
+      if (!account.appId) {
+        throw new Error("App ID da conexão Meta é obrigatório para upload do cabeçalho de mídia.");
       }
+      const current = String(header.example?.header_handle?.[0] || "");
+      const handle = await resolveHeaderHandle({
+        format: header.format,
+        value: current,
+        libraryPath: header._bliv?.local_path,
+        user: {
+          userId: context.userId,
+          tenantId: context.tenantId,
+          email: "",
+          role: context.claims?.role || "user",
+        },
+        appId: account.appId,
+        accessToken: account.accessToken,
+        apiVersion: account.graphVersion,
+      });
+      header.example = { header_handle: [handle] };
     }
 
     const payload = compactMetaCreatePayload(
@@ -1202,7 +1215,7 @@ export const submitTemplateToMeta = createServerFn({ method: "POST" })
     payload.name = tpl.name;
     payload.language = tpl.language;
     payload.category = tpl.category;
-    payload.components = components;
+    payload.components = stripBlivTemplateFields(components);
 
     const meta = await postWhatsAppMessageTemplate({ account, payload });
     const status = normalizeTemplateStatus(meta.status, "PENDING");

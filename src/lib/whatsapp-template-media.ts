@@ -254,13 +254,21 @@ export async function uploadTemplateMediaHandle(params: {
     throw new TemplateMediaError("App ID da conexão Meta é obrigatório para o upload resumable.", "app_id");
   }
   const apiVersion = normalizeGraphApiVersion(params.apiVersion);
+  const mimeType = params.mimeType === "image/jpg" ? "image/jpeg" : params.mimeType;
   const startOnce = async () => {
-    const startUrl = new URL(`https://graph.facebook.com/${apiVersion}/${params.appId}/uploads`);
-    startUrl.searchParams.set("file_name", params.filename);
-    startUrl.searchParams.set("file_length", String(params.bytes.byteLength));
-    startUrl.searchParams.set("file_type", params.mimeType);
-    startUrl.searchParams.set("access_token", params.accessToken);
-    const start = await fetch(startUrl.toString(), { method: "POST" });
+    const startUrl = `https://graph.facebook.com/${apiVersion}/${params.appId}/uploads`;
+    const start = await fetch(startUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${params.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        file_name: params.filename,
+        file_length: params.bytes.byteLength,
+        file_type: mimeType,
+      }),
+    });
     const startBody: any = await start.json().catch(() => ({}));
     if (!start.ok || startBody.error) {
       logTemplateMetaFailure({
@@ -272,7 +280,7 @@ export async function uploadTemplateMediaHandle(params: {
         message: startBody?.error?.message,
         details: startBody?.error?.error_data?.details ?? startBody?.error?.error_data,
         fbtrace_id: startBody?.error?.fbtrace_id,
-        payload: { file_name: params.filename, file_type: params.mimeType, file_length: params.bytes.byteLength },
+        payload: { file_name: params.filename, file_type: mimeType, file_length: params.bytes.byteLength },
       });
       const friendly = toFriendlyTemplateError(startBody, "Falha ao iniciar o upload resumable na Meta.");
       throw new TemplateMediaError(
@@ -304,7 +312,7 @@ export async function uploadTemplateMediaHandle(params: {
         message: uploaded?.error?.message,
         details: uploaded?.error?.error_data?.details ?? uploaded?.error?.error_data,
         fbtrace_id: uploaded?.error?.fbtrace_id,
-        payload: { file_name: params.filename, file_type: params.mimeType },
+        payload: { file_name: params.filename, file_type: mimeType },
       });
       const msg = String(uploaded?.error?.message || "");
       if (/expired|session/i.test(msg)) {
@@ -351,17 +359,7 @@ export async function resolveHeaderHandle(params: {
   const libraryPath =
     fromStorageUrl ||
     String(params.libraryPath || "").trim() ||
-    (!looksLikeHttpUrl(value) && !value.startsWith("4:") && value.includes("/") ? value : "");
-
-  if (value.startsWith("4:") && looksLikeMetaUploadHandle(value) && !looksLikeHttpUrl(value)) {
-    if (params.expectedAppId && params.appId && params.expectedAppId !== params.appId) {
-      throw new TemplateMediaError(
-        "Este handle de mídia pertence a outra conexão Meta. Envie o arquivo novamente.",
-        "handle_foreign",
-      );
-    }
-    return value;
-  }
+    (!looksLikeHttpUrl(value) && !looksLikeMetaUploadHandle(value) && value.includes("/") ? value : "");
 
   const uploadFile = async (file: { bytes: Uint8Array; mimeType: string; filename: string }) =>
     uploadTemplateMediaHandle({
@@ -374,6 +372,7 @@ export async function resolveHeaderHandle(params: {
       bytes: file.bytes,
     });
 
+  // Always mint a fresh handle at template submit. Client-stored 4: handles expire.
   if (libraryPath) {
     if (!params.user) {
       throw new TemplateMediaError(
@@ -390,14 +389,14 @@ export async function resolveHeaderHandle(params: {
     );
   }
 
-  if (!value) throw new TemplateMediaError("Informe a mídia de exemplo do cabeçalho.", "missing");
-  if (!looksLikeHttpUrl(value)) {
-    throw new TemplateMediaError(
-      "Informe um arquivo, um item da biblioteca ou uma URL http(s) pública para processar na Meta.",
-      "source",
-    );
+  if (looksLikeHttpUrl(value) && !fromStorageUrl) {
+    return uploadFile(await fetchExternalTemplateMedia({ format: params.format, sourceUrl: value }));
   }
-  return uploadFile(await fetchExternalTemplateMedia({ format: params.format, sourceUrl: value }));
+
+  throw new TemplateMediaError(
+    "Envie de novo o arquivo do cabeçalho. O identificador da Meta expira e não pode ser reutilizado.",
+    "handle_stale",
+  );
 }
 
 /** @deprecated use fetchExternalTemplateMedia */

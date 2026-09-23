@@ -304,16 +304,27 @@ export function toFriendlyTemplateError(
   const trace = meta.fbtrace_id;
   const subcode = meta.error_subcode;
   const dataDetails = meta.error_data?.details || meta.error_data?.blame_field_specs;
+  const userTitle = String(meta.error_user_title || "").trim();
+  const userMsg = String(meta.error_user_msg || "").trim();
   const message: string = meta.message || fallback;
   const lower = String(message).toLowerCase();
-  const detailsText = typeof dataDetails === "string" ? dataDetails : "";
+  const detailsText =
+    typeof dataDetails === "string"
+      ? dataDetails
+      : dataDetails
+        ? JSON.stringify(dataDetails)
+        : [userTitle, userMsg].filter(Boolean).join(" — ");
 
   if (code === 100 || lower.includes("invalid parameter")) {
     let hint =
       "O cadastro POST /{WABA_ID}/message_templates rejeitou um campo do JSON. Confira componentes, exemplos e header_handle.";
-    if (/header_handle|handle/i.test(message + detailsText)) {
+    if (userMsg) {
+      hint = userTitle ? `${userTitle}: ${userMsg}` : userMsg;
+    } else if (/already exists|duplicate|nome já/i.test(message + detailsText)) {
+      hint = "Já existe um template com este nome nesta WABA. Altere o nome interno e envie de novo.";
+    } else if (/header_handle|handle|file type/i.test(message + detailsText + userTitle + userMsg)) {
       hint =
-        "O campo rejeitado é example.header_handle. A Meta exige o handle do upload resumable (app-id/uploads), não uma URL http(s).";
+        "O campo rejeitado é example.header_handle. A Bliv reenvia o arquivo à Meta no cadastro; se persistir, escolha a imagem de novo na biblioteca.";
     } else if (/body_text_named_params|named param|parameter_format/i.test(message + detailsText)) {
       hint =
         "O formato das variáveis não bate com o JSON. NAMED usa body_text_named_params; POSITIONAL usa body_text como array de arrays.";

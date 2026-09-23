@@ -119,7 +119,12 @@ export function parseBlivStorageFilePath(raw: string): string | null {
 export function looksLikeMetaUploadHandle(value: string): boolean {
   const v = String(value || "").trim();
   if (!v || looksLikeHttpUrl(v)) return false;
-  return v.startsWith("4:") || v.length >= 24;
+  if (/placeholder|local-draft|pending-server/i.test(v)) return false;
+  // UUID, filename or library path is never a Meta resumable handle.
+  if (v.includes("/") || /\.(png|jpe?g|gif|webp|mp4|pdf)$/i.test(v)) return false;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)) return false;
+  // Current Graph handles start with "4:"; some older sessions used "2:".
+  return /^(4|2):[A-Za-z0-9+/=:_-]{20,}$/.test(v);
 }
 
 export function buttonCompatibility(category: BuildTemplateInput["category"]): {
@@ -302,9 +307,20 @@ export function validateTemplateInput(input: BuildTemplateInput): FieldErrors {
       return;
     }
     if (button.type === "URL") {
-      if (!button.url.trim()) fields[key] = "Informe a URL do botão.";
-      else if (/\{\{/.test(button.url) && !button.example?.[0]?.trim()) {
-        fields[key] = "URL com variável exige um exemplo (campo example).";
+      const rawUrl = button.url.trim();
+      if (!rawUrl) fields[key] = "Informe a URL do botão.";
+      else {
+        try {
+          const parsed = new URL(rawUrl.replace(/\{\{\s*[^}]+\s*\}\}/g, "sample"));
+          if (!/^https?:$/i.test(parsed.protocol) || !parsed.hostname || parsed.hostname === "exemplo.com") {
+            fields[key] = "Informe uma URL https válida para o botão.";
+          }
+        } catch {
+          fields[key] = "Informe uma URL https válida para o botão.";
+        }
+        if (/\{\{/.test(rawUrl) && !button.example?.[0]?.trim()) {
+          fields[key] = "URL com variável exige um exemplo (campo example).";
+        }
       }
     }
     if (button.type === "COPY_CODE" && !button.example?.[0]?.trim()) {

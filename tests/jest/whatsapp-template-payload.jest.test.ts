@@ -91,6 +91,22 @@ describe("WhatsApp template payload vs Meta contract", () => {
     expect(fields.header_media).toMatch(/header_handle/);
   });
 
+  it("does not treat library filenames or UUIDs as Meta handles", () => {
+    expect(looksLikeMetaUploadHandle("39546b60-0751-4b8c-ae78-2dad773af32e.png")).toBe(false);
+    expect(looksLikeMetaUploadHandle("tenant/template-headers/a.png")).toBe(false);
+    expect(looksLikeMetaUploadHandle("4:local-draft-placeholder")).toBe(false);
+    expect(looksLikeMetaUploadHandle("4:aW1hZ2UtZXhhbXBsZS1oYW5kbGU")).toBe(true);
+  });
+
+  it("rejects incomplete URL buttons", () => {
+    const fields = validateTemplateInput({
+      ...simple,
+      category: "MARKETING",
+      buttons: [{ type: "URL", text: "Site", url: "https://" }],
+    });
+    expect(fields["buttons.0"]).toMatch(/URL/i);
+  });
+
   it("compacts URL / PHONE / QR / OTP buttons per category rules", () => {
     const marketing: BuildTemplateInput = {
       ...simple,

@@ -56,6 +56,8 @@ import {
   validateTemplateInput,
   type BuildTemplateInput,
   parseBlivStorageFilePath,
+  looksLikeHttpUrl,
+  looksLikeMetaUploadHandle,
 } from "@/lib/whatsapp-template-payload";
 
 type MediaUploadPhase = "idle" | "selecting" | "validating" | "uploading" | "done" | "error";
@@ -231,27 +233,18 @@ export function TemplateBuilderDialog({
         } else if (headerComp.format === "LOCATION") {
           setHeader({ format: "LOCATION" });
         } else if (["IMAGE", "VIDEO", "DOCUMENT"].includes(headerComp.format)) {
+          const storedHandle = String(headerComp.example?.header_handle?.[0] || "");
+          const metaHandle = looksLikeMetaUploadHandle(storedHandle) ? storedHandle : "";
+          const localPath = headerComp._bliv?.local_path;
           setHeader({
             format: headerComp.format,
-            header_handle:
-              headerComp.example?.header_handle?.[0] &&
-              !String(headerComp.example.header_handle[0]).startsWith("http")
-                ? String(headerComp.example.header_handle[0])
-                : "",
+            header_handle: metaHandle,
             previewUrl:
               headerComp._bliv?.preview ||
-              (headerComp._bliv?.local_path
-                ? storageFileUrl(headerComp._bliv.local_path)
-                : ""),
-            localPath: headerComp._bliv?.local_path,
-            pendingUrl: String(headerComp.example?.header_handle?.[0] || "").startsWith("http")
-              ? String(headerComp.example.header_handle[0])
-              : "",
-            uploadPhase:
-              headerComp.example?.header_handle?.[0] &&
-              !String(headerComp.example.header_handle[0]).startsWith("http")
-                ? "done"
-                : "idle",
+              (localPath ? storageFileUrl(localPath) : ""),
+            localPath,
+            pendingUrl: looksLikeHttpUrl(storedHandle) ? storedHandle : "",
+            uploadPhase: metaHandle || localPath ? "done" : "idle",
           });
         } else {
           setHeader({ format: "NONE" });
@@ -478,11 +471,26 @@ export function TemplateBuilderDialog({
     ...validateTemplateInput(draftBuild),
     ...fieldErrors,
   };
+  if (
+    liveErrors.header_media &&
+    (header.format === "IMAGE" || header.format === "VIDEO" || header.format === "DOCUMENT") &&
+    header.localPath
+  ) {
+    delete liveErrors.header_media;
+  }
 
   function submit(saveLocalOnly: boolean) {
     setFieldErrors({});
     setFormError(null);
     const errors = validateTemplateInput(draftBuild);
+    if (
+      !saveLocalOnly &&
+      errors.header_media &&
+      (header.format === "IMAGE" || header.format === "VIDEO" || header.format === "DOCUMENT") &&
+      header.localPath
+    ) {
+      delete errors.header_media;
+    }
     if (!saveLocalOnly && Object.keys(errors).length) {
       setFieldErrors(errors);
       setFormError(Object.values(errors)[0]);

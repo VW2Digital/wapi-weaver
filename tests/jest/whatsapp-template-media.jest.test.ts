@@ -154,6 +154,14 @@ describe("uploadTemplateMediaHandle", () => {
       bytes: new Uint8Array(PNG_1X1),
     });
     expect(handle.startsWith("4:")).toBe(true);
+    const startCall = fetchMock.mock.calls[0];
+    expect(String(startCall[0])).toMatch(/\/111\/uploads$/);
+    expect(startCall[1]?.headers?.["Content-Type"]).toBe("application/json");
+    expect(JSON.parse(startCall[1]?.body)).toEqual({
+      file_name: "a.png",
+      file_length: PNG_1X1.length,
+      file_type: "image/png",
+    });
   });
 
   it("maps expired session and auth errors", async () => {
