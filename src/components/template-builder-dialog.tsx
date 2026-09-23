@@ -20,6 +20,7 @@ import {
   FolderOpen,
   Link2,
   Loader2,
+  FileText,
 } from "lucide-react";
 
 import {
@@ -123,6 +124,21 @@ function emptyMediaHeader(format: "IMAGE" | "VIDEO" | "DOCUMENT"): Extract<
 function authHeaders(): HeadersInit {
   const token = typeof window !== "undefined" ? localStorage.getItem("app-token") : null;
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+function storageFileUrl(filePath: string) {
+  const params = new URLSearchParams({ path: filePath });
+  const token = typeof window !== "undefined" ? localStorage.getItem("app-token") : null;
+  if (token) params.set("token", token);
+  return `/api/storage/file?${params.toString()}`;
+}
+
+function libraryFileKind(name: string): "IMAGE" | "VIDEO" | "DOCUMENT" | null {
+  const ext = name.split(".").pop()?.toLowerCase();
+  if (ext === "jpg" || ext === "jpeg" || ext === "png") return "IMAGE";
+  if (ext === "mp4") return "VIDEO";
+  if (ext === "pdf") return "DOCUMENT";
+  return null;
 }
 
 function extractVarCount(text: string) {
@@ -805,20 +821,54 @@ export function TemplateBuilderDialog({
                     <p className="text-[11px] text-muted-foreground">{header.filename}</p>
                   )}
                   {libraryOpen && (
-                    <div className="max-h-40 space-y-1 overflow-y-auto rounded border p-2">
-                      {libraryFiles.length === 0 ? (
+                    <div className="max-h-72 overflow-y-auto rounded border p-2">
+                      {libraryFiles.filter((file) => libraryFileKind(file.name) === header.format)
+                        .length === 0 ? (
                         <p className="text-xs text-muted-foreground">Nenhum arquivo compatível.</p>
                       ) : (
-                        libraryFiles.map((file) => (
-                          <button
-                            key={file.path}
-                            type="button"
-                            className="block w-full truncate rounded px-2 py-1 text-left text-xs hover:bg-muted"
-                            onClick={() => void pickLibrary(file.path)}
-                          >
-                            {file.name}
-                          </button>
-                        ))
+                        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                          {libraryFiles
+                            .filter((file) => libraryFileKind(file.name) === header.format)
+                            .map((file) => {
+                              const kind = libraryFileKind(file.name);
+                              const src = storageFileUrl(file.path);
+                              return (
+                                <button
+                                  key={file.path}
+                                  type="button"
+                                  className="group overflow-hidden rounded-md border bg-muted/20 p-1 text-left transition hover:border-primary hover:bg-muted/40"
+                                  onClick={() => void pickLibrary(file.path)}
+                                >
+                                  <div className="relative aspect-square overflow-hidden rounded bg-muted">
+                                    {kind === "IMAGE" && (
+                                      <img
+                                        src={src}
+                                        alt=""
+                                        className="h-full w-full object-cover"
+                                      />
+                                    )}
+                                    {kind === "VIDEO" && (
+                                      <video
+                                        src={`${src}#t=0.1`}
+                                        muted
+                                        playsInline
+                                        preload="metadata"
+                                        className="h-full w-full object-cover"
+                                      />
+                                    )}
+                                    {kind === "DOCUMENT" && (
+                                      <div className="flex h-full w-full items-center justify-center">
+                                        <FileText className="h-8 w-8 text-muted-foreground" />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <span className="mt-1 block truncate px-0.5 text-[10px] leading-tight text-muted-foreground group-hover:text-foreground">
+                                    {file.name}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                        </div>
                       )}
                     </div>
                   )}
