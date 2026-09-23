@@ -81,6 +81,24 @@ const statusLabels: Record<string, string> = {
   DISABLED: "DESATIVADO",
 };
 
+function isLocalTemplateId(id?: string | null) {
+  if (!id) return true;
+  return id.startsWith("local_") || id.startsWith("sample_");
+}
+
+function templateLifecycle(t: { status?: string; meta_template_id?: string | null }) {
+  if (t.meta_template_id !== undefined && isLocalTemplateId(t.meta_template_id)) {
+    return { label: "RASCUNHO LOCAL", className: "bg-muted text-muted-foreground" };
+  }
+  if (t.status === "PENDING") {
+    return { label: "ANÁLISE META", className: statusColors.PENDING };
+  }
+  return {
+    label: statusLabels[t.status ?? ""] ?? t.status ?? "—",
+    className: statusColors[t.status ?? ""] ?? "bg-muted",
+  };
+}
+
 function TemplateDetailsDialog({
   trigger,
   templateId,
@@ -664,9 +682,9 @@ function TemplatesPage() {
                             </div>
                             <div className="flex items-center gap-2">
                               <span
-                                className={`rounded px-2 py-0.5 text-xs font-medium ${statusColors[t.status] ?? "bg-muted"}`}
+                                className={`rounded px-2 py-0.5 text-xs font-medium ${templateLifecycle(t).className}`}
                               >
-                                {statusLabels[t.status] ?? t.status}
+                                {templateLifecycle(t).label}
                               </span>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -810,9 +828,9 @@ function TemplatesPage() {
                             </p>
                             <div className="flex items-center gap-1.5">
                               <span
-                                className={`rounded px-2 py-0.5 text-[10px] font-semibold ${statusColors[t.status] ?? "bg-muted"}`}
+                                className={`rounded px-2 py-0.5 text-[10px] font-semibold ${templateLifecycle(t).className}`}
                               >
-                                {statusLabels[t.status] ?? t.status}
+                                {templateLifecycle(t).label}
                               </span>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>

@@ -94,7 +94,7 @@ export function toFriendlyError(
       return {
         title: "Parâmetro inválido",
         message: message || "A Meta não aceitou um dos parâmetros enviados.",
-        hint: "Se estiver enviando mensagens, confira o Phone Number ID e o formato do destinatário. Se estiver criando um template, verifique se preencheu os exemplos das variáveis, se o nome do template tem apenas letras minúsculas/números/underlines, ou se o WABA ID não está trocado com o Phone Number ID nas Configurações.",
+        hint: "Confira o Phone Number ID e o formato do destinatário.",
         code,
         type,
         trace,
@@ -272,4 +272,92 @@ export function toFriendlyError(
     type,
     trace,
   };
+}
+
+export type TemplateMetaErrorLog = {
+  endpoint: string;
+  apiVersion: string;
+  httpStatus: number;
+  code?: number | string;
+  error_subcode?: number | string;
+  message?: string;
+  details?: unknown;
+  fbtrace_id?: string;
+  payload: Record<string, unknown>;
+};
+
+export function toFriendlyTemplateError(
+  raw: unknown,
+  fallback = "Falha ao cadastrar o template na Meta.",
+): FriendlyError {
+  let details: any = raw;
+  if (typeof raw === "string") {
+    try {
+      details = JSON.parse(raw);
+    } catch {
+      details = { message: raw };
+    }
+  }
+  const meta = pickMetaError(details) ?? details ?? {};
+  const code = meta.code;
+  const type = meta.type;
+  const trace = meta.fbtrace_id;
+  const subcode = meta.error_subcode;
+  const dataDetails = meta.error_data?.details || meta.error_data?.blame_field_specs;
+  const message: string = meta.message || fallback;
+  const lower = String(message).toLowerCase();
+  const detailsText = typeof dataDetails === "string" ? dataDetails : "";
+
+  if (code === 100 || lower.includes("invalid parameter")) {
+    let hint =
+      "O cadastro POST /{WABA_ID}/message_templates rejeitou um campo do JSON. Confira componentes, exemplos e header_handle.";
+    if (/header_handle|handle/i.test(message + detailsText)) {
+      hint =
+        "O campo rejeitado é example.header_handle. A Meta exige o handle do upload resumable (app-id/uploads), não uma URL http(s).";
+    } else if (/body_text_named_params|named param|parameter_format/i.test(message + detailsText)) {
+      hint =
+        "O formato das variáveis não bate com o JSON. NAMED usa body_text_named_params; POSITIONAL usa body_text como array de arrays.";
+    } else if (/header_text/i.test(message + detailsText)) {
+      hint = "O cabeçalho TEXT com variável precisa de example.header_text (ou header_text_named_params).";
+    } else if (/button/i.test(message + detailsText)) {
+      hint = "Há um botão incompatível com a categoria ou sem example/url/flow_id obrigatório.";
+    } else if (detailsText) {
+      hint = String(detailsText);
+    }
+    return {
+      title: "Parâmetro inválido no cadastro do template",
+      message: detailsText ? `${message} — ${detailsText}` : message,
+      hint,
+      code: subcode ? `${code}/${subcode}` : code,
+      type,
+      trace,
+    };
+  }
+
+  if (lower.includes("does not exist") || lower.includes("unsupported post request")) {
+    return {
+      title: "WABA ID inválido ou sem permissão para templates",
+      message,
+      hint: "A criação usa o WABA ID (não o Phone Number ID nem o App ID). O token precisa de whatsapp_business_management na WABA selecionada.",
+      code,
+      type,
+      trace,
+    };
+  }
+
+  return toFriendlyError(raw, fallback);
+}
+
+export function logTemplateMetaFailure(info: TemplateMetaErrorLog) {
+  console.error("[templates] meta_create_failed", {
+    endpoint: info.endpoint,
+    apiVersion: info.apiVersion,
+    httpStatus: info.httpStatus,
+    code: info.code,
+    error_subcode: info.error_subcode,
+    message: info.message,
+    details: info.details,
+    fbtrace_id: info.fbtrace_id,
+    payload: info.payload,
+  });
 }

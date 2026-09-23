@@ -44,10 +44,17 @@ import {
   updateTemplate,
   type CreateTemplateInput,
 } from "@/lib/templates.functions";
+import {
+  buttonCompatibility,
+  headerCompatibility,
+  parseTemplateFieldError,
+  validateTemplateInput,
+  type BuildTemplateInput,
+} from "@/lib/whatsapp-template-payload";
 
 type HeaderState =
   | { format: "NONE" }
-  | { format: "TEXT"; text: string }
+  | { format: "TEXT"; text: string; examples?: string[] }
   | { format: "IMAGE" | "VIDEO" | "DOCUMENT"; example_url: string }
   | { format: "LOCATION" };
 
@@ -132,6 +139,8 @@ export function TemplateBuilderDialog({
   const [subCategory, setSubCategory] = useState<string>("default");
   const [isPrimaryDeviceDeliveryOnly, setIsPrimaryDeviceDeliveryOnly] = useState<boolean>(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (template && open) {
@@ -153,7 +162,15 @@ export function TemplateBuilderDialog({
       const headerComp = comps.find((c: any) => c.type === "HEADER");
       if (headerComp) {
         if (headerComp.format === "TEXT") {
-          setHeader({ format: "TEXT", text: headerComp.text || "" });
+          setHeader({
+            format: "TEXT",
+            text: headerComp.text || "",
+            examples: headerComp.example?.header_text
+              ? headerComp.example.header_text
+              : headerComp.example?.header_text_named_params
+                ? headerComp.example.header_text_named_params.map((p: any) => p.example ?? "")
+                : [],
+          });
         } else if (headerComp.format === "LOCATION") {
           setHeader({ format: "LOCATION" });
         } else if (["IMAGE", "VIDEO", "DOCUMENT"].includes(headerComp.format)) {
@@ -229,8 +246,8 @@ export function TemplateBuilderDialog({
   if (buttons.length) previewComponents.push({ type: "BUTTONS", buttons });
 
   const mutation = useMutation({
-    mutationFn: () => {
-      const payload: any = {
+    mutationFn: (saveLocalOnly: boolean) => {
+      const payload: CreateTemplateInput & { id?: string; save_local_only?: boolean } = {
         name: name.trim(),
         language,
         category,
@@ -238,7 +255,7 @@ export function TemplateBuilderDialog({
           header.format === "NONE"
             ? { format: "NONE" }
             : header.format === "TEXT"
-              ? { format: "TEXT", text: header.text }
+              ? { format: "TEXT", text: header.text, examples: header.examples }
               : header.format === "LOCATION"
                 ? { format: "LOCATION" }
                 : { format: header.format, example_url: header.example_url },
@@ -246,35 +263,54 @@ export function TemplateBuilderDialog({
         body_examples: bodyExamples.filter((s) => s.length > 0),
         footer: footer || undefined,
         buttons: buttons.length ? (buttons as any) : undefined,
-        // Advanced
         parameter_format: parameterFormat === "default" ? undefined : parameterFormat,
         allow_category_change: allowCategoryChange,
         cta_url_link_tracking_opted_out: ctaUrlLinkTrackingOptedOut,
         message_send_ttl_seconds: messageSendTtlSeconds
           ? parseInt(messageSendTtlSeconds, 10)
           : undefined,
-        sub_category: category === "UTILITY" && subCategory !== "default" ? subCategory : undefined,
+        sub_category:
+          category === "UTILITY" && subCategory !== "default"
+            ? (subCategory as CreateTemplateInput["sub_category"])
+            : undefined,
         is_primary_device_delivery_only: isPrimaryDeviceDeliveryOnly,
+        save_local_only: saveLocalOnly,
       };
       if (template?.id) {
         payload.id = template.id;
-        return submitUpdate({ data: payload });
-      } else {
-        return submitCreate({ data: payload });
+        return submitUpdate({ data: payload as any });
       }
+      return submitCreate({ data: payload });
     },
-    onSuccess: () => {
+    onSuccess: (row: any) => {
+      const local = row?.submission === "local";
       toast.success(
-        template
-          ? "Template atualizado com sucesso."
-          : "Template criado. Aguarde a análise da Meta.",
+        local
+          ? "Rascunho salvo apenas na Bliv. Ainda não foi enviado à Meta."
+          : row?.status === "APPROVED"
+            ? `Template aprovado na Meta (ID ${row.meta_template_id}).`
+            : row?.status === "REJECTED"
+              ? `A Meta rejeitou o template (ID ${row.meta_template_id}).`
+              : `Enviado à Meta. ID ${row?.meta_template_id}. Status: ${row?.status || "PENDING"} (análise).`,
       );
       qc.invalidateQueries({ queryKey: ["templates"] });
       qc.invalidateQueries({ queryKey: ["templates", "all"] });
+      setFieldErrors({});
+      setFormError(null);
       reset();
       setOpen(false);
     },
-    onError: (e: any) => toast.error(e.message ?? "Falha ao salvar template"),
+    onError: (e: any) => {
+      const parsed = parseTemplateFieldError(e.message ?? "");
+      if (parsed) {
+        setFieldErrors(parsed.fields);
+        setFormError(parsed.message);
+        toast.error(parsed.message);
+        return;
+      }
+      setFormError(e.message ?? "Falha ao salvar template");
+      toast.error(e.message ?? "Falha ao salvar template");
+    },
   });
 
   function reset() {
@@ -293,6 +329,8 @@ export function TemplateBuilderDialog({
     setSubCategory("default");
     setIsPrimaryDeviceDeliveryOnly(false);
     setShowAdvanced(false);
+    setFieldErrors({});
+    setFormError(null);
   }
 
   function addButton(type: ButtonState["type"]) {
@@ -334,6 +372,43 @@ export function TemplateBuilderDialog({
     const next = [...buttons];
     next[i] = { ...(next[i] as any), ...(patch as any) };
     setButtons(next);
+  }
+
+  const headerRules = headerCompatibility(category);
+  const buttonRules = buttonCompatibility(category);
+  const draftBuild: BuildTemplateInput = {
+    name: name.trim() || "draft",
+    language,
+    category,
+    header:
+      header.format === "NONE"
+        ? { format: "NONE" }
+        : header.format === "TEXT"
+          ? { format: "TEXT", text: header.text, examples: header.examples }
+          : header.format === "LOCATION"
+            ? { format: "LOCATION" }
+            : { format: header.format, header_handle: header.example_url },
+    body,
+    body_examples: bodyExamples,
+    footer,
+    buttons: buttons as any,
+    parameter_format: parameterFormat === "default" ? undefined : parameterFormat,
+  };
+  const liveErrors = {
+    ...validateTemplateInput(draftBuild),
+    ...fieldErrors,
+  };
+
+  function submit(saveLocalOnly: boolean) {
+    setFieldErrors({});
+    setFormError(null);
+    const errors = validateTemplateInput(draftBuild);
+    if (!saveLocalOnly && Object.keys(errors).length) {
+      setFieldErrors(errors);
+      setFormError(Object.values(errors)[0]);
+      return;
+    }
+    mutation.mutate(saveLocalOnly);
   }
 
   return (
@@ -379,7 +454,26 @@ export function TemplateBuilderDialog({
               </div>
               <div>
                 <Label>Categoria</Label>
-                <Select value={category} onValueChange={(v: any) => setCategory(v)}>
+                <Select
+                  value={category}
+                  onValueChange={(v: any) => {
+                    setCategory(v);
+                    if (v === "AUTHENTICATION") {
+                      if (
+                        header.format === "IMAGE" ||
+                        header.format === "VIDEO" ||
+                        header.format === "DOCUMENT" ||
+                        header.format === "LOCATION"
+                      ) {
+                        setHeader({ format: "NONE" });
+                      }
+                      setFooter("");
+                      setButtons((prev) => prev.filter((b) => b.type === "OTP"));
+                    } else {
+                      setButtons((prev) => prev.filter((b) => b.type !== "OTP"));
+                    }
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -411,39 +505,74 @@ export function TemplateBuilderDialog({
                   <SelectContent>
                     <SelectItem value="NONE">Sem cabeçalho</SelectItem>
                     <SelectItem value="TEXT">Texto</SelectItem>
-                    <SelectItem value="IMAGE">Imagem</SelectItem>
-                    <SelectItem value="VIDEO">Vídeo</SelectItem>
-                    <SelectItem value="DOCUMENT">Documento</SelectItem>
-                    <SelectItem value="LOCATION">Localização</SelectItem>
+                    <SelectItem value="IMAGE" disabled={!headerRules.allowed.includes("IMAGE")}>
+                      Imagem
+                    </SelectItem>
+                    <SelectItem value="VIDEO" disabled={!headerRules.allowed.includes("VIDEO")}>
+                      Vídeo
+                    </SelectItem>
+                    <SelectItem value="DOCUMENT" disabled={!headerRules.allowed.includes("DOCUMENT")}>
+                      Documento
+                    </SelectItem>
+                    <SelectItem value="LOCATION" disabled={!headerRules.allowed.includes("LOCATION")}>
+                      Localização
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               {header.format === "TEXT" && (
-                <div>
+                <div className="space-y-2">
                   <Input
                     placeholder="Título (até 60 caracteres)"
                     maxLength={60}
                     value={header.text}
-                    onChange={(e) => setHeader({ format: "TEXT", text: e.target.value })}
+                    onChange={(e) =>
+                      setHeader({ format: "TEXT", text: e.target.value, examples: header.examples })
+                    }
                   />
+                  {extractVarCount(header.text).length > 0 && (
+                    <Input
+                      placeholder="Exemplo da variável do cabeçalho"
+                      value={header.examples?.[0] ?? ""}
+                      onChange={(e) =>
+                        setHeader({ format: "TEXT", text: header.text, examples: [e.target.value] })
+                      }
+                    />
+                  )}
+                  {liveErrors.header_text && (
+                    <p className="text-xs text-destructive">{liveErrors.header_text}</p>
+                  )}
+                  {liveErrors.header_examples && (
+                    <p className="text-xs text-destructive">{liveErrors.header_examples}</p>
+                  )}
                 </div>
               )}
               {(header.format === "IMAGE" ||
                 header.format === "VIDEO" ||
                 header.format === "DOCUMENT") && (
                 <div>
-                  <Label>URL de exemplo ({header.format.toLowerCase()})</Label>
+                  <Label>Arquivo de exemplo ({header.format.toLowerCase()})</Label>
                   <Input
-                    placeholder="https://…"
+                    placeholder="https://… (a Bliv faz o upload e envia o handle, não a URL)"
                     value={header.example_url}
                     onChange={(e) =>
                       setHeader({ format: header.format, example_url: e.target.value })
                     }
                   />
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    A Meta exige um exemplo para aprovar.
+                    A Meta rejeita URL comum em header_handle (#100). A Bliv baixa o arquivo,
+                    valida MIME/tamanho e envia pelo upload resumable do App ID.
+                    {header.format === "IMAGE" ? " JPEG/PNG até 5 MB." : ""}
+                    {header.format === "VIDEO" ? " MP4 até 16 MB." : ""}
+                    {header.format === "DOCUMENT" ? " PDF até 100 MB." : ""}
                   </p>
+                  {liveErrors.header_media && (
+                    <p className="mt-1 text-xs text-destructive">{liveErrors.header_media}</p>
+                  )}
                 </div>
+              )}
+              {liveErrors.header && (
+                <p className="text-xs text-destructive">{liveErrors.header}</p>
               )}
             </Card>
 
@@ -460,6 +589,10 @@ export function TemplateBuilderDialog({
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
               />
+              {liveErrors.body && <p className="text-xs text-destructive">{liveErrors.body}</p>}
+              {liveErrors.parameter_format && (
+                <p className="text-xs text-destructive">{liveErrors.parameter_format}</p>
+              )}
               <p className="text-[11px] text-muted-foreground">
                 Use{" "}
                 <code>
@@ -484,6 +617,9 @@ export function TemplateBuilderDialog({
                       }}
                     />
                   ))}
+                  {liveErrors.body_examples && (
+                    <p className="text-xs text-destructive">{liveErrors.body_examples}</p>
+                  )}
                 </div>
               )}
             </Card>
@@ -499,7 +635,14 @@ export function TemplateBuilderDialog({
                 value={footer}
                 onChange={(e) => setFooter(e.target.value)}
                 placeholder="ex: Equipe Acme"
+                disabled={category === "AUTHENTICATION"}
               />
+              {category === "AUTHENTICATION" && (
+                <p className="text-xs text-muted-foreground">
+                  Autenticação não envia rodapé para a Meta.
+                </p>
+              )}
+              {liveErrors.footer && <p className="text-xs text-destructive">{liveErrors.footer}</p>}
             </Card>
 
             {/* Buttons */}
@@ -512,7 +655,8 @@ export function TemplateBuilderDialog({
                   size="sm"
                   variant="outline"
                   onClick={() => addButton("QUICK_REPLY")}
-                  disabled={buttons.length >= 10}
+                  disabled={buttons.length >= 10 || !buttonRules.allowed.includes("QUICK_REPLY")}
+                  title={buttonRules.reason.QUICK_REPLY}
                 >
                   <Reply className="mr-1 h-3.5 w-3.5" /> Resposta rápida
                 </Button>
@@ -520,7 +664,8 @@ export function TemplateBuilderDialog({
                   size="sm"
                   variant="outline"
                   onClick={() => addButton("URL")}
-                  disabled={buttons.length >= 10}
+                  disabled={buttons.length >= 10 || !buttonRules.allowed.includes("URL")}
+                  title={buttonRules.reason.URL}
                 >
                   <ExternalLink className="mr-1 h-3.5 w-3.5" /> Link
                 </Button>
@@ -528,7 +673,8 @@ export function TemplateBuilderDialog({
                   size="sm"
                   variant="outline"
                   onClick={() => addButton("PHONE_NUMBER")}
-                  disabled={buttons.length >= 10}
+                  disabled={buttons.length >= 10 || !buttonRules.allowed.includes("PHONE_NUMBER")}
+                  title={buttonRules.reason.PHONE_NUMBER}
                 >
                   <Phone className="mr-1 h-3.5 w-3.5" /> Telefone
                 </Button>
@@ -536,7 +682,8 @@ export function TemplateBuilderDialog({
                   size="sm"
                   variant="outline"
                   onClick={() => addButton("COPY_CODE")}
-                  disabled={buttons.length >= 10}
+                  disabled={buttons.length >= 10 || !buttonRules.allowed.includes("COPY_CODE")}
+                  title={buttonRules.reason.COPY_CODE}
                 >
                   <Copy className="mr-1 h-3.5 w-3.5" /> Copiar código
                 </Button>
@@ -544,7 +691,8 @@ export function TemplateBuilderDialog({
                   size="sm"
                   variant="outline"
                   onClick={() => addButton("CATALOG")}
-                  disabled={buttons.length >= 10}
+                  disabled={buttons.length >= 10 || !buttonRules.allowed.includes("CATALOG")}
+                  title={buttonRules.reason.CATALOG}
                 >
                   <ShoppingBag className="mr-1 h-3.5 w-3.5" /> Catálogo
                 </Button>
@@ -552,7 +700,8 @@ export function TemplateBuilderDialog({
                   size="sm"
                   variant="outline"
                   onClick={() => addButton("MPM")}
-                  disabled={buttons.length >= 10}
+                  disabled={buttons.length >= 10 || !buttonRules.allowed.includes("MPM")}
+                  title={buttonRules.reason.MPM}
                 >
                   <LayoutGrid className="mr-1 h-3.5 w-3.5" /> Multi-produto
                 </Button>
@@ -560,7 +709,8 @@ export function TemplateBuilderDialog({
                   size="sm"
                   variant="outline"
                   onClick={() => addButton("FLOW")}
-                  disabled={buttons.length >= 10}
+                  disabled={buttons.length >= 10 || !buttonRules.allowed.includes("FLOW")}
+                  title={buttonRules.reason.FLOW}
                 >
                   <Zap className="mr-1 h-3.5 w-3.5" /> Flow
                 </Button>
@@ -568,7 +718,8 @@ export function TemplateBuilderDialog({
                   size="sm"
                   variant="outline"
                   onClick={() => addButton("OTP")}
-                  disabled={buttons.length >= 10}
+                  disabled={buttons.length >= 10 || !buttonRules.allowed.includes("OTP")}
+                  title={buttonRules.reason.OTP}
                 >
                   <KeyRound className="mr-1 h-3.5 w-3.5" /> OTP (auth)
                 </Button>
@@ -576,7 +727,8 @@ export function TemplateBuilderDialog({
                   size="sm"
                   variant="outline"
                   onClick={() => addButton("VOICE_CALL")}
-                  disabled={buttons.length >= 10}
+                  disabled={buttons.length >= 10 || !buttonRules.allowed.includes("VOICE_CALL")}
+                  title={buttonRules.reason.VOICE_CALL}
                 >
                   <PhoneCall className="mr-1 h-3.5 w-3.5" /> Chamada
                 </Button>
@@ -601,7 +753,8 @@ export function TemplateBuilderDialog({
                     VOICE_CALL: "Voz",
                   };
                   return (
-                    <div key={i} className="flex items-start gap-2 rounded border p-2">
+                    <div key={i} className="space-y-1">
+                    <div className="flex items-start gap-2 rounded border p-2">
                       <span className="mt-2 w-16 shrink-0 text-xs font-medium text-muted-foreground">
                         {labels[b.type]}
                       </span>
@@ -776,12 +929,17 @@ export function TemplateBuilderDialog({
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
+                    {liveErrors[`buttons.${i}`] && (
+                      <p className="text-xs text-destructive">{liveErrors[`buttons.${i}`]}</p>
+                    )}
+                    </div>
                   );
                 })}
               </div>
+              {liveErrors.buttons && (
+                <p className="text-xs text-destructive">{liveErrors.buttons}</p>
+              )}
             </Card>
-
-            {/* Advanced Settings */}
             <Card className="overflow-hidden">
               <button
                 type="button"
@@ -925,6 +1083,9 @@ export function TemplateBuilderDialog({
               )}
             </Card>
 
+            {formError && (
+              <p className="text-sm text-destructive whitespace-pre-wrap">{formError}</p>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <Button
                 variant="ghost"
@@ -936,15 +1097,22 @@ export function TemplateBuilderDialog({
                 Cancelar
               </Button>
               <Button
-                onClick={() => mutation.mutate()}
+                variant="outline"
+                onClick={() => submit(true)}
+                disabled={mutation.isPending || !name || !body}
+              >
+                {mutation.isPending ? "Salvando…" : "Salvar rascunho local"}
+              </Button>
+              <Button
+                onClick={() => submit(false)}
                 disabled={mutation.isPending || !name || !body}
               >
                 {!template && <Plus className="mr-1 h-4 w-4" />}
                 {mutation.isPending
-                  ? "Salvando…"
+                  ? "Enviando à Meta…"
                   : template
-                    ? "Salvar alterações"
-                    : "Criar template"}
+                    ? "Enviar alterações à Meta"
+                    : "Enviar à Meta"}
               </Button>
             </div>
           </div>
@@ -961,8 +1129,8 @@ export function TemplateBuilderDialog({
                 </div>
               )}
               <p className="mt-2 text-[11px] text-muted-foreground">
-                Se as credenciais da Meta estiverem configuradas, o template é enviado para
-                aprovação. Caso contrário, fica salvo localmente como PENDING.
+                Rascunho local não entra em análise da Meta. Só após o envio a Meta devolve ID e
+                status (PENDING/APPROVED/REJECTED).
               </p>
             </div>
           </div>

@@ -1,14 +1,25 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
-import { toFriendlyError } from "@/lib/meta-errors";
+import { logTemplateMetaFailure, toFriendlyError, toFriendlyTemplateError } from "@/lib/meta-errors";
+import { resolveOfficialWhatsAppTemplateAccount } from "@/lib/whatsapp-template-credentials";
+import { resolveHeaderHandle } from "@/lib/whatsapp-template-media";
+import {
+  buildMetaComponents,
+  compactMetaCreatePayload,
+  looksLikeHttpUrl,
+  sanitizePayloadForLog,
+  serializeTemplateFieldError,
+  TemplateFieldError,
+  type BuildTemplateInput,
+} from "@/lib/whatsapp-template-payload";
 
 const buttonSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("QUICK_REPLY"), text: z.string().min(1).max(25) }),
   z.object({
     type: z.literal("URL"),
     text: z.string().min(1).max(25),
-    url: z.string().url().max(2000),
+    url: z.string().min(8).max(2000),
     example: z.array(z.string().max(2000)).max(1).optional(),
   }),
   z.object({
@@ -59,9 +70,9 @@ const createTemplateInput = z.object({
       text: z.string().min(1).max(60),
       examples: z.array(z.string().max(200)).max(10).optional(),
     }),
-    z.object({ format: z.literal("IMAGE"), example_url: z.string().url() }),
-    z.object({ format: z.literal("VIDEO"), example_url: z.string().url() }),
-    z.object({ format: z.literal("DOCUMENT"), example_url: z.string().url() }),
+    z.object({ format: z.literal("IMAGE"), example_url: z.string().min(8).max(4000) }),
+    z.object({ format: z.literal("VIDEO"), example_url: z.string().min(8).max(4000) }),
+    z.object({ format: z.literal("DOCUMENT"), example_url: z.string().min(8).max(4000) }),
     z.object({ format: z.literal("LOCATION") }),
   ]),
   body: z.string().min(1).max(1024),
@@ -85,18 +96,116 @@ const createTemplateInput = z.object({
     .optional(),
   display_format: z.enum(["ORDER_DETAILS"]).optional(),
   is_primary_device_delivery_only: z.boolean().optional(),
+  save_local_only: z.boolean().optional(),
 });
 
 export type CreateTemplateInput = z.infer<typeof createTemplateInput>;
 
-function extractTemplatePlaceholders(text: string) {
-  const matches = String(text ?? "").match(/\{\{\s*([^}]+)\s*\}\}/g) ?? [];
-  const placeholders: string[] = [];
-  for (const match of matches) {
-    const token = match.replace(/^\{\{\s*|\s*\}\}$/g, "").trim();
-    if (token && !placeholders.includes(token)) placeholders.push(token);
+function toBuildInput(data: CreateTemplateInput, headerHandle?: string): BuildTemplateInput {
+  const header =
+    data.header.format === "IMAGE" ||
+    data.header.format === "VIDEO" ||
+    data.header.format === "DOCUMENT"
+      ? { format: data.header.format, header_handle: headerHandle ?? data.header.example_url }
+      : data.header;
+  return {
+    name: data.name,
+    language: data.language,
+    category: data.category,
+    header,
+    body: data.body,
+    body_examples: data.body_examples,
+    footer: data.footer,
+    buttons: data.buttons as BuildTemplateInput["buttons"],
+    parameter_format: data.parameter_format,
+    allow_category_change: data.allow_category_change,
+    cta_url_link_tracking_opted_out: data.cta_url_link_tracking_opted_out,
+    message_send_ttl_seconds: data.message_send_ttl_seconds,
+    sub_category: data.sub_category,
+    display_format: data.display_format,
+    is_primary_device_delivery_only: data.is_primary_device_delivery_only,
+  };
+}
+
+function encodeCreateError(err: unknown): never {
+  if (err instanceof TemplateFieldError) {
+    throw new Error(serializeTemplateFieldError(err));
   }
-  return placeholders;
+  throw err instanceof Error ? err : new Error(String(err));
+}
+
+async function resolveMediaHeaderValue(
+  data: CreateTemplateInput,
+  account: { appId: string; accessToken: string; graphVersion: string },
+): Promise<string | undefined> {
+  if (
+    data.header.format !== "IMAGE" &&
+    data.header.format !== "VIDEO" &&
+    data.header.format !== "DOCUMENT"
+  ) {
+    return undefined;
+  }
+  if (!account.appId) {
+    throw new TemplateFieldError(
+      "Informe o App ID da conexão Meta para enviar mídia no cabeçalho do template.",
+      { header_media: "O upload resumable da Meta exige o App ID da conexão oficial." },
+    );
+  }
+  return resolveHeaderHandle({
+    format: data.header.format,
+    value: data.header.example_url,
+    appId: account.appId,
+    accessToken: account.accessToken,
+    apiVersion: account.graphVersion,
+  });
+}
+
+async function postWhatsAppMessageTemplate(params: {
+  account: { wabaId: string; accessToken: string; graphVersion: string };
+  payload: Record<string, unknown>;
+}): Promise<{ id: string; status: string; category?: string }> {
+  const { account, payload } = params;
+  const version = account.graphVersion;
+  const endpoint = `https://graph.facebook.com/${version}/${account.wabaId}/message_templates`;
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${account.accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  const text = await res.text();
+  let body: any = {};
+  try {
+    body = JSON.parse(text);
+  } catch {
+    body = { raw: text };
+  }
+  if (!res.ok || body.error) {
+    const err = body.error || {};
+    logTemplateMetaFailure({
+      endpoint: `POST /${version}/{WABA_ID}/message_templates`,
+      apiVersion: version,
+      httpStatus: res.status,
+      code: err.code,
+      error_subcode: err.error_subcode,
+      message: err.message,
+      details: err.error_data?.details ?? err.error_data,
+      fbtrace_id: err.fbtrace_id,
+      payload: sanitizePayloadForLog(payload),
+    });
+    const friendly = toFriendlyTemplateError(body, "Falha ao cadastrar o template na Meta");
+    throw new Error(`${friendly.title}: ${friendly.message}${friendly.hint ? ` — ${friendly.hint}` : ""}`);
+  }
+  if (!body.id) {
+    throw new Error("A Meta aceitou a requisição mas não devolveu o ID do template.");
+  }
+  return {
+    id: String(body.id),
+    status: body.status ? String(body.status) : "PENDING",
+    category: body.category ? String(body.category) : undefined,
+  };
 }
 
 /**
@@ -123,140 +232,98 @@ function normalizeTemplateStatus(
   return STATUS_MAP[upper] ?? fallback;
 }
 
-function buildMetaComponents(input: CreateTemplateInput) {
-  const components: any[] = [];
-  if (input.header.format !== "NONE") {
-    if (input.header.format === "TEXT") {
-      const h: any = { type: "HEADER", format: "TEXT", text: input.header.text };
-      if (input.header.examples && input.header.examples.length > 0) {
-        h.example = { header_text: input.header.examples };
-      }
-      components.push(h);
-    } else if (input.header.format === "LOCATION") {
-      components.push({ type: "HEADER", format: "LOCATION" });
-    } else {
-      components.push({
-        type: "HEADER",
-        format: input.header.format,
-        example: { header_handle: [input.header.example_url] },
-      });
-    }
-  }
-  const bodyComp: any = { type: "BODY", text: input.body };
-  if (input.body_examples && input.body_examples.length > 0) {
-    if (input.parameter_format === "NAMED") {
-      const placeholders = extractTemplatePlaceholders(input.body).filter(
-        (token) => !/^\d+$/.test(token),
-      );
-      bodyComp.example = {
-        body_text_named_params: placeholders.map((paramName, index) => ({
-          param_name: paramName,
-          example: input.body_examples?.[index] ?? "",
-        })),
-      };
-    } else {
-      bodyComp.example = { body_text: [input.body_examples] };
-    }
-  }
-  components.push(bodyComp);
-  if (input.footer && input.footer.trim()) {
-    components.push({ type: "FOOTER", text: input.footer.trim() });
-  }
-  if (input.buttons && input.buttons.length > 0) {
-    components.push({ type: "BUTTONS", buttons: input.buttons });
-  }
-  return components;
-}
-
 export const createTemplate = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => createTemplateInput.parse(d))
   .handler(async ({ data, context }) => {
-    const bodyPlaceholders = extractTemplatePlaceholders(data.body);
-    if (bodyPlaceholders.length > 0) {
-      const missingExamples = bodyPlaceholders.filter(
-        (_, index) => !data.body_examples?.[index]?.trim(),
-      );
-      if (missingExamples.length > 0) {
+    try {
+      const account = await resolveOfficialWhatsAppTemplateAccount(context.userId);
+      const saveLocalOnly = data.save_local_only === true;
+
+      if (!saveLocalOnly && !account) {
         throw new Error(
-          "Preencha um exemplo para cada variável do corpo do template antes de enviar para a Meta.",
+          "Não há conexão oficial da Meta (Cloud API) com WABA ID. Evolution API não cria templates. Configure WABA ID, App ID e token com whatsapp_business_management.",
         );
       }
-    }
 
-    const components = buildMetaComponents(data);
+      let headerHandle: string | undefined;
+      if (
+        account &&
+        !saveLocalOnly &&
+        (data.header.format === "IMAGE" ||
+          data.header.format === "VIDEO" ||
+          data.header.format === "DOCUMENT")
+      ) {
+        headerHandle = await resolveMediaHeaderValue(data, account);
+      }
 
-    const { data: p } = await context.db
-      .from("profiles")
-      .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
-      .eq("id", context.userId)
-      .maybeSingle();
+      const buildInput = toBuildInput(data, headerHandle);
+      if (
+        saveLocalOnly &&
+        (data.header.format === "IMAGE" ||
+          data.header.format === "VIDEO" ||
+          data.header.format === "DOCUMENT")
+      ) {
+        buildInput.header = {
+          format: data.header.format,
+          header_handle: looksLikeHttpUrl(data.header.example_url)
+            ? "4:local-draft-placeholder"
+            : data.header.example_url,
+        };
+      }
 
-    let status = "PENDING";
-    let meta_template_id: string | null = null;
+      const components = buildMetaComponents(buildInput);
+      if (
+        saveLocalOnly &&
+        (data.header.format === "IMAGE" ||
+          data.header.format === "VIDEO" ||
+          data.header.format === "DOCUMENT")
+      ) {
+        const headerComp = components.find((c) => c.type === "HEADER") as any;
+        if (headerComp) headerComp.example = { header_handle: [data.header.example_url] };
+      }
 
-    if (p?.whatsapp_waba_id && p?.whatsapp_access_token) {
-      const apiVersion = p.meta_graph_version || "v26.0";
-      const res = await fetch(
-        `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${p.whatsapp_access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
+      let status = "PENDING";
+      let meta_template_id: string | null = `local_${data.name}_${data.language}`;
+      let submission: "local" | "meta" = "local";
+
+      if (!saveLocalOnly && account) {
+        const payload = compactMetaCreatePayload(buildInput, components);
+        const meta = await postWhatsAppMessageTemplate({ account, payload });
+        status = normalizeTemplateStatus(meta.status, "PENDING");
+        meta_template_id = meta.id;
+        submission = "meta";
+      }
+
+      const { data: row, error } = await context.db
+        .from("templates")
+        .upsert(
+          {
+            user_id: context.userId,
             name: data.name,
             language: data.language,
             category: data.category,
+            status: status as any,
             components,
             parameter_format: data.parameter_format,
-            allow_category_change: data.allow_category_change,
-            cta_url_link_tracking_opted_out: data.cta_url_link_tracking_opted_out,
+            allow_category_change: data.allow_category_change ? 1 : 0,
+            cta_url_link_tracking_opted_out: data.cta_url_link_tracking_opted_out ? 1 : 0,
             message_send_ttl_seconds: data.message_send_ttl_seconds,
             sub_category: data.sub_category,
-            display_format: data.display_format,
-            is_primary_device_delivery_only: data.is_primary_device_delivery_only,
-          }),
-        },
-      );
-      const body: any = await res.json();
-      if (!res.ok) {
-        const friendly = toFriendlyError(body, "Falha ao enviar template à Meta");
-        throw new Error(
-          `${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`,
-        );
-      }
-      status = normalizeTemplateStatus(body.status, "PENDING");
-      meta_template_id = body.id ?? null;
+            ...(data.display_format ? { display_format: data.display_format } : {}),
+            is_primary_device_delivery_only: data.is_primary_device_delivery_only ? 1 : 0,
+            meta_template_id,
+            synced_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,name,language" },
+        )
+        .select()
+        .single();
+      if (error) throw error;
+      return { ...row, submission };
+    } catch (err) {
+      encodeCreateError(err);
     }
-
-    const { data: row, error } = await context.db
-      .from("templates")
-      .upsert(
-        {
-          user_id: context.userId,
-          name: data.name,
-          language: data.language,
-          category: data.category,
-          status: status as any,
-          components,
-          parameter_format: data.parameter_format,
-          allow_category_change: data.allow_category_change ? 1 : 0,
-          cta_url_link_tracking_opted_out: data.cta_url_link_tracking_opted_out ? 1 : 0,
-          message_send_ttl_seconds: data.message_send_ttl_seconds,
-          sub_category: data.sub_category,
-          ...(data.display_format ? { display_format: data.display_format } : {}),
-          is_primary_device_delivery_only: data.is_primary_device_delivery_only ? 1 : 0,
-          meta_template_id: meta_template_id ?? `local_${data.name}_${data.language}`,
-          synced_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,name,language" },
-      )
-      .select()
-      .single();
-    if (error) throw error;
-    return row;
   });
 
 const updateTemplateInput = createTemplateInput.extend({
@@ -269,100 +336,141 @@ export const updateTemplate = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => updateTemplateInput.parse(d))
   .handler(async ({ data, context }) => {
-    const bodyPlaceholders = extractTemplatePlaceholders(data.body);
-    if (bodyPlaceholders.length > 0) {
-      const missingExamples = bodyPlaceholders.filter(
-        (_, index) => !data.body_examples?.[index]?.trim(),
-      );
-      if (missingExamples.length > 0) {
+    try {
+      const { data: tpl } = await context.db
+        .from("templates")
+        .select("*")
+        .eq("id", data.id)
+        .maybeSingle();
+
+      if (!tpl) throw new Error("Template não encontrado.");
+
+      const account = await resolveOfficialWhatsAppTemplateAccount(context.userId);
+      const saveLocalOnly = data.save_local_only === true;
+      const isRemote =
+        tpl.meta_template_id &&
+        !String(tpl.meta_template_id).startsWith("local_") &&
+        !String(tpl.meta_template_id).startsWith("sample_");
+
+      if (!saveLocalOnly && !account) {
         throw new Error(
-          "Preencha um exemplo para cada variável do corpo do template antes de enviar para a Meta.",
+          "Não há conexão oficial da Meta (Cloud API) com WABA ID. Evolution API não cria templates.",
         );
       }
-    }
 
-    const components = buildMetaComponents(data);
+      let headerHandle: string | undefined;
+      if (
+        account &&
+        !saveLocalOnly &&
+        (data.header.format === "IMAGE" ||
+          data.header.format === "VIDEO" ||
+          data.header.format === "DOCUMENT")
+      ) {
+        headerHandle = await resolveMediaHeaderValue(data, account);
+      }
 
-    const { data: tpl } = await context.db
-      .from("templates")
-      .select("*")
-      .eq("id", data.id)
-      .maybeSingle();
+      const buildInput = toBuildInput(data, headerHandle);
+      if (
+        saveLocalOnly &&
+        (data.header.format === "IMAGE" ||
+          data.header.format === "VIDEO" ||
+          data.header.format === "DOCUMENT")
+      ) {
+        buildInput.header = {
+          format: data.header.format,
+          header_handle: looksLikeHttpUrl(data.header.example_url)
+            ? "4:local-draft-placeholder"
+            : data.header.example_url,
+        };
+      }
 
-    if (!tpl) throw new Error("Template não encontrado.");
+      const components = buildMetaComponents(buildInput);
+      if (
+        saveLocalOnly &&
+        (data.header.format === "IMAGE" ||
+          data.header.format === "VIDEO" ||
+          data.header.format === "DOCUMENT")
+      ) {
+        const headerComp = components.find((c) => c.type === "HEADER") as any;
+        if (headerComp) headerComp.example = { header_handle: [data.header.example_url] };
+      }
 
-    let status: string = tpl.status ?? "PENDING";
-    const meta_template_id: string | null = tpl.meta_template_id;
+      let status: string = isRemote ? (tpl.status ?? "PENDING") : "PENDING";
+      let meta_template_id: string | null = tpl.meta_template_id;
+      let submission: "local" | "meta" = isRemote ? "meta" : "local";
 
-    const { data: p } = await context.db
-      .from("profiles")
-      .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
-      .eq("id", context.userId)
-      .maybeSingle();
+      if (!saveLocalOnly && account) {
+        const payload = compactMetaCreatePayload(buildInput, components);
+        if (isRemote) {
+          const version = account.graphVersion;
+          const res = await fetch(`https://graph.facebook.com/${version}/${meta_template_id}`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${account.accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              components: payload.components,
+              category: payload.category,
+            }),
+          });
+          const body: any = await res.json().catch(() => ({}));
+          if (!res.ok || body.error) {
+            const err = body.error || {};
+            logTemplateMetaFailure({
+              endpoint: `POST /${version}/{TEMPLATE_ID}`,
+              apiVersion: version,
+              httpStatus: res.status,
+              code: err.code,
+              error_subcode: err.error_subcode,
+              message: err.message,
+              details: err.error_data?.details ?? err.error_data,
+              fbtrace_id: err.fbtrace_id,
+              payload: sanitizePayloadForLog({ components: payload.components }),
+            });
+            const friendly = toFriendlyTemplateError(body, "Falha ao editar template na Meta");
+            throw new Error(
+              `${friendly.title}: ${friendly.message}${friendly.hint ? ` — ${friendly.hint}` : ""}`,
+            );
+          }
+          status = normalizeTemplateStatus(body.status, status);
+          submission = "meta";
+        } else {
+          const meta = await postWhatsAppMessageTemplate({ account, payload });
+          status = normalizeTemplateStatus(meta.status, "PENDING");
+          meta_template_id = meta.id;
+          submission = "meta";
+        }
+      }
 
-    const isRemote =
-      meta_template_id &&
-      !meta_template_id.startsWith("local_") &&
-      !meta_template_id.startsWith("sample_");
-
-    if (isRemote && p?.whatsapp_waba_id && p?.whatsapp_access_token) {
-      const apiVersion = p.meta_graph_version || "v26.0";
-      const res = await fetch(`https://graph.facebook.com/${apiVersion}/${meta_template_id}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${p.whatsapp_access_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const { data: row, error } = await context.db
+        .from("templates")
+        .update({
           name: data.name,
-          components,
           language: data.language,
           category: data.category,
+          status: status as any,
+          components,
           parameter_format: data.parameter_format,
-          allow_category_change: data.allow_category_change,
-          cta_url_link_tracking_opted_out: data.cta_url_link_tracking_opted_out,
+          allow_category_change: data.allow_category_change ? 1 : 0,
+          cta_url_link_tracking_opted_out: data.cta_url_link_tracking_opted_out ? 1 : 0,
           message_send_ttl_seconds: data.message_send_ttl_seconds,
           sub_category: data.sub_category,
-          display_format: data.display_format,
-          is_primary_device_delivery_only: data.is_primary_device_delivery_only,
-        }),
-      });
-      const body: any = await res.json();
-      if (!res.ok) {
-        const friendly = toFriendlyError(body, "Falha ao editar template na Meta");
-        throw new Error(
-          `${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`,
-        );
-      }
-      status = normalizeTemplateStatus(body.status, status);
+          ...(data.display_format
+            ? { display_format: data.display_format }
+            : { display_format: tpl.display_format }),
+          is_primary_device_delivery_only: data.is_primary_device_delivery_only ? 1 : 0,
+          meta_template_id,
+          synced_at: new Date().toISOString(),
+        })
+        .eq("id", data.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return { ...row, submission };
+    } catch (err) {
+      encodeCreateError(err);
     }
-
-    const { data: row, error } = await context.db
-      .from("templates")
-      .update({
-        name: data.name,
-        language: data.language,
-        category: data.category,
-        status: status as any,
-        components,
-        parameter_format: data.parameter_format,
-        allow_category_change: data.allow_category_change ? 1 : 0,
-        cta_url_link_tracking_opted_out: data.cta_url_link_tracking_opted_out ? 1 : 0,
-        message_send_ttl_seconds: data.message_send_ttl_seconds,
-        sub_category: data.sub_category,
-        ...(data.display_format
-          ? { display_format: data.display_format }
-          : { display_format: tpl.display_format }),
-        is_primary_device_delivery_only: data.is_primary_device_delivery_only ? 1 : 0,
-        meta_template_id,
-        synced_at: new Date().toISOString(),
-      })
-      .eq("id", data.id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return row;
   });
 
 export const deleteTemplate = createServerFn({ method: "POST" })
@@ -960,7 +1068,6 @@ export const submitTemplateToMeta = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    // 1. Busca o template no banco (query-compiler já filtra por user_id automaticamente)
     const { data: tpl, error: fetchErr } = await context.db
       .from("templates")
       .select("*")
@@ -971,72 +1078,66 @@ export const submitTemplateToMeta = createServerFn({ method: "POST" })
       throw new Error("Template não encontrado.");
     }
 
-    // 2. Busca credenciais Meta
-    const { data: p } = await context.db
-      .from("profiles")
-      .select("whatsapp_waba_id, whatsapp_access_token, meta_graph_version")
-      .eq("id", context.userId)
-      .maybeSingle();
-
-    if (!p?.whatsapp_waba_id || !p?.whatsapp_access_token) {
+    const account = await resolveOfficialWhatsAppTemplateAccount(context.userId);
+    if (!account) {
       throw new Error(
-        "Configure WABA ID e Access Token nas Configurações antes de enviar para a Meta.",
+        "Configure a conexão oficial da Meta (WABA ID + token) antes de enviar. Evolution API não cadastra templates.",
       );
     }
 
-    // 3. Envia para a Meta API
-    const apiVersion = p.meta_graph_version || "v26.0";
-    const res = await fetch(
-      `https://graph.facebook.com/${apiVersion}/${p.whatsapp_waba_id}/message_templates`,
+    const components = Array.isArray(tpl.components) ? structuredClone(tpl.components) : [];
+    const header = (components as any[]).find((c) => c.type === "HEADER");
+    if (
+      header &&
+      (header.format === "IMAGE" || header.format === "VIDEO" || header.format === "DOCUMENT")
+    ) {
+      const current = String(header.example?.header_handle?.[0] || "");
+      if (looksLikeHttpUrl(current) || !current) {
+        if (!account.appId) {
+          throw new Error("App ID da conexão Meta é obrigatório para upload do cabeçalho de mídia.");
+        }
+        const handle = await resolveHeaderHandle({
+          format: header.format,
+          value: current,
+          appId: account.appId,
+          accessToken: account.accessToken,
+          apiVersion: account.graphVersion,
+        });
+        header.example = { header_handle: [handle] };
+      }
+    }
+
+    const payload = compactMetaCreatePayload(
       {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${p.whatsapp_access_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: tpl.name,
-          language: tpl.language,
-          category: tpl.category,
-          components: tpl.components,
-          parameter_format: tpl.parameter_format ?? undefined,
-          allow_category_change:
-            tpl.allow_category_change === null || tpl.allow_category_change === undefined
-              ? undefined
-              : !!tpl.allow_category_change,
-          cta_url_link_tracking_opted_out:
-            tpl.cta_url_link_tracking_opted_out === null ||
-            tpl.cta_url_link_tracking_opted_out === undefined
-              ? undefined
-              : !!tpl.cta_url_link_tracking_opted_out,
-          message_send_ttl_seconds: tpl.message_send_ttl_seconds ?? undefined,
-          sub_category: tpl.sub_category ?? undefined,
-          is_primary_device_delivery_only:
-            tpl.is_primary_device_delivery_only === null ||
-            tpl.is_primary_device_delivery_only === undefined
-              ? undefined
-              : !!tpl.is_primary_device_delivery_only,
-        }),
+        name: tpl.name,
+        language: tpl.language,
+        category: tpl.category,
+        header: { format: "NONE" },
+        body: "",
+        parameter_format: tpl.parameter_format || undefined,
+        allow_category_change: tpl.allow_category_change === 0 ? false : undefined,
+        cta_url_link_tracking_opted_out: !!tpl.cta_url_link_tracking_opted_out || undefined,
+        message_send_ttl_seconds: tpl.message_send_ttl_seconds ?? undefined,
+        sub_category: tpl.sub_category ?? undefined,
+        is_primary_device_delivery_only: !!tpl.is_primary_device_delivery_only || undefined,
       },
+      components,
     );
+    payload.name = tpl.name;
+    payload.language = tpl.language;
+    payload.category = tpl.category;
+    payload.components = components;
 
-    const body: any = await res.json();
-    if (!res.ok) {
-      const friendly = toFriendlyError(body, "Falha ao enviar template à Meta");
-      throw new Error(
-        `${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`,
-      );
-    }
+    const meta = await postWhatsAppMessageTemplate({ account, payload });
+    const status = normalizeTemplateStatus(meta.status, "PENDING");
+    const meta_template_id = meta.id;
 
-    const status = normalizeTemplateStatus(body.status, "PENDING");
-    const meta_template_id = body.id ?? null;
-
-    // 4. Atualiza no banco com o ID e status da Meta
     const { data: updated, error: updateErr } = await context.db
       .from("templates")
       .update({
         status,
-        meta_template_id: meta_template_id ?? tpl.meta_template_id,
+        components,
+        meta_template_id,
         synced_at: new Date().toISOString(),
       })
       .eq("id", tpl.id)
@@ -1044,7 +1145,7 @@ export const submitTemplateToMeta = createServerFn({ method: "POST" })
       .single();
 
     if (updateErr) throw updateErr;
-    return updated;
+    return { ...updated, submission: "meta" as const };
   });
 
 export const getMetaTemplateDetails = createServerFn({ method: "GET" })
