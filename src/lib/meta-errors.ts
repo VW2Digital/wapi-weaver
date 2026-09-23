@@ -90,7 +90,18 @@ export function toFriendlyError(
         type,
         trace,
       };
-    case 100:
+    case 100: {
+      const fieldMatch = String(message || "").match(/nonexisting field \(([^)]+)\)/i);
+      if (fieldMatch) {
+        return {
+          title: "Parâmetro inválido",
+          message: message || "A Meta não aceitou um dos parâmetros enviados.",
+          hint: `A Graph API não reconhece o campo "${fieldMatch[1]}" neste objeto. A consulta de detalhes do template será ajustada automaticamente.`,
+          code,
+          type,
+          trace,
+        };
+      }
       return {
         title: "Parâmetro inválido",
         message: message || "A Meta não aceitou um dos parâmetros enviados.",
@@ -99,6 +110,7 @@ export function toFriendlyError(
         type,
         trace,
       };
+    }
     case 131030:
       return {
         title: "Número não permitido",

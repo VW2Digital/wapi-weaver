@@ -7,8 +7,10 @@ import { resolveHeaderHandle, TemplateMediaError } from "@/lib/whatsapp-template
 import {
   buildMetaComponents,
   compactMetaCreatePayload,
+  dropUnknownGraphField,
   looksLikeHttpUrl,
   looksLikeMetaUploadHandle,
+  META_TEMPLATE_DETAIL_FIELDS,
   sanitizePayloadForLog,
   serializeTemplateFieldError,
   stripBlivTemplateFields,
@@ -1265,61 +1267,33 @@ export const getMetaTemplateDetails = createServerFn({ method: "GET" })
       throw new Error("Este template não possui um ID da Meta ativo.");
     }
 
-    const { data: p } = await context.db
-      .from("profiles")
-      .select("whatsapp_access_token, meta_graph_version")
-      .eq("id", context.userId)
-      .maybeSingle();
-
-    if (!p?.whatsapp_access_token) {
-      throw new Error("Configure seu Token de Acesso em Configurações.");
+    const account = await resolveOfficialWhatsAppTemplateAccount(context.tenantId || context.userId);
+    const accessToken = account?.accessToken;
+    const apiVersion = account?.graphVersion || "v26.0";
+    if (!accessToken) {
+      throw new Error("Configure a conexão oficial da Meta (token) em Configurações.");
     }
 
-    const apiVersion = p.meta_graph_version || "v26.0";
-    const fields = [
-      "id",
-      "ad_account_id",
-      "ad_adset_id",
-      "ad_campaign_id",
-      "ad_id",
-      "bid_spec",
-      "category",
-      "components",
-      "correct_category",
-      "cta_url_link_tracking_opted_out",
-      "degrees_of_freedom_spec",
-      "display_format",
-      "health_status",
-      "is_primary_device_delivery_only",
-      "is_sms_fallback_enabled",
-      "language",
-      "last_updated_time",
-      "library_template_name",
-      "message_send_ttl_seconds",
-      "name",
-      "parameter_format",
-      "previous_category",
-      "quality_score",
-      "rejected_reason",
-      "source",
-      "status",
-      "sub_category",
-    ].join(",");
-
-    const res = await fetch(
-      `https://graph.facebook.com/${apiVersion}/${metaTemplateId}?fields=${fields}`,
-      {
-        headers: { Authorization: `Bearer ${p.whatsapp_access_token}` },
-      },
-    );
-    const body: any = await res.json();
-    if (!res.ok) {
-      const friendly = toFriendlyError(body, "Falha ao obter detalhes do template na Meta");
-      throw new Error(
-        `${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`,
+    let fields = [...META_TEMPLATE_DETAIL_FIELDS];
+    let lastBody: any = {};
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const res = await fetch(
+        `https://graph.facebook.com/${apiVersion}/${metaTemplateId}?fields=${fields.join(",")}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
       );
+      lastBody = await res.json().catch(() => ({}));
+      if (res.ok && !lastBody.error) return lastBody;
+      const next = dropUnknownGraphField(fields, lastBody?.error?.message || "");
+      if (!next) break;
+      fields = next;
     }
-    return body;
+
+    const friendly = toFriendlyError(lastBody, "Falha ao obter detalhes do template na Meta");
+    throw new Error(
+      `${friendly.title}: ${friendly.message}${friendly.hint ? `\n\n💡 Dica: ${friendly.hint}` : ""}`,
+    );
   });
 
 export const listMetaTemplatesDirect = createServerFn({ method: "GET" })

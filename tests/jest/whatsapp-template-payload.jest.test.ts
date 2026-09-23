@@ -2,12 +2,14 @@ import { describe, expect, it } from "@jest/globals";
 import {
   buildMetaComponents,
   compactMetaCreatePayload,
+  dropUnknownGraphField,
   looksLikeHttpUrl,
   looksLikeMetaUploadHandle,
+  META_TEMPLATE_DETAIL_FIELDS,
   validateTemplateInput,
   type BuildTemplateInput,
 } from "../../src/lib/whatsapp-template-payload";
-import { toFriendlyTemplateError } from "../../src/lib/meta-errors";
+import { toFriendlyError, toFriendlyTemplateError } from "../../src/lib/meta-errors";
 
 const simple: BuildTemplateInput = {
   name: "hello_world_bliv",
@@ -98,6 +100,17 @@ describe("WhatsApp template payload vs Meta contract", () => {
     expect(looksLikeMetaUploadHandle("4:aW1hZ2UtZXhhbXBsZS1oYW5kbGU")).toBe(true);
   });
 
+  it("drops retired bid_spec from Graph field lists", () => {
+    expect(META_TEMPLATE_DETAIL_FIELDS).not.toContain("bid_spec");
+    expect(META_TEMPLATE_DETAIL_FIELDS).toContain("optimization_spec");
+    expect(
+      dropUnknownGraphField(
+        ["id", "bid_spec", "name"],
+        "(#100) Tried accessing nonexisting field (bid_spec)",
+      ),
+    ).toEqual(["id", "name"]);
+  });
+
   it("rejects incomplete URL buttons", () => {
     const fields = validateTemplateInput({
       ...simple,
@@ -152,5 +165,17 @@ describe("toFriendlyTemplateError", () => {
     expect(friendly.hint).toMatch(/header_handle/);
     expect(friendly.hint).not.toMatch(/Phone Number ID e o formato do destinatário/);
     expect(String(friendly.code)).toContain("100");
+  });
+
+  it("maps Graph nonexisting field without Phone Number ID hint", () => {
+    const friendly = toFriendlyError({
+      error: {
+        message: "(#100) Tried accessing nonexisting field (bid_spec)",
+        type: "GraphMethodException",
+        code: 100,
+      },
+    });
+    expect(friendly.hint).toMatch(/bid_spec/);
+    expect(friendly.hint).not.toMatch(/destinatário/);
   });
 });

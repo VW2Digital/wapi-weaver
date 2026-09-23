@@ -481,3 +481,34 @@ export function sanitizePayloadForLog(payload: Record<string, unknown>): Record<
   }
   return clone;
 }
+
+/** Fields safe to request on GET /{MESSAGE_TEMPLATE_ID}. `bid_spec` was retired after 2026-07-31. */
+export const META_TEMPLATE_DETAIL_FIELDS = [
+  "id",
+  "name",
+  "language",
+  "status",
+  "category",
+  "components",
+  "quality_score",
+  "rejected_reason",
+  "sub_category",
+  "last_updated_time",
+  "parameter_format",
+  "cta_url_link_tracking_opted_out",
+  "message_send_ttl_seconds",
+  "is_primary_device_delivery_only",
+  "health_status",
+  "previous_category",
+  "correct_category",
+  "library_template_name",
+  "optimization_spec",
+] as const;
+
+export function dropUnknownGraphField(fields: string[], message: string): string[] | null {
+  const match = String(message || "").match(/nonexisting field \(([^)]+)\)/i);
+  if (!match) return null;
+  const unknown = match[1].trim();
+  const next = fields.filter((field) => field !== unknown);
+  return next.length > 0 && next.length < fields.length ? next : null;
+}
