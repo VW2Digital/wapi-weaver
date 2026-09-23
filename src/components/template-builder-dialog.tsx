@@ -55,8 +55,8 @@ import {
   parseTemplateFieldError,
   validateTemplateInput,
   type BuildTemplateInput,
+  parseBlivStorageFilePath,
 } from "@/lib/whatsapp-template-payload";
-import { parseBlivStorageFilePath } from "@/lib/whatsapp-template-media";
 
 type MediaUploadPhase = "idle" | "selecting" | "validating" | "uploading" | "done" | "error";
 

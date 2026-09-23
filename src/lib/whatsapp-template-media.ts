@@ -2,10 +2,12 @@ import { lookup } from "node:dns/promises";
 import fs from "node:fs";
 import { isIP } from "node:net";
 import path from "node:path";
-import { looksLikeHttpUrl, looksLikeMetaUploadHandle } from "@/lib/whatsapp-template-payload";
+import { looksLikeHttpUrl, looksLikeMetaUploadHandle, parseBlivStorageFilePath } from "@/lib/whatsapp-template-payload";
 import { logTemplateMetaFailure, toFriendlyTemplateError } from "@/lib/meta-errors";
 import type { AuthenticatedUser } from "@/lib/subscription-helpers";
 import { assertTenantStoragePath, resolveUploadFilePath } from "@/lib/tenant-storage";
+
+export { parseBlivStorageFilePath } from "@/lib/whatsapp-template-payload";
 
 export const TEMPLATE_MEDIA_LIMITS = {
   IMAGE: { maxBytes: 5 * 1024 * 1024, mime: ["image/jpeg", "image/jpg", "image/png"], ext: ["jpg", "jpeg", "png"] },
@@ -75,40 +77,6 @@ function isPrivateIp(ip: string): boolean {
   const lower = ip.toLowerCase();
   if (lower.startsWith("fc") || lower.startsWith("fd") || lower.startsWith("fe80")) return true;
   return false;
-}
-
-export function parseBlivStorageFilePath(raw: string): string | null {
-  const value = String(raw || "").trim();
-  if (!value) return null;
-
-  const fromUrl = (href: string, base?: string): string | null => {
-    try {
-      const url = base ? new URL(href, base) : new URL(href);
-      const pathname = url.pathname.replace(/\/+$/, "");
-      if (
-        pathname.endsWith("/api/storage/file") ||
-        pathname.endsWith("/api/storage/global-file")
-      ) {
-        const filePath = url.searchParams.get("path")?.trim();
-        return filePath || null;
-      }
-    } catch {
-      return null;
-    }
-    return null;
-  };
-
-  if (/^https?:\/\//i.test(value)) return fromUrl(value);
-  if (value.startsWith("/")) return fromUrl(value, "https://bliv.invalid");
-  const marker = value.indexOf("/api/storage/file");
-  if (marker >= 0) {
-    const query = value.slice(value.indexOf("?", marker));
-    if (query.startsWith("?")) {
-      const filePath = new URLSearchParams(query.slice(1)).get("path")?.trim();
-      if (filePath) return filePath;
-    }
-  }
-  return null;
 }
 
 export async function loadTemplateMediaFromLibrary(params: {

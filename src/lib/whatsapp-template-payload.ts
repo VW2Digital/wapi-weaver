@@ -82,6 +82,40 @@ export function looksLikeHttpUrl(value: string): boolean {
   return /^https?:\/\//i.test(String(value || "").trim());
 }
 
+export function parseBlivStorageFilePath(raw: string): string | null {
+  const value = String(raw || "").trim();
+  if (!value) return null;
+
+  const fromUrl = (href: string, base?: string): string | null => {
+    try {
+      const url = base ? new URL(href, base) : new URL(href);
+      const pathname = url.pathname.replace(/\/+$/, "");
+      if (
+        pathname.endsWith("/api/storage/file") ||
+        pathname.endsWith("/api/storage/global-file")
+      ) {
+        const filePath = url.searchParams.get("path")?.trim();
+        return filePath || null;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  };
+
+  if (/^https?:\/\//i.test(value)) return fromUrl(value);
+  if (value.startsWith("/")) return fromUrl(value, "https://bliv.invalid");
+  const marker = value.indexOf("/api/storage/file");
+  if (marker >= 0) {
+    const query = value.slice(value.indexOf("?", marker));
+    if (query.startsWith("?")) {
+      const filePath = new URLSearchParams(query.slice(1)).get("path")?.trim();
+      if (filePath) return filePath;
+    }
+  }
+  return null;
+}
+
 export function looksLikeMetaUploadHandle(value: string): boolean {
   const v = String(value || "").trim();
   if (!v || looksLikeHttpUrl(v)) return false;
