@@ -6999,6 +6999,103 @@
       }
     ]
   },
+  "ds_agent_contact_memory": {
+    "columns": {
+      "id": {
+        "ordinal_position": 1,
+        "data_type": "varchar",
+        "column_type": "varchar(36)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "tenant_id": {
+        "ordinal_position": 2,
+        "data_type": "varchar",
+        "column_type": "varchar(36)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "agent_id": {
+        "ordinal_position": 3,
+        "data_type": "varchar",
+        "column_type": "varchar(36)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "contact_phone": {
+        "ordinal_position": 4,
+        "data_type": "varchar",
+        "column_type": "varchar(32)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "facts": {
+        "ordinal_position": 5,
+        "data_type": "text",
+        "column_type": "text",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "conversation_summary": {
+        "ordinal_position": 6,
+        "data_type": "text",
+        "column_type": "text",
+        "nullable": true,
+        "default": null,
+        "key": "",
+        "extra": "",
+        "charset": "utf8mb4",
+        "collation": "utf8mb4_unicode_ci"
+      },
+      "updated_at": {
+        "ordinal_position": 7,
+        "data_type": "datetime",
+        "column_type": "datetime",
+        "nullable": true,
+        "default": "CURRENT_TIMESTAMP",
+        "key": "",
+        "extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP",
+        "charset": null,
+        "collation": null
+      }
+    },
+    "primary_key": [
+      "id"
+    ],
+    "unique_indexes": {
+      "uq_ds_agent_contact_memory": [
+        "tenant_id",
+        "agent_id",
+        "contact_phone"
+      ]
+    },
+    "indexes": {
+      "idx_ds_mem_agent": [
+        "agent_id"
+      ]
+    },
+    "foreign_keys": []
+  },
   "ds_agent_subagents": {
     "columns": {
       "id": {

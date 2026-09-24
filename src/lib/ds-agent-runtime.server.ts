@@ -120,7 +120,7 @@ async function persistContactMemory(params: {
     await params.db.query(
       `INSERT INTO ds_agent_contact_memory (id, tenant_id, agent_id, contact_phone, facts, conversation_summary)
        VALUES (?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE facts = VALUES(facts), conversation_summary = VALUES(conversation_summary), updated_at = CURRENT_TIMESTAMP`,
+       ON DUPLICATE KEY UPDATE ds_agent_contact_memory.facts = VALUES(facts), ds_agent_contact_memory.conversation_summary = VALUES(conversation_summary), ds_agent_contact_memory.updated_at = CURRENT_TIMESTAMP`,
       [crypto.randomUUID(), params.tenantId, params.agentId, params.phoneDigits, facts, summary],
     );
   } catch (err: any) {

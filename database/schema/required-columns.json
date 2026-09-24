@@ -560,6 +560,15 @@
     "created_at",
     "updated_at"
   ],
+  "ds_agent_contact_memory": [
+    "id",
+    "tenant_id",
+    "agent_id",
+    "contact_phone",
+    "facts",
+    "conversation_summary",
+    "updated_at"
+  ],
   "ds_agent_subagents": [
     "id",
     "tenant_id",

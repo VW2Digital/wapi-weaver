@@ -39,6 +39,7 @@
   "ds_agent_knowledge_links",
   "ds_agent_logs",
   "ds_agent_sessions",
+  "ds_agent_contact_memory",
   "ds_agent_subagents",
   "ds_agent_tools",
   "ds_agent_usage",
