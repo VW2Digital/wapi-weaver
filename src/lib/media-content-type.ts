@@ -25,6 +25,9 @@ const MIME_TYPES: Record<string, string> = {
   ".amr": "audio/amr",
   ".wav": "audio/wav",
   ".mp4": "video/mp4",
+  ".webm": "video/webm",
+  ".mov": "video/quicktime",
+  ".3gp": "video/3gpp",
 };
 
 function normalizeMimeType(value: unknown) {
@@ -35,7 +38,7 @@ export function resolveMediaContentType(options: {
   fileName?: string;
   declaredMimeType?: unknown;
   upstreamContentType?: string | null;
-  bytes: Uint8Array;
+  bytes?: Uint8Array;
 }) {
   const declared = normalizeMimeType(options.declaredMimeType);
   if (declared && declared !== "application/octet-stream") return declared;
@@ -48,12 +51,13 @@ export function resolveMediaContentType(options: {
   const upstream = normalizeMimeType(options.upstreamContentType);
   if (upstream && upstream !== "application/octet-stream") return upstream;
 
+  const bytes = options.bytes || new Uint8Array();
   if (
-    options.bytes.length >= 4 &&
-    options.bytes[0] === 0x4f &&
-    options.bytes[1] === 0x67 &&
-    options.bytes[2] === 0x67 &&
-    options.bytes[3] === 0x53
+    bytes.length >= 4 &&
+    bytes[0] === 0x4f &&
+    bytes[1] === 0x67 &&
+    bytes[2] === 0x67 &&
+    bytes[3] === 0x53
   ) {
     return "audio/ogg";
   }

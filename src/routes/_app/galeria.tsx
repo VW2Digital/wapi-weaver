@@ -83,7 +83,11 @@ function KindIcon({ kind, className }: { kind: GalleryKind; className?: string }
 
 async function readError(res: Response) {
   const json = await res.json().catch(() => ({}));
-  return String(json?.error || `Falha (${res.status})`);
+  if (json?.error) return String(json.error);
+  if (res.status >= 500) {
+    return "O servidor estava ocupado ao processar o arquivo. Tente de novo em instantes.";
+  }
+  return `Falha (${res.status})`;
 }
 
 function GalleryPage() {
@@ -253,8 +257,9 @@ function GalleryPage() {
   };
 
   return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
     <div
-      className="relative space-y-5"
+      className="relative flex-1 overflow-y-auto p-4 sm:p-6 pb-10 space-y-5"
       onDragOver={(event) => {
         event.preventDefault();
         setDragging(true);
@@ -284,7 +289,7 @@ function GalleryPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {(
           [
             { key: "all", label: "Arquivos", value: counts.all, icon: Images },
@@ -379,7 +384,7 @@ function GalleryPage() {
       ) : null}
 
       {listQuery.isLoading ? (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 8 }).map((_, index) => (
             <Skeleton key={index} className="aspect-square rounded-2xl" />
           ))}
@@ -408,7 +413,7 @@ function GalleryPage() {
           }
         />
       ) : view === "grid" ? (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
           {filtered.map((file) => {
             const kind = file.kind || classifyGalleryKind(file.name);
             const checked = selected.has(file.path);
@@ -432,8 +437,6 @@ function GalleryPage() {
                       className="size-full object-cover"
                       loading="lazy"
                     />
-                  ) : kind === "video" ? (
-                    <video src={storageFileUrl(file.path)} className="size-full object-cover" muted />
                   ) : (
                     <div className="flex size-full flex-col items-center justify-center gap-2 text-muted-foreground">
                       <KindIcon kind={kind} className="size-8" />
@@ -557,6 +560,7 @@ function GalleryPage() {
           ) : null}
         </DialogContent>
       </Dialog>
+    </div>
     </div>
   );
 }

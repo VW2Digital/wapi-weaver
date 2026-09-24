@@ -22,12 +22,11 @@ describe("resolveMediaContentType", () => {
     ).toBe("audio/ogg");
   });
 
-  test("preserva MIME específico retornado pela origem", () => {
+  test("reconhece vídeo webm pela extensão", () => {
     expect(
       resolveMediaContentType({
-        bytes: new Uint8Array(),
-        upstreamContentType: "audio/mpeg; charset=binary",
+        fileName: "clip.webm",
       }),
-    ).toBe("audio/mpeg");
+    ).toBe("video/webm");
   });
 });

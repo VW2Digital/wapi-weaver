@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import fs from "fs";
-import path from "path";
+import fs from "node:fs/promises";
+import path from "node:path";
 import {
   assertTenantStoragePath,
   resolveUploadFilePath,
@@ -8,6 +8,7 @@ import {
 } from "@/lib/tenant-storage";
 
 const __dirname = path.resolve();
+const MAX_DELETE = 100;
 
 export const Route = createFileRoute("/api/storage/remove")({
   server: {
@@ -15,37 +16,46 @@ export const Route = createFileRoute("/api/storage/remove")({
       POST: async ({ request }) => {
         try {
           const user = await verifyStorageUser(request);
-          const { paths } = await request.json();
-          if (!Array.isArray(paths)) {
-            return new Response(JSON.stringify({ error: "Paths must be an array" }), {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
-            });
+          const body = await request.json().catch(() => ({}));
+          const paths = Array.isArray(body?.paths) ? body.paths : [];
+          if (!paths.length) {
+            return json({ error: "Paths must be an array" }, 400);
+          }
+          if (paths.length > MAX_DELETE) {
+            return json({ error: `Máximo de ${MAX_DELETE} arquivos por exclusão.` }, 400);
           }
 
+          const uploadsRoot = path.resolve(__dirname, "public", "uploads");
+          let deleted = 0;
           for (const filePath of paths) {
             const safePath = await assertTenantStoragePath(filePath, user);
-            const uploadsRoot = path.resolve(__dirname, "public", "uploads");
             const fullPath = resolveUploadFilePath(uploadsRoot, safePath);
-            if (fs.existsSync(fullPath)) {
-              fs.unlinkSync(fullPath);
+            try {
+              const stat = await fs.lstat(fullPath);
+              if (!stat.isFile()) continue;
+              await fs.unlink(fullPath);
+              deleted += 1;
+            } catch (err: any) {
+              if (err?.code === "ENOENT") continue;
+              throw err;
             }
           }
 
-          return new Response(JSON.stringify({ success: true }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
+          return json({ success: true, deleted });
         } catch (err: any) {
           console.error("[Storage API] Remove error:", err);
           const status =
             err?.statusCode || (String(err?.message).includes("Unauthorized") ? 401 : 500);
-          return new Response(JSON.stringify({ error: err.message }), {
-            status,
-            headers: { "Content-Type": "application/json" },
-          });
+          return json({ error: err?.message || "Falha ao excluir arquivo." }, status);
         }
       },
     },
   },
 });
+
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
