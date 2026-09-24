@@ -502,6 +502,7 @@ export async function processBotFlow(
   channel: "whatsapp" | "instagram" | "messenger" | "whatsapp_group" | "webchat" = "whatsapp",
   incomingMessageId?: string | null,
   conversationId?: string | null,
+  incomingMessageType?: string | null,
 ) {
   if (!phoneNumberId || !phoneDigits || !tenantId || (!messageBody && !buttonPayload)) return;
 
@@ -640,6 +641,7 @@ export async function processBotFlow(
                 phoneDigits,
                 phoneNumberId,
                 tenantId,
+                messageType: incomingMessageType,
               });
               if (ok) {
                 await markBotProcessedForMessage(tenantId, channel, incomingMessageId);
@@ -1652,6 +1654,7 @@ export async function processBotFlow(
           phoneDigits,
           phoneNumberId,
           tenantId,
+          messageType: incomingMessageType,
         });
         if (handledByAi) {
           await activateAiAgentForConversation({

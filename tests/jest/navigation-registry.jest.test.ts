@@ -72,6 +72,7 @@ describe("global navigation registry", () => {
 
   it("resolves Instagram Content and every registered menu destination", () => {
     expect(resolveNavigationRoute("/instagram-content")).toBe("/instagram-content");
+    expect(resolveNavigationRoute("/galeria")).toBe("/galeria");
     for (const item of NAVIGATION_REGISTRY) {
       expect(resolveNavigationRoute(item.to)).not.toBeNull();
       for (const child of item.children || []) {

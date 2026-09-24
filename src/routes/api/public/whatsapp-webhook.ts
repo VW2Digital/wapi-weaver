@@ -1154,6 +1154,8 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
           buttonPayload,
           "whatsapp",
           waMessageId,
+          undefined,
+          type,
         );
 
         await db.query(
@@ -1728,7 +1730,7 @@ async function handleWhatsAppGroupMessage(
 
   // 🚀 Chama o motor do BotFlow para processar essa mensagem do grupo (se habilitado)
   if (process.env.WHATSAPP_GROUPS_ENABLED === "true" && phoneNumberId && body) {
-    await processBotFlow(body, groupId, phoneNumberId, userId, undefined, "whatsapp_group");
+    await processBotFlow(body, groupId, phoneNumberId, userId, undefined, "whatsapp_group", waMessageId, undefined, type);
   }
 }
 

@@ -8015,6 +8015,17 @@
         "extra": "",
         "charset": null,
         "collation": null
+      },
+      "ignore_message_reactions": {
+        "ordinal_position": 30,
+        "data_type": "tinyint",
+        "column_type": "tinyint(1)",
+        "nullable": false,
+        "default": "1",
+        "key": "",
+        "extra": "",
+        "charset": null,
+        "collation": null
       }
     },
     "primary_key": [

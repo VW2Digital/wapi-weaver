@@ -2,7 +2,9 @@ import { describe, expect, it } from "@jest/globals";
 import {
   DS_AGENT_HISTORY_LIMIT,
   extractContactFacts,
+  formatContactAgendaBlock,
   formatHistoryText,
+  isWhatsAppReactionMessage,
   mergeContactFacts,
   selectRelevantKnowledge,
   takeLastHistory,
@@ -43,5 +45,29 @@ describe("DS Agente conversation context", () => {
     const merged = mergeContactFacts("- email:  ana@loja.com", ["cliente disse: quero o plano anual"]);
     expect(merged).toMatch(/plano anual/);
     expect(merged).toMatch(/ana@loja.com/);
+  });
+
+  it("labels a meeting scheduled yesterday as HOJE, not amanhã", () => {
+    const clock = {
+      isoDate: "2026-09-24",
+      datePtBr: "24/09/2026",
+      timePtBr: "10:51",
+      weekdayPtBr: "quinta-feira",
+      year: 2026,
+      clockLine: "HOJE é quinta-feira, 24/09/2026 (2026-09-24), 10:51 (America/Sao_Paulo). O ano corrente é 2026.",
+    };
+    const block = formatContactAgendaBlock(clock, [
+      { title: "Reunião Bliv", start_at: "2026-09-24 13:00:00" },
+    ]);
+    expect(block).toMatch(/HOJE/);
+    expect(block).not.toMatch(/AMANHÃ 24\/09/);
+    expect(block).toMatch(/nunca chame de reunião de amanhã/i);
+  });
+
+  it("detects WhatsApp reactions without treating normal text as emoji", () => {
+    expect(isWhatsAppReactionMessage({ type: "reaction", body: "👍" })).toBe(true);
+    expect(isWhatsAppReactionMessage({ type: "text", body: "❤️" })).toBe(true);
+    expect(isWhatsAppReactionMessage({ type: "text", body: "Bom dia?" })).toBe(false);
+    expect(isWhatsAppReactionMessage({ type: "text", body: "ok" })).toBe(false);
   });
 });

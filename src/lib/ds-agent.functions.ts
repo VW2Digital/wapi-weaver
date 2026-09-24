@@ -19,6 +19,7 @@ async function ensureDsAgentsColumns(db: any) {
       { name: "split_replies_in_blocks", type: "BOOLEAN NOT NULL DEFAULT FALSE" },
       { name: "process_images", type: "BOOLEAN NOT NULL DEFAULT FALSE" },
       { name: "disabled_outside_platform", type: "BOOLEAN NOT NULL DEFAULT FALSE" },
+      { name: "ignore_message_reactions", type: "BOOLEAN NOT NULL DEFAULT TRUE" },
     ];
 
     for (const col of requiredCols) {
@@ -221,6 +222,8 @@ export const getDsAgentsByFolder = createServerFn({ method: "GET" })
         split_replies_in_blocks: Boolean(a.split_replies_in_blocks),
         process_images: Boolean(a.process_images),
         disabled_outside_platform: Boolean(a.disabled_outside_platform),
+        ignore_message_reactions:
+          a.ignore_message_reactions == null ? true : Boolean(a.ignore_message_reactions),
       }));
 
       return { ok: true, agents: normalizedAgents };
@@ -287,8 +290,8 @@ export const createDsAgent = createServerFn({ method: "POST" })
       await db.query(
         `INSERT INTO ds_agents (
           id, tenant_id, folder_id, name, provider, model, mode, status, is_active,
-          reply_with_assigned_agent, split_replies_in_blocks, process_images, disabled_outside_platform
-        ) VALUES (?, ?, ?, ?, ?, ?, 'basico', 'active', true, false, false, false, false)`,
+          reply_with_assigned_agent, split_replies_in_blocks, process_images, disabled_outside_platform, ignore_message_reactions
+        ) VALUES (?, ?, ?, ?, ?, ?, 'basico', 'active', true, false, false, false, false, true)`,
         [agentId, tenantId, folderId, data.name.trim(), provider, model]
       );
 
@@ -358,6 +361,8 @@ export const getDsAgentDetail = createServerFn({ method: "GET" })
       agent.split_replies_in_blocks = Boolean(agent.split_replies_in_blocks);
       agent.process_images = Boolean(agent.process_images);
       agent.disabled_outside_platform = Boolean(agent.disabled_outside_platform);
+      agent.ignore_message_reactions =
+        agent.ignore_message_reactions == null ? true : Boolean(agent.ignore_message_reactions);
 
       const files = (await db.query(
         `SELECT f.*,
@@ -479,6 +484,7 @@ export const updateDsAgent = createServerFn({ method: "POST" })
         "split_replies_in_blocks",
         "process_images",
         "disabled_outside_platform",
+        "ignore_message_reactions",
         "folder_id",
       ];
 
@@ -487,6 +493,7 @@ export const updateDsAgent = createServerFn({ method: "POST" })
         "split_replies_in_blocks",
         "process_images",
         "disabled_outside_platform",
+        "ignore_message_reactions",
       ];
 
       const setClauses: string[] = [];

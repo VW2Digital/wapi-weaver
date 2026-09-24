@@ -278,6 +278,19 @@ export function TabTraining({
 
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
+              <Label className="text-xs text-foreground cursor-pointer">Não responder reações</Label>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Ignora emojis de reação nas mensagens. Desligue só se quiser que o agente comente curtir/❤️.
+              </p>
+            </div>
+            <Switch
+              checked={agentData.ignore_message_reactions !== false}
+              onCheckedChange={(val) => onChangeField("ignore_message_reactions", val)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
               <Label className="text-xs text-foreground cursor-pointer">
                 Desabilitar agente fora da plataforma
               </Label>

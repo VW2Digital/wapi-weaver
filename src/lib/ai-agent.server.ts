@@ -1,3 +1,4 @@
+import { isWhatsAppReactionMessage } from "@/lib/ds-agent-context.server";
 import { dbAdmin } from "@/integrations/mysql/client.server";
 import { GoogleGenAI } from "@google/genai";
 import crypto from "crypto";
@@ -17,6 +18,10 @@ export async function processAiAgent(
   userId: string,
 ) {
   if (!phoneNumberId || !phoneDigits || !userId || !messageBody) return false;
+  if (isWhatsAppReactionMessage({ body: messageBody })) {
+    logInfo("Agente IA legado ignorou reação", { phoneDigits });
+    return false;
+  }
 
   try {
     // 1. Get Settings

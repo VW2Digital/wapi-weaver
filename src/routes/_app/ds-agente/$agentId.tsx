@@ -166,6 +166,7 @@ function DsAgentEditorPage() {
       "split_replies_in_blocks",
       "process_images",
       "disabled_outside_platform",
+      "ignore_message_reactions",
     ]);
     if (instantFields.has(field)) {
       updateAgentFn({ data: { id: agentId, updates: { [field]: value } } })

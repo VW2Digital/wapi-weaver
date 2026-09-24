@@ -11,7 +11,9 @@ import {
   DS_AGENT_KNOWLEDGE_PICK,
   DS_AGENT_KNOWLEDGE_SCAN,
   extractContactFacts,
+  formatContactAgendaBlock,
   formatHistoryText,
+  isWhatsAppReactionMessage,
   mergeContactFacts,
   selectRelevantKnowledge,
   summarizeRecentHistory,
@@ -331,14 +333,64 @@ async function resolveWhatsAppSendAuth(
 
 async function resolveContactId(tenantId: string, phoneDigits: string): Promise<string | null> {
   const { default: db } = await import("./db");
+  const digits = String(phoneDigits || "").replace(/\D/g, "");
+  if (!digits) return null;
+  const variants = [digits];
+  if (digits.startsWith("55") && digits.length > 11) variants.push(digits.slice(2));
+  else if (!digits.startsWith("55") && digits.length >= 10) variants.push(`55${digits}`);
   const rows = (await db.query(
     `SELECT id FROM contacts
      WHERE (tenant_id = ? OR user_id = ?)
-       AND (phone_e164 = ? OR whatsapp_number = ? OR REPLACE(REPLACE(phone_e164, '+', ''), ' ', '') = ?)
+       AND (
+         phone_e164 IN (${variants.map(() => "?").join(",")})
+         OR whatsapp_number IN (${variants.map(() => "?").join(",")})
+         OR REPLACE(REPLACE(IFNULL(phone_e164, ''), '+', ''), ' ', '') IN (${variants.map(() => "?").join(",")})
+         OR RIGHT(REPLACE(REPLACE(IFNULL(phone_e164, ''), '+', ''), ' ', ''), 11) = RIGHT(?, 11)
+       )
      LIMIT 1`,
-    [tenantId, tenantId, phoneDigits, phoneDigits, phoneDigits],
+    [tenantId, tenantId, ...variants, ...variants, ...variants, digits],
   )) as Array<{ id: string }>;
   return rows?.[0]?.id || null;
+}
+
+async function loadContactAgendaEvents(params: {
+  db: any;
+  tenantId: string;
+  agentId: string;
+  phoneDigits: string;
+}): Promise<Array<{ title?: string; start_at: string; end_at?: string; status?: string; location?: string | null }>> {
+  const clock = getAmericaSaoPauloNow();
+  const startBound = new Date(new Date(`${clock.isoDate}T00:00:00-03:00`).getTime() - 86_400_000);
+  const endBound = new Date(new Date(`${clock.isoDate}T23:59:59-03:00`).getTime() + 7 * 86_400_000);
+  const startSql = startBound.toISOString().slice(0, 19).replace("T", " ");
+  const endSql = endBound.toISOString().slice(0, 19).replace("T", " ");
+  const contactId = await resolveContactId(params.tenantId, params.phoneDigits);
+  const digits = String(params.phoneDigits || "").replace(/\D/g, "");
+  const like = `%${digits.slice(-11)}%`;
+  const rows = (await params.db.query(
+    `SELECT ce.title, ce.start_at, ce.end_at, ce.status, ce.location
+     FROM calendar_events ce
+     LEFT JOIN contacts c ON c.id = ce.contact_id
+     WHERE ce.tenant_id = ?
+       AND ce.deleted_at IS NULL
+       AND LOWER(IFNULL(ce.status, '')) NOT IN ('cancelled', 'canceled', 'cancelado')
+       AND ce.start_at >= ?
+       AND ce.start_at <= ?
+       AND (
+         ${contactId ? "ce.contact_id = ? OR" : ""}
+         REPLACE(REPLACE(IFNULL(c.phone_e164, ''), '+', ''), ' ', '') LIKE ?
+         OR REPLACE(REPLACE(IFNULL(c.whatsapp_number, ''), '+', ''), ' ', '') LIKE ?
+         OR IFNULL(ce.description, '') LIKE ?
+         OR IFNULL(ce.metadata, '') LIKE ?
+         OR (ce.ds_agent_id = ? AND IFNULL(ce.metadata, '') LIKE ?)
+       )
+     ORDER BY ce.start_at ASC
+     LIMIT 12`,
+    contactId
+      ? [params.tenantId, startSql, endSql, contactId, like, like, like, like, params.agentId, like]
+      : [params.tenantId, startSql, endSql, like, like, like, like, params.agentId, like],
+  )) as Array<{ title?: string; start_at: string; end_at?: string; status?: string; location?: string | null }>;
+  return rows || [];
 }
 
 export async function findActiveDsAgentSession(
@@ -823,11 +875,23 @@ async function buildDsAgentSystemPrompt(params: {
     `- Ao agendar, use o ano ${clock.year} em start_at/end_at (YYYY-MM-DD HH:mm:ss).\n` +
     "- Nunca escreva placeholders como {{nome_lead}} na resposta.\n" +
     `- Leia SEMPRE as últimas ${DS_AGENT_HISTORY_LIMIT} mensagens do histórico antes de responder. Não trate a conversa como se fosse a primeira mensagem.\n` +
-    "- Use nome do contato, memória da conversa, base de conhecimento e ferramentas disponíveis. Não peça de novo dados que o cliente já deu.\n" +
+    "- Use nome do contato, memória da conversa, base de conhecimento, AGENDA e relógio. Não peça de novo dados que o cliente já deu.\n" +
     "- Responda à mensagem mais recente de forma útil, considerando o contexto acumulado.\n" +
-    "- Só confirme que um compromisso foi agendado DEPOIS de chamar a ferramenta calendar_create_event com sucesso. Se a ferramenta falhar, diga que não conseguiu agendar.\n";
+    "- Só confirme que um compromisso foi agendado DEPOIS de chamar a ferramenta calendar_create_event com sucesso. Se a ferramenta falhar, diga que não conseguiu agendar.\n" +
+    "- Antes de falar de reunião, use o bloco AGENDA. Nunca copie 'amanhã' do histórico se a agenda disser HOJE.\n";
 
   systemPrompt += await loadContactMemory(db, tenantId, agentId, phoneDigits || "");
+  if (phoneDigits) {
+    try {
+      const events = await loadContactAgendaEvents({ db, tenantId, agentId, phoneDigits });
+      systemPrompt += formatContactAgendaBlock(clock, events);
+    } catch (err: any) {
+      logError("Falha ao ler agenda do contato", { error: err?.message });
+      systemPrompt += formatContactAgendaBlock(clock, []);
+    }
+  } else {
+    systemPrompt += formatContactAgendaBlock(clock, []);
+  }
   systemPrompt += await loadAgentKnowledgeBlock(
     db,
     agentId,
@@ -994,6 +1058,13 @@ export async function runDsAgentCompletion(params: {
   }
 }
 
+function agentIgnoresReactions(agent: any): boolean {
+  if (agent?.ignore_message_reactions === undefined || agent?.ignore_message_reactions === null) {
+    return true;
+  }
+  return isTruthyFlag(agent.ignore_message_reactions);
+}
+
 export async function processDsAgent(params: {
   agentId: string;
   messageBody: string;
@@ -1001,7 +1072,29 @@ export async function processDsAgent(params: {
   phoneNumberId: string;
   tenantId: string;
   skipDebounce?: boolean;
+  messageType?: string | null;
 }): Promise<boolean> {
+  if (
+    isWhatsAppReactionMessage({ type: params.messageType, body: params.messageBody })
+  ) {
+    try {
+      const { default: db } = await import("./db");
+      const agents = (await db.query(
+        `SELECT ignore_message_reactions FROM ds_agents WHERE id = ? AND tenant_id = ? LIMIT 1`,
+        [params.agentId, params.tenantId],
+      )) as any[];
+      if (agentIgnoresReactions(agents?.[0] || {})) {
+        logInfo("DS Agente ignorou reação (ignore_message_reactions=on)", {
+          agentId: params.agentId,
+          phoneDigits: params.phoneDigits,
+        });
+        return true;
+      }
+    } catch (err: any) {
+      logInfo("DS Agente ignorou reação (fallback)", { error: err?.message });
+      return true;
+    }
+  }
   if (!params.skipDebounce) {
     const { randomDebounceMs } = await import("./bot-ai-rhythm.server");
     const delay = randomDebounceMs();
@@ -1029,6 +1122,7 @@ async function processDsAgentNow(params: {
   phoneDigits: string;
   phoneNumberId: string;
   tenantId: string;
+  messageType?: string | null;
 }): Promise<boolean> {
   const { agentId, messageBody, phoneDigits, phoneNumberId, tenantId } = params;
   if (!agentId || !messageBody || !phoneDigits || !phoneNumberId || !tenantId) return false;
@@ -1082,6 +1176,14 @@ async function processDsAgentNow(params: {
     const splitBlocks = isTruthyFlag(agent.split_replies_in_blocks);
     const processImages = isTruthyFlag(agent.process_images);
     const disableOutsidePlatform = isTruthyFlag(agent.disabled_outside_platform);
+
+    if (
+      isWhatsAppReactionMessage({ type: params.messageType, body: messageBody }) &&
+      agentIgnoresReactions(agent)
+    ) {
+      logInfo("DS Agente ignorou reação (ignore_message_reactions=on)", { agentId, phoneDigits });
+      return true;
+    }
 
     // "Desabilitar agente fora da plataforma" + coluna legada disable_outside_hours:
     // respeita a agenda em Ferramentas > Disponibilidade (America/Sao_Paulo).

@@ -100,6 +100,7 @@ const OPERATIONAL_PATHS = new Set([
   "/contacts/",
   "/lists",
   "/templates",
+  "/galeria",
   "/campaigns",
   "/campaigns/",
   "/crm",

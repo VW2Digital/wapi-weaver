@@ -148,3 +148,108 @@ export function summarizeRecentHistory(historyText: string): string {
     .filter(Boolean);
   return takeLastHistory(lines, DS_AGENT_HISTORY_LIMIT).join("\n").slice(0, 4000);
 }
+
+export type ClockSnapshot = {
+  isoDate: string;
+  datePtBr: string;
+  timePtBr: string;
+  weekdayPtBr: string;
+  year: number;
+  clockLine: string;
+};
+
+export type AgendaEventSnapshot = {
+  title?: string | null;
+  start_at: string | Date;
+  end_at?: string | Date | null;
+  status?: string | null;
+  location?: string | null;
+};
+
+export function parseStoredCalendarDate(raw: string | Date): Date {
+  if (raw instanceof Date) return raw;
+  const value = String(raw || "").trim();
+  if (!value) return new Date(NaN);
+  if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(value)) return new Date(value);
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(value)) {
+    return new Date(value.replace(" ", "T") + "Z");
+  }
+  return new Date(value);
+}
+
+export function saoPauloIsoDateAndTime(date: Date): { isoDate: string; timePtBr: string; datePtBr: string } {
+  const parts = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const pick = (type: string) => parts.find((part) => part.type === type)?.value || "";
+  const year = pick("year");
+  const month = pick("month");
+  const day = pick("day");
+  return {
+    isoDate: `${year}-${month}-${day}`,
+    datePtBr: `${day}/${month}/${year}`,
+    timePtBr: `${pick("hour")}:${pick("minute")}`,
+  };
+}
+
+export function agendaDayOffset(eventIsoDate: string, todayIsoDate: string): number {
+  const noon = (iso: string) => Date.parse(`${iso}T12:00:00-03:00`);
+  return Math.round((noon(eventIsoDate) - noon(todayIsoDate)) / 86_400_000);
+}
+
+export function agendaDayLabel(offset: number): string {
+  if (offset === 0) return "HOJE";
+  if (offset === 1) return "AMANHÃ";
+  if (offset === -1) return "ONTEM";
+  if (offset < 0) return `${Math.abs(offset)} dias atrás`;
+  return `daqui a ${offset} dias`;
+}
+
+export function formatContactAgendaBlock(clock: ClockSnapshot, events: AgendaEventSnapshot[]): string {
+  const nowMs = Date.parse(`${clock.isoDate}T${clock.timePtBr}:00-03:00`);
+  const lines: string[] = [];
+  for (const event of events.slice(0, 12)) {
+    const start = parseStoredCalendarDate(event.start_at);
+    if (Number.isNaN(start.getTime())) continue;
+    const local = saoPauloIsoDateAndTime(start);
+    const offset = agendaDayOffset(local.isoDate, clock.isoDate);
+    const label = agendaDayLabel(offset);
+    let when = `${label} ${local.datePtBr} às ${local.timePtBr}`;
+    if (offset === 0) {
+      when += start.getTime() <= nowMs ? " (já passou ou está em andamento)" : " (ainda vai acontecer hoje)";
+    }
+    const title = String(event.title || "Compromisso").trim();
+    const place = String(event.location || "").trim();
+    lines.push(`- ${title}: ${when}${place ? ` | local: ${place}` : ""}`);
+  }
+
+  let block =
+    `\n\n--- AGENDA DESTE CONTATO (já consultada — fonte da verdade) ---\n` +
+    `${clock.clockLine}\n` +
+    `Palavras como "hoje/amanhã/ontem" no HISTÓRICO são velhas. Recalcule sempre com este relógio e esta lista.\n`;
+  if (!lines.length) {
+    block +=
+      "Nenhum compromisso deste contato de ontem até os próximos 7 dias. Não invente reunião. Não diga que há reunião amanhã.\n";
+  } else {
+    block += `Compromissos:\n${lines.join("\n")}\n`;
+    block +=
+      "Se um item está marcado HOJE, nunca chame de reunião de amanhã. Se o cliente só cumprimentar, use a data correta desta lista.\n";
+  }
+  block += "----------------------------\n";
+  return block;
+}
+
+export function isWhatsAppReactionMessage(input: { type?: string | null; body?: string | null }): boolean {
+  const type = String(input.type || "").toLowerCase();
+  if (type === "reaction") return true;
+  const body = String(input.body || "").trim();
+  if (!body) return false;
+  if (/\p{L}|\p{N}/u.test(body)) return false;
+  return /^[\p{Extended_Pictographic}\p{Emoji_Presentation}\uFE0F\u200D\s]{1,12}$/u.test(body);
+}

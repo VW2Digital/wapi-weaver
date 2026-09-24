@@ -2237,6 +2237,7 @@ export async function ensureDatabaseSchema() {
         split_replies_in_blocks BOOLEAN NOT NULL DEFAULT FALSE,
         process_images BOOLEAN NOT NULL DEFAULT FALSE,
         disabled_outside_platform BOOLEAN NOT NULL DEFAULT FALSE,
+        ignore_message_reactions BOOLEAN NOT NULL DEFAULT TRUE,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_ds_agents_tenant (tenant_id),
@@ -2262,6 +2263,7 @@ export async function ensureDatabaseSchema() {
         { name: "split_replies_in_blocks", type: "BOOLEAN NOT NULL DEFAULT FALSE" },
         { name: "process_images", type: "BOOLEAN NOT NULL DEFAULT FALSE" },
         { name: "disabled_outside_platform", type: "BOOLEAN NOT NULL DEFAULT FALSE" },
+        { name: "ignore_message_reactions", type: "BOOLEAN NOT NULL DEFAULT TRUE" },
       ];
 
       for (const col of requiredCols) {

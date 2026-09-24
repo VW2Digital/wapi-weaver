@@ -188,6 +188,10 @@ export async function executeDsAgentCalendarTool(
         color: payload.color || "#7C3AED",
         created_by_type: "ds_agent",
         created_by_agent_id: safeAgentId,
+        metadata: {
+          ...(payload.metadata && typeof payload.metadata === "object" ? payload.metadata : {}),
+          contact_phone: payload.phone_digits || payload.phone || null,
+        },
       });
 
       return {
@@ -240,11 +244,13 @@ export async function executeDsAgentCalendarTool(
       let endDate = payload.end_date || payload.date;
 
       if (!startDate) {
-        const today = new Date();
-        startDate = today.toISOString().split("T")[0] + " 00:00:00";
-        const future = new Date(today);
-        future.setDate(future.getDate() + 7);
-        endDate = future.toISOString().split("T")[0] + " 23:59:59";
+        const clock = getAmericaSaoPauloNow();
+        startDate = `${clock.isoDate} 00:00:00`;
+        const end = new Date(`${clock.isoDate}T12:00:00-03:00`);
+        end.setDate(end.getDate() + 7);
+        const pad = (n: number) => String(n).padStart(2, "0");
+        const local = new Date(end.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+        endDate = `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())} 23:59:59`;
       } else {
         startDate = `${normalizeCalendarDateOnly(String(startDate))} 00:00:00`;
         endDate = `${normalizeCalendarDateOnly(String(endDate || startDate))} 23:59:59`;

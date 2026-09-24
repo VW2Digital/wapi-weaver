@@ -648,6 +648,7 @@
     "reply_with_assigned_agent",
     "split_replies_in_blocks",
     "disabled_outside_platform",
+    "ignore_message_reactions",
     "prompt",
     "is_active"
   ],

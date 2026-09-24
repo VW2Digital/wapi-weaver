@@ -6,6 +6,7 @@ import {
   BrainCircuit,
   Calendar,
   FileText,
+  Images,
   Instagram,
   Kanban,
   LayoutDashboard,
@@ -78,6 +79,13 @@ export const NAVIGATION_REGISTRY: readonly NavigationItemDefinition[] = [
     to: "/templates",
     label: "Templates",
     icon: FileText,
+    group: "content",
+  },
+  {
+    id: "gallery",
+    to: "/galeria",
+    label: "Galeria",
+    icon: Images,
     group: "content",
   },
   {

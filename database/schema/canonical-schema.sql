@@ -1025,6 +1025,7 @@ CREATE TABLE IF NOT EXISTS `ds_agents` (
   `reply_with_assigned_agent` tinyint(1) NOT NULL DEFAULT '0',
   `split_replies_in_blocks` tinyint(1) NOT NULL DEFAULT '0',
   `disabled_outside_platform` tinyint(1) NOT NULL DEFAULT '0',
+  `ignore_message_reactions` tinyint(1) NOT NULL DEFAULT '1',
   `prompt` text COLLATE utf8mb4_unicode_ci,
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
   PRIMARY KEY (`id`),
