@@ -313,17 +313,25 @@ function GalleryPage() {
       </div>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="overflow-x-auto">
-          <Tabs value={filter} onValueChange={(value) => setFilter(value as Filter)}>
-            <TabsList>
-              <TabsTrigger value="all">Tudo</TabsTrigger>
-              <TabsTrigger value="image">Imagens</TabsTrigger>
-              <TabsTrigger value="video">Vídeos</TabsTrigger>
-              <TabsTrigger value="audio">Áudios</TabsTrigger>
-              <TabsTrigger value="document">Documentos</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
+        <Tabs value={filter} onValueChange={(value) => setFilter(value as Filter)}>
+          <TabsList className="h-auto min-h-9 w-full flex-wrap justify-start overflow-hidden sm:w-fit">
+            <TabsTrigger value="all" className="h-8 flex-none px-3">
+              Tudo
+            </TabsTrigger>
+            <TabsTrigger value="image" className="h-8 flex-none px-3">
+              Imagens
+            </TabsTrigger>
+            <TabsTrigger value="video" className="h-8 flex-none px-3">
+              Vídeos
+            </TabsTrigger>
+            <TabsTrigger value="audio" className="h-8 flex-none px-3">
+              Áudios
+            </TabsTrigger>
+            <TabsTrigger value="document" className="h-8 flex-none px-3">
+              Documentos
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[12rem] flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
