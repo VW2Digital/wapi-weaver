@@ -989,11 +989,12 @@ export const testDsAgentChat = createServerFn({ method: "POST" })
       const userId = context.userId || "test-user-id";
       const tenantId = await resolveEffectiveUserId(userId);
 
-      const historyText = Array.isArray(data.history)
-        ? data.history
-            .map((m: any) => `${m.sender === "user" ? "Cliente" : "Agente"}: ${m.text}`)
-            .join("\n")
-        : "";
+    const historyText = Array.isArray(data.history)
+      ? data.history
+          .slice(-20)
+          .map((m: any) => `${m.sender === "user" ? "Cliente" : "Agente"}: ${m.text}`)
+          .join("\n")
+      : "";
 
       const result = await runDsAgentCompletion({
         agentId: data.agent_id,

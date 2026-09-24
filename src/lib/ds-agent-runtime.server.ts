@@ -6,6 +6,18 @@ import {
   resolveChannelAccessToken,
 } from "@/lib/messaging/channel-connection.service";
 import { getAmericaSaoPauloNow } from "@/lib/ds-agent-tools.server";
+import {
+  DS_AGENT_HISTORY_LIMIT,
+  DS_AGENT_KNOWLEDGE_PICK,
+  DS_AGENT_KNOWLEDGE_SCAN,
+  extractContactFacts,
+  formatHistoryText,
+  mergeContactFacts,
+  selectRelevantKnowledge,
+  summarizeRecentHistory,
+  takeLastHistory,
+  type HistoryMessage,
+} from "@/lib/ds-agent-context.server";
 
 function logInfo(message: string, data?: any) {
   console.log(`[ds-agent-runtime] ${message}`, data ? JSON.stringify(data) : "");
@@ -17,6 +29,103 @@ function logError(message: string, data?: any) {
 
 function isTruthyFlag(value: unknown): boolean {
   return value === true || value === 1 || value === "1";
+}
+
+async function loadRecentConversationHistory(params: {
+  tenantId: string;
+  phoneDigits: string;
+}): Promise<HistoryMessage[]> {
+  const { data: recentMsgs } = await dbAdmin
+    .from("direct_messages")
+    .select("direction, body, created_at, type")
+    .eq("user_id", params.tenantId)
+    .eq("contact_phone", params.phoneDigits)
+    .order("created_at", { ascending: false })
+    .limit(DS_AGENT_HISTORY_LIMIT);
+
+  return takeLastHistory([...(recentMsgs || [])].reverse(), DS_AGENT_HISTORY_LIMIT);
+}
+
+const MEMORY_TABLE_SQL = `CREATE TABLE IF NOT EXISTS ds_agent_contact_memory (
+  id varchar(36) NOT NULL,
+  tenant_id varchar(36) NOT NULL,
+  agent_id varchar(36) NOT NULL,
+  contact_phone varchar(32) NOT NULL,
+  facts text,
+  conversation_summary text,
+  updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_ds_agent_contact_memory (tenant_id, agent_id, contact_phone),
+  KEY idx_ds_mem_agent (agent_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`;
+
+let memoryTableReady = false;
+
+async function ensureContactMemoryTable(db: any): Promise<void> {
+  if (memoryTableReady) return;
+  await db.query(MEMORY_TABLE_SQL);
+  memoryTableReady = true;
+}
+
+async function loadContactMemory(
+  db: any,
+  tenantId: string,
+  agentId: string,
+  phoneDigits: string,
+): Promise<string> {
+  if (!phoneDigits) return "";
+  try {
+    await ensureContactMemoryTable(db);
+    const rows = (await db.query(
+      `SELECT facts, conversation_summary FROM ds_agent_contact_memory
+       WHERE tenant_id = ? AND agent_id = ? AND contact_phone = ?
+       LIMIT 1`,
+      [tenantId, agentId, phoneDigits],
+    )) as Array<{ facts?: string; conversation_summary?: string }>;
+    const row = rows?.[0];
+    if (!row) return "";
+    const facts = String(row.facts || "").trim();
+    const summary = String(row.conversation_summary || "").trim();
+    if (!facts && !summary) return "";
+    let block = "\n\n--- MEMÓRIA DESTA CONVERSA ---\nUse estes fatos já aprendidos. Não peça de novo o que o cliente já informou.\n";
+    if (facts) block += `${facts}\n`;
+    if (summary) block += `\nResumo recente:\n${summary}\n`;
+    block += "----------------------------\n";
+    return block;
+  } catch (err: any) {
+    logError("Falha ao ler memória do DS Agente", { error: err?.message });
+    return "";
+  }
+}
+
+async function persistContactMemory(params: {
+  db: any;
+  tenantId: string;
+  agentId: string;
+  phoneDigits: string;
+  historyText: string;
+}): Promise<void> {
+  if (!params.phoneDigits) return;
+  try {
+    await ensureContactMemoryTable(params.db);
+    const learned = extractContactFacts(params.historyText);
+    const existing = (await params.db.query(
+      `SELECT facts FROM ds_agent_contact_memory
+       WHERE tenant_id = ? AND agent_id = ? AND contact_phone = ?
+       LIMIT 1`,
+      [params.tenantId, params.agentId, params.phoneDigits],
+    )) as Array<{ facts?: string }>;
+    const facts = mergeContactFacts(existing?.[0]?.facts || "", learned);
+    const summary = summarizeRecentHistory(params.historyText);
+    await params.db.query(
+      `INSERT INTO ds_agent_contact_memory (id, tenant_id, agent_id, contact_phone, facts, conversation_summary)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE facts = VALUES(facts), conversation_summary = VALUES(conversation_summary), updated_at = CURRENT_TIMESTAMP`,
+      [crypto.randomUUID(), params.tenantId, params.agentId, params.phoneDigits, facts, summary],
+    );
+  } catch (err: any) {
+    logError("Falha ao gravar memória do DS Agente", { error: err?.message });
+  }
 }
 
 function isGeminiModel(model: string, provider: string): boolean {
@@ -394,7 +503,7 @@ async function generateDsAgentReply(params: {
 
   if (isGeminiModel(model, provider)) {
     const ai = new GoogleGenAI({ apiKey });
-    const prompt = `${systemPrompt}\n\n--- HISTÓRICO RECENTE ---\n${historyText}\n\nCliente: ${userMessage}\nAgente:`;
+    const prompt = `${systemPrompt}\n\n--- HISTÓRICO (últimas ${DS_AGENT_HISTORY_LIMIT} mensagens) ---\n${historyText}\n\nCliente: ${userMessage}\nAgente:`;
     const response = await ai.models.generateContent({
       model: model || "gemini-2.5-flash",
       contents: prompt,
@@ -409,7 +518,7 @@ async function generateDsAgentReply(params: {
     {
       role: "user",
       content: historyText
-        ? `Histórico recente:\n${historyText}\n\nMensagem atual do cliente:\n${userMessage}`
+        ? `Leia as últimas ${DS_AGENT_HISTORY_LIMIT} mensagens (do mais antigo ao mais recente) e responda com esse contexto:\n${historyText}\n\nMensagem atual do cliente:\n${userMessage}`
         : userMessage,
     },
   ];
@@ -590,6 +699,7 @@ async function loadAgentKnowledgeBlock(
   db: any,
   agentId: string,
   tenantId: string,
+  query: string,
 ): Promise<string> {
   let knowledgeRows: Array<{ title?: string; content?: string }> = [];
   try {
@@ -599,7 +709,7 @@ async function loadAgentKnowledgeBlock(
          AND status IN ('indexed', 'pending')
          AND content IS NOT NULL AND content != ''
        ORDER BY updated_at DESC
-       LIMIT 20`,
+       LIMIT ${DS_AGENT_KNOWLEDGE_SCAN}`,
       [agentId, tenantId],
     )) as Array<{ title?: string; content?: string }>;
   } catch (err) {
@@ -626,14 +736,20 @@ async function loadAgentKnowledgeBlock(
     return "";
   }
 
+  const picked = selectRelevantKnowledge(knowledgeRows, query, DS_AGENT_KNOWLEDGE_PICK);
   let block =
     "\n\n--- BASE DE CONHECIMENTO DO AGENTE ---\n" +
-    "Priorize estas informações oficiais do negócio ao responder. " +
-    "Se a pergunta do cliente estiver coberta abaixo, use esses dados com precisão " +
-    "(não invente preços, prazos ou regras fora desta base):\n";
-  for (const doc of knowledgeRows) {
-    const content = String(doc.content || "").slice(0, 12000);
-    block += `\n[${doc.title || "Documento"}]\n${content}\n`;
+    "Estas são as informações oficiais mais relevantes para a conversa atual. " +
+    "Use-as com precisão. Não invente preços, prazos ou regras fora desta base. " +
+    "Se o cliente já recebeu um dado abaixo, não finja que não sabe.\n";
+  let used = 0;
+  const maxChars = 40_000;
+  for (const doc of picked) {
+    const content = String(doc.content || "").slice(0, 8000);
+    const chunk = `\n[${doc.title || "Documento"}]\n${content}\n`;
+    if (used + chunk.length > maxChars) break;
+    block += chunk;
+    used += chunk.length;
   }
   block += "----------------------------\n";
   return block;
@@ -647,6 +763,7 @@ async function buildDsAgentSystemPrompt(params: {
   phoneDigits?: string;
   replyWithAssigned: boolean;
   processImages: boolean;
+  knowledgeQuery?: string;
 }): Promise<string> {
   const { db, agent, tenantId, agentId, phoneDigits, replyWithAssigned, processImages } = params;
   const mode = String(agent.mode || "basico");
@@ -705,10 +822,18 @@ async function buildDsAgentSystemPrompt(params: {
     `- Se o cliente perguntar o ano/data, use SOMENTE este relógio. Nunca afirme que estamos em 2023 ou em qualquer ano diferente de ${clock.year}.\n` +
     `- Ao agendar, use o ano ${clock.year} em start_at/end_at (YYYY-MM-DD HH:mm:ss).\n` +
     "- Nunca escreva placeholders como {{nome_lead}} na resposta.\n" +
-    "- Responda sempre a mensagem mais recente do cliente de forma útil e objetiva.\n" +
+    `- Leia SEMPRE as últimas ${DS_AGENT_HISTORY_LIMIT} mensagens do histórico antes de responder. Não trate a conversa como se fosse a primeira mensagem.\n` +
+    "- Use nome do contato, memória da conversa, base de conhecimento e ferramentas disponíveis. Não peça de novo dados que o cliente já deu.\n" +
+    "- Responda à mensagem mais recente de forma útil, considerando o contexto acumulado.\n" +
     "- Só confirme que um compromisso foi agendado DEPOIS de chamar a ferramenta calendar_create_event com sucesso. Se a ferramenta falhar, diga que não conseguiu agendar.\n";
 
-  systemPrompt += await loadAgentKnowledgeBlock(db, agentId, tenantId);
+  systemPrompt += await loadContactMemory(db, tenantId, agentId, phoneDigits || "");
+  systemPrompt += await loadAgentKnowledgeBlock(
+    db,
+    agentId,
+    tenantId,
+    params.knowledgeQuery || "",
+  );
   return systemPrompt;
 }
 
@@ -742,6 +867,27 @@ export async function runDsAgentCompletion(params: {
     const replyWithAssigned = isTruthyFlag(agent.reply_with_assigned_agent);
     const processImages = isTruthyFlag(agent.process_images);
 
+    let historyText = "";
+    if (phoneDigits) {
+      const rows = await loadRecentConversationHistory({ tenantId, phoneDigits });
+      historyText = formatHistoryText(rows);
+    }
+    if (!historyText && params.historyText) {
+      historyText = takeLastHistory(String(params.historyText).split("\n").filter(Boolean), DS_AGENT_HISTORY_LIMIT).join(
+        "\n",
+      );
+    } else if (params.historyText && !phoneDigits) {
+      historyText = takeLastHistory(String(params.historyText).split("\n").filter(Boolean), DS_AGENT_HISTORY_LIMIT).join(
+        "\n",
+      );
+    }
+
+    let resolvedUserMessage = userMessage;
+    if (phoneDigits && historyText) {
+      const lastClient = [...historyText.split("\n")].reverse().find((line) => line.startsWith("Cliente:"));
+      if (lastClient) resolvedUserMessage = lastClient.replace(/^Cliente:\s*/, "").trim() || userMessage;
+    }
+
     const systemPrompt = await buildDsAgentSystemPrompt({
       db,
       agent,
@@ -750,6 +896,7 @@ export async function runDsAgentCompletion(params: {
       phoneDigits: phoneDigits || undefined,
       replyWithAssigned,
       processImages,
+      knowledgeQuery: `${historyText}\n${resolvedUserMessage}`,
     });
 
     const provider = String(agent.provider || "OpenAI Padrão");
@@ -761,28 +908,6 @@ export async function runDsAgentCompletion(params: {
 
     if (!apiKey) {
       return { ok: false, reply: null, error: "API key não configurada para este agente" };
-    }
-
-    let historyText = String(params.historyText || "");
-    if (!historyText && phoneDigits) {
-      const { data: recentMsgs } = await dbAdmin
-        .from("direct_messages")
-        .select("direction, body, created_at, type")
-        .eq("user_id", tenantId)
-        .eq("contact_phone", phoneDigits)
-        .order("created_at", { ascending: false })
-        .limit(10);
-
-      if (recentMsgs && recentMsgs.length > 0) {
-        historyText = [...recentMsgs]
-          .reverse()
-          .map((m: any) => {
-            const who = m.direction === "incoming" ? "Cliente" : "Agente";
-            const body = m.type && m.type !== "text" && !m.body ? `[${m.type}]` : m.body || "";
-            return `${who}: ${body}`;
-          })
-          .join("\n");
-      }
     }
 
     let enabledKeys = new Set<string>();
@@ -823,7 +948,7 @@ export async function runDsAgentCompletion(params: {
       apiKey,
       systemPrompt,
       historyText,
-      userMessage,
+      userMessage: resolvedUserMessage,
       tools: openAiTools,
       onToolCall: async (name, args) => {
         const payload = {
@@ -855,6 +980,13 @@ export async function runDsAgentCompletion(params: {
     }
 
     if (!text) return { ok: false, reply: null, error: "Modelo retornou resposta vazia", tokens };
+    await persistContactMemory({
+      db,
+      tenantId,
+      agentId,
+      phoneDigits,
+      historyText: `${historyText}\nCliente: ${resolvedUserMessage}\nAgente: ${text}`,
+    });
     return { ok: true, reply: text, tokens };
   } catch (err: any) {
     logError("runDsAgentCompletion falhou", { error: err?.message || String(err), agentId });
@@ -863,6 +995,35 @@ export async function runDsAgentCompletion(params: {
 }
 
 export async function processDsAgent(params: {
+  agentId: string;
+  messageBody: string;
+  phoneDigits: string;
+  phoneNumberId: string;
+  tenantId: string;
+  skipDebounce?: boolean;
+}): Promise<boolean> {
+  if (!params.skipDebounce) {
+    const { randomDebounceMs } = await import("./bot-ai-rhythm.server");
+    const delay = randomDebounceMs();
+    logInfo("Aguardando o cliente terminar de enviar mensagens", {
+      delayMs: delay,
+      phoneDigits: params.phoneDigits,
+      agentId: params.agentId,
+    });
+    setTimeout(() => {
+      void processDsAgentNow(params).catch((err: any) => {
+        logError("Exceção no processDsAgent (após espera)", {
+          error: err?.message || String(err),
+          agentId: params.agentId,
+        });
+      });
+    }, delay);
+    return true;
+  }
+  return processDsAgentNow(params);
+}
+
+async function processDsAgentNow(params: {
   agentId: string;
   messageBody: string;
   phoneDigits: string;
@@ -894,6 +1055,28 @@ export async function processDsAgent(params: {
       logInfo("DS Agente inativo (is_active=0)", { agentId });
       return false;
     }
+
+    const {
+      acquireAiConversationLock,
+      releaseAiConversationLock,
+      shouldSkipAiCall,
+    } = await import("./bot-ai-rhythm.server");
+    const skip = await shouldSkipAiCall({ tenantId, contactPhone: phoneDigits });
+    if (skip.skip) {
+      logInfo("DS Agente não respondeu de novo após espera", { reason: skip.reason, phoneDigits });
+      return false;
+    }
+    const lock = await acquireAiConversationLock({
+      tenantId,
+      contactNumber: phoneDigits,
+      channel: "whatsapp",
+    });
+    if (!lock.ok) {
+      logInfo("DS Agente bloqueado por lock após espera", { phoneDigits });
+      return false;
+    }
+
+    try {
 
     const replyWithAssigned = isTruthyFlag(agent.reply_with_assigned_agent);
     const splitBlocks = isTruthyFlag(agent.split_replies_in_blocks);
@@ -996,6 +1179,13 @@ export async function processDsAgent(params: {
     await upsertActiveDsAgentSession(tenantId, agentId, phoneDigits);
     logInfo("Resposta DS Agente enviada", { agentId, phoneDigits, blocks: blocks.length });
     return true;
+    } finally {
+      await releaseAiConversationLock({
+        tenantId,
+        contactNumber: phoneDigits,
+        channel: "whatsapp",
+      });
+    }
   } catch (err: any) {
     logError("Exceção no processDsAgent", { error: err?.message || String(err), agentId });
     return false;

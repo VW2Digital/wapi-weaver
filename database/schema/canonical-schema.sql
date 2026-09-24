@@ -907,6 +907,19 @@ CREATE TABLE IF NOT EXISTS `ds_agent_sessions` (
   CONSTRAINT `ds_agent_sessions_ibfk_2` FOREIGN KEY (`agent_id`) REFERENCES `ds_agents` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `ds_agent_contact_memory` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `agent_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `contact_phone` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `facts` text COLLATE utf8mb4_unicode_ci,
+  `conversation_summary` text COLLATE utf8mb4_unicode_ci,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_ds_agent_contact_memory` (`tenant_id`,`agent_id`,`contact_phone`),
+  KEY `idx_ds_mem_agent` (`agent_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `ds_agent_subagents` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tenant_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,

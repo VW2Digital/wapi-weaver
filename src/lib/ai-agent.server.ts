@@ -64,7 +64,7 @@ export async function processAiAgent(
       .eq("user_id", userId)
       .eq("contact_phone", phoneDigits)
       .order("created_at", { ascending: false })
-      .limit(10);
+      .limit(20);
 
     let historyText = "";
     if (recentMsgs && recentMsgs.length > 0) {

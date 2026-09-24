@@ -2311,6 +2311,22 @@ export async function ensureDatabaseSchema() {
 
     await ensureTableExists(
       connection,
+      "ds_agent_contact_memory",
+      `CREATE TABLE IF NOT EXISTS ds_agent_contact_memory (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        tenant_id VARCHAR(36) NOT NULL,
+        agent_id VARCHAR(36) NOT NULL,
+        contact_phone VARCHAR(32) NOT NULL,
+        facts TEXT NULL,
+        conversation_summary TEXT NULL,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_ds_agent_contact_memory (tenant_id, agent_id, contact_phone),
+        INDEX idx_ds_mem_agent (agent_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    );
+
+    await ensureTableExists(
+      connection,
       "ds_agent_tools",
       `CREATE TABLE IF NOT EXISTS ds_agent_tools (
         id VARCHAR(36) NOT NULL PRIMARY KEY,

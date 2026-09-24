@@ -629,8 +629,8 @@ export async function processBotFlow(
         }
 
         try {
-          // Debounce completo (8–13s) não bloqueia o lock do webhook;
-          // antiduplicidade + lock de 60s cobrem rajadas.
+          // Espera 8–13s dentro do DS Agente (fora do lock do webhook) e só então
+          // lê as últimas 20 mensagens, a base de conhecimento e a memória.
           if (channel === "whatsapp" && messageBody) {
             if (agentId && !agentId.startsWith("legacy:")) {
               const { processDsAgent } = await import("./ds-agent-runtime.server");
