@@ -66,6 +66,7 @@ import { Route as ApiPublicFacebookWebhookRouteImport } from './routes/api/publi
 import { Route as ApiLicensesHealthRouteImport } from './routes/api/licenses/health'
 import { Route as ApiInstagramMediaUploadRouteImport } from './routes/api/instagram/media-upload'
 import { Route as ApiChatEventsRouteImport } from './routes/api/chat/events'
+import { Route as ApiChatLinkPreviewRouteImport } from './routes/api/chat/link-preview'
 import { Route as ApiBillingSubscriptionRouteImport } from './routes/api/billing/subscription'
 import { Route as ApiBillingPublicKeyRouteImport } from './routes/api/billing/public-key'
 import { Route as ApiBillingPlansRouteImport } from './routes/api/billing/plans'
@@ -408,6 +409,11 @@ const ApiChatEventsRoute = ApiChatEventsRouteImport.update({
   path: '/api/chat/events',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiChatLinkPreviewRoute = ApiChatLinkPreviewRouteImport.update({
+  id: '/api/chat/link-preview',
+  path: '/api/chat/link-preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiBillingSubscriptionRoute = ApiBillingSubscriptionRouteImport.update({
   id: '/api/billing/subscription',
   path: '/api/billing/subscription',
@@ -745,6 +751,7 @@ export interface FileRoutesByFullPath {
   '/api/billing/public-key': typeof ApiBillingPublicKeyRoute
   '/api/billing/subscription': typeof ApiBillingSubscriptionRouteWithChildren
   '/api/chat/events': typeof ApiChatEventsRoute
+  '/api/chat/link-preview': typeof ApiChatLinkPreviewRoute
   '/api/instagram/media-upload': typeof ApiInstagramMediaUploadRoute
   '/api/licenses/health': typeof ApiLicensesHealthRoute
   '/api/public/facebook-webhook': typeof ApiPublicFacebookWebhookRoute
@@ -854,6 +861,7 @@ export interface FileRoutesByTo {
   '/api/billing/public-key': typeof ApiBillingPublicKeyRoute
   '/api/billing/subscription': typeof ApiBillingSubscriptionRouteWithChildren
   '/api/chat/events': typeof ApiChatEventsRoute
+  '/api/chat/link-preview': typeof ApiChatLinkPreviewRoute
   '/api/instagram/media-upload': typeof ApiInstagramMediaUploadRoute
   '/api/licenses/health': typeof ApiLicensesHealthRoute
   '/api/public/facebook-webhook': typeof ApiPublicFacebookWebhookRoute
@@ -965,6 +973,7 @@ export interface FileRoutesById {
   '/api/billing/public-key': typeof ApiBillingPublicKeyRoute
   '/api/billing/subscription': typeof ApiBillingSubscriptionRouteWithChildren
   '/api/chat/events': typeof ApiChatEventsRoute
+  '/api/chat/link-preview': typeof ApiChatLinkPreviewRoute
   '/api/instagram/media-upload': typeof ApiInstagramMediaUploadRoute
   '/api/licenses/health': typeof ApiLicensesHealthRoute
   '/api/public/facebook-webhook': typeof ApiPublicFacebookWebhookRoute
@@ -1076,6 +1085,7 @@ export interface FileRouteTypes {
     | '/api/billing/public-key'
     | '/api/billing/subscription'
     | '/api/chat/events'
+    | '/api/chat/link-preview'
     | '/api/instagram/media-upload'
     | '/api/licenses/health'
     | '/api/public/facebook-webhook'
@@ -1185,6 +1195,7 @@ export interface FileRouteTypes {
     | '/api/billing/public-key'
     | '/api/billing/subscription'
     | '/api/chat/events'
+    | '/api/chat/link-preview'
     | '/api/instagram/media-upload'
     | '/api/licenses/health'
     | '/api/public/facebook-webhook'
@@ -1295,6 +1306,7 @@ export interface FileRouteTypes {
     | '/api/billing/public-key'
     | '/api/billing/subscription'
     | '/api/chat/events'
+    | '/api/chat/link-preview'
     | '/api/instagram/media-upload'
     | '/api/licenses/health'
     | '/api/public/facebook-webhook'
@@ -1381,6 +1393,7 @@ export interface RootRouteChildren {
   ApiBillingPublicKeyRoute: typeof ApiBillingPublicKeyRoute
   ApiBillingSubscriptionRoute: typeof ApiBillingSubscriptionRouteWithChildren
   ApiChatEventsRoute: typeof ApiChatEventsRoute
+  ApiChatLinkPreviewRoute: typeof ApiChatLinkPreviewRoute
   ApiInstagramMediaUploadRoute: typeof ApiInstagramMediaUploadRoute
   ApiLicensesHealthRoute: typeof ApiLicensesHealthRoute
   ApiPublicFacebookWebhookRoute: typeof ApiPublicFacebookWebhookRoute
@@ -1821,6 +1834,13 @@ declare module '@tanstack/react-router' {
       path: '/api/chat/events'
       fullPath: '/api/chat/events'
       preLoaderRoute: typeof ApiChatEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/chat/link-preview': {
+      id: '/api/chat/link-preview'
+      path: '/api/chat/link-preview'
+      fullPath: '/api/chat/link-preview'
+      preLoaderRoute: typeof ApiChatLinkPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/billing/subscription': {
@@ -2373,6 +2393,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBillingPublicKeyRoute: ApiBillingPublicKeyRoute,
   ApiBillingSubscriptionRoute: ApiBillingSubscriptionRouteWithChildren,
   ApiChatEventsRoute: ApiChatEventsRoute,
+  ApiChatLinkPreviewRoute: ApiChatLinkPreviewRoute,
   ApiInstagramMediaUploadRoute: ApiInstagramMediaUploadRoute,
   ApiLicensesHealthRoute: ApiLicensesHealthRoute,
   ApiPublicFacebookWebhookRoute: ApiPublicFacebookWebhookRoute,

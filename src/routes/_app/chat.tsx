@@ -56,6 +56,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { CallButton } from "@/components/calls/CallButton";
 import { InstagramAttentionBar } from "@/components/chat/InstagramAttentionBar";
 import { ChatVideoBubble } from "@/components/chat/ChatVideoBubble";
+import { MessageLinkPreviews } from "@/components/chat/message-link-preview";
+import { linkifyHtml } from "@/lib/chat-linkify";
 import { resolveInstagramShareUrl } from "@/lib/chat-instagram-share";
 import { IncomingCallDialog } from "@/components/calls/IncomingCallDialog";
 import { ActiveCallDialog } from "@/components/calls/ActiveCallDialog";
@@ -6505,6 +6507,7 @@ function ChatPage() {
                                           /`([^`]+)`/g,
                                           "<code class='bg-[var(--bubble-control)] px-1 py-0.5 rounded font-mono text-[11px] text-current'>$1</code>",
                                         );
+                                        formatted = linkifyHtml(formatted);
                                         return (
                                           <span dangerouslySetInnerHTML={{ __html: formatted }} />
                                         );
@@ -7057,9 +7060,12 @@ function ChatPage() {
                                                     isCallEventMessage(bodyText) ? (
                                                       renderCallEventCard(bodyText, isOutgoing)
                                                     ) : (
-                                                      <p className="text-[13.5px] whitespace-pre-wrap break-words leading-relaxed select-text font-normal">
-                                                        {formatMessageText(bodyText)}
-                                                      </p>
+                                                      <>
+                                                        <p className="text-[13.5px] whitespace-pre-wrap break-words leading-relaxed select-text font-normal">
+                                                          {formatMessageText(bodyText)}
+                                                        </p>
+                                                        <MessageLinkPreviews text={bodyText} />
+                                                      </>
                                                     )
                                                   )}
                                                   {interactive?.footer?.text && (
