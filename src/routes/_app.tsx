@@ -62,6 +62,7 @@ import {
   SidebarInset,
 } from "@/components/ui/sidebar";
 import { SidebarNav, type SidebarNavItem } from "@/components/SidebarNav";
+import { PageHeaderProvider } from "@/components/layout/page-header-provider";
 import { ActiveCallProvider } from "@/components/calls/ActiveCallDialog";
 import { SubscriptionCheckoutModal } from "@/components/subscription/subscription-checkout-modal";
 import { useCallback, useEffect, useMemo, useState } from "react";
