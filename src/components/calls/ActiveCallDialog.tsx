@@ -1,11 +1,69 @@
-import { useState, useEffect, useRef } from "react";
+import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useServerFn } from "@tanstack/react-start";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Mic, MicOff, PhoneOff, Volume2, VolumeX, Loader2, Radio } from "lucide-react";
+import { Phone, Mic, MicOff, PhoneOff, Volume2, VolumeX, Loader2, Radio, ChevronUp, ChevronDown } from "lucide-react";
 import { manageCall } from "@/lib/profile.functions";
 import { toast } from "sonner";
+
+export type ActiveCallSession = {
+  callId: string;
+  phoneId: string;
+  contactName: string;
+  contactPhone: string;
+  peerConnection: RTCPeerConnection | null;
+  localStream: MediaStream | null;
+};
+
+const ActiveCallContext = createContext<{
+  start: (session: ActiveCallSession) => void;
+} | null>(null);
+
+export function ActiveCallProvider({ children }: { children: ReactNode }) {
+  const [session, setSession] = useState<ActiveCallSession | null>(null);
+
+  const start = (next: ActiveCallSession) => {
+    setSession((prev) => {
+      if (prev && prev.callId !== next.callId) {
+        prev.localStream?.getTracks().forEach((track) => track.stop());
+        try {
+          prev.peerConnection?.close();
+        } catch {}
+      }
+      return next;
+    });
+  };
+
+  return (
+    <ActiveCallContext.Provider value={{ start }}>
+      {children}
+      {session && (
+        <ActiveCallDialog
+          open
+          onOpenChange={(isOpen) => {
+            if (!isOpen) setSession(null);
+          }}
+          contactName={session.contactName}
+          contactPhone={session.contactPhone}
+          callId={session.callId}
+          phoneId={session.phoneId}
+          peerConnection={session.peerConnection}
+          localStream={session.localStream}
+          onCallEnded={() => setSession(null)}
+        />
+      )}
+    </ActiveCallContext.Provider>
+  );
+}
+
+export function useActiveCall() {
+  const ctx = useContext(ActiveCallContext);
+  if (!ctx) {
+    throw new Error("useActiveCall precisa do ActiveCallProvider.");
+  }
+  return ctx;
+}
 
 interface ActiveCallDialogProps {
   open: boolean;
@@ -34,6 +92,7 @@ export function ActiveCallDialog({
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [isEnding, setIsEnding] = useState(false);
   const [isAudioConnected, setIsAudioConnected] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentCallId, setCurrentCallId] = useState(callId);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
@@ -253,63 +312,62 @@ export function ActiveCallDialog({
     }
   };
 
-  useEffect(() => {
-    return () => {
-      cleanup();
-    };
-  }, []);
+  if (!open) return null;
 
-  return (
-    <>
-      <Dialog
-        open={open}
-        onOpenChange={(isOpen) => {
-          if (!isOpen && !isEnding) {
-            handleEndCall();
-          }
-        }}
+  const panel = (
+    <div className="pointer-events-none fixed inset-0 z-[70]">
+      <section
+        role="region"
+        aria-label="Chamada em andamento"
+        className="pointer-events-auto fixed bottom-4 right-4 w-[min(100vw-2rem,22rem)] rounded-2xl border border-border bg-card p-3 shadow-2xl"
       >
-        <DialogContent className="sm:max-w-md bg-card border-border rounded-2xl p-6 shadow-2xl">
-          <DialogHeader className="sr-only">
-            <DialogTitle>Chamada em Andamento</DialogTitle>
-            <DialogDescription>Controles de voz da chamada em andamento.</DialogDescription>
-          </DialogHeader>
+        <div className="flex items-center gap-3">
+          <div className="relative h-10 w-10 shrink-0 rounded-full bg-emerald-600 text-white flex items-center justify-center">
+            <Phone className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-foreground">
+              {contactName || contactPhone}
+            </p>
+            <p className="text-[11px] text-muted-foreground font-mono">
+              {formatDuration(duration)} · {isAudioConnected ? "Voz conectada" : "Conectando"}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={() => setExpanded((value) => !value)}
+            aria-label={expanded ? "Recolher chamada" : "Expandir chamada"}
+          >
+            {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={handleEndCall}
+            disabled={isEnding}
+            aria-label="Desligar"
+          >
+            {isEnding ? <Loader2 className="h-4 w-4 animate-spin" /> : <PhoneOff className="h-4 w-4" />}
+          </Button>
+        </div>
 
-          <div className="space-y-6 py-2">
-            {/* Header da Chamada */}
-            <div className="text-center space-y-3">
-              <div className="relative mx-auto w-24 h-24 flex items-center justify-center">
-                <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping" />
-                <div className="absolute inset-2 rounded-full bg-emerald-500/30 animate-pulse" />
-                <div className="relative h-16 w-16 bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-lg">
-                  <Phone className="h-8 w-8" />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-center gap-2 mb-1">
-                  <Badge
-                    variant="outline"
-                    className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-xs px-2 py-0.5 font-medium flex items-center gap-1.5"
-                  >
-                    <Radio className="h-3 w-3 animate-pulse text-emerald-500" />
-                    {isAudioConnected ? "Voz conectada" : "Conectando áudio..."}
-                  </Badge>
-                </div>
-                <h3 className="font-bold text-xl text-foreground font-display">
-                  {contactName || contactPhone}
-                </h3>
-                <p className="text-xs text-muted-foreground font-mono mt-0.5">{contactPhone}</p>
-              </div>
-
-              {/* Timer da Chamada */}
-              <div className="text-3xl font-mono font-semibold tracking-wider text-foreground bg-background/50 border border-border/60 py-2 px-4 rounded-xl inline-block shadow-inner">
-                {formatDuration(duration)}
-              </div>
+        {expanded && (
+          <div className="mt-3 space-y-3">
+            <div className="flex justify-center">
+              <Badge
+                variant="outline"
+                className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-xs px-2 py-0.5 font-medium flex items-center gap-1.5"
+              >
+                <Radio className="h-3 w-3 animate-pulse text-emerald-500" />
+                {isAudioConnected ? "Voz conectada" : "Conectando áudio..."}
+              </Badge>
             </div>
-
-            {/* Ações / Controles da Chamada */}
-            <div className="grid grid-cols-3 gap-3 pt-2">
+            <div className="grid grid-cols-3 gap-3">
               {/* Botão Mudo */}
               <Button
                 variant="outline"
@@ -369,11 +427,12 @@ export function ActiveCallDialog({
               </Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Elemento de reprodução de áudio WebRTC */}
+        )}
+      </section>
       <audio ref={audioElementRef} autoPlay playsInline className="hidden" />
-    </>
+    </div>
   );
+
+  if (typeof document === "undefined") return panel;
+  return createPortal(panel, document.body);
 }

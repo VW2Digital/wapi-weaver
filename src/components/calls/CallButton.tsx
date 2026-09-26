@@ -7,7 +7,7 @@ import {
   manageCall,
   sendCallPermissionRequest,
 } from "@/lib/profile.functions";
-import { ActiveCallDialog } from "@/components/calls/ActiveCallDialog";
+import { useActiveCall } from "@/components/calls/ActiveCallDialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { toFriendlyError } from "@/lib/meta-errors";
@@ -105,15 +105,7 @@ export function CallButton({
   const [isRequestingPerm, setIsRequestingPerm] = useState(false);
 
   // Estado da chamada ativa em andamento
-  const [activeCallOpen, setActiveCallOpen] = useState(false);
-  const [activeCallSession, setActiveCallSession] = useState<{
-    callId: string;
-    phoneId: string;
-    contactName: string;
-    contactPhone: string;
-    peerConnection: RTCPeerConnection | null;
-    localStream: MediaStream | null;
-  } | null>(null);
+  const { start: startActiveCall } = useActiveCall();
 
   const enableCallingFn = useServerFn(enableCallingAPI);
   const manageCallFn = useServerFn(manageCall);
@@ -195,7 +187,7 @@ export function CallButton({
         }
 
         // Abre o diálogo da chamada ativa com controles de Viva-voz, Mudo e Desligar
-        setActiveCallSession({
+        startActiveCall({
           callId,
           phoneId,
           contactName: contactName || targetPhone,
@@ -203,7 +195,6 @@ export function CallButton({
           peerConnection: session?.peerConnection || null,
           localStream: session?.localStream || null,
         });
-        setActiveCallOpen(true);
         toast.success(`Chamando ${contactName || targetPhone}...`);
         return true;
       }
@@ -310,26 +301,6 @@ export function CallButton({
         )}
         {!iconOnly && <span>Ligar</span>}
       </Button>
-
-      {/* Interface Completa da Chamada em Execução */}
-      {activeCallSession && (
-        <ActiveCallDialog
-          open={activeCallOpen}
-          onOpenChange={(isOpen) => {
-            setActiveCallOpen(isOpen);
-            if (!isOpen) setActiveCallSession(null);
-          }}
-          contactName={activeCallSession.contactName}
-          contactPhone={activeCallSession.contactPhone}
-          callId={activeCallSession.callId}
-          phoneId={activeCallSession.phoneId}
-          peerConnection={activeCallSession.peerConnection}
-          localStream={activeCallSession.localStream}
-          onCallEnded={() => {
-            setActiveCallSession(null);
-          }}
-        />
-      )}
     </>
   );
 }

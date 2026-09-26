@@ -62,7 +62,7 @@ import {
   SidebarInset,
 } from "@/components/ui/sidebar";
 import { SidebarNav, type SidebarNavItem } from "@/components/SidebarNav";
-import { PageHeaderProvider } from "@/components/layout/page-header-provider";
+import { ActiveCallProvider } from "@/components/calls/ActiveCallDialog";
 import { SubscriptionCheckoutModal } from "@/components/subscription/subscription-checkout-modal";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -529,7 +529,9 @@ function AppLayout() {
 
           <main className="flex-1 min-h-0 overflow-y-auto flex flex-col">
             <PageHeaderProvider>
-              <Outlet />
+              <ActiveCallProvider>
+                <Outlet />
+              </ActiveCallProvider>
             </PageHeaderProvider>
           </main>
         </SidebarInset>

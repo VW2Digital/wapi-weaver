@@ -60,7 +60,7 @@ import { MessageLinkPreviews } from "@/components/chat/message-link-preview";
 import { linkifyHtml } from "@/lib/chat-linkify";
 import { resolveInstagramShareUrl } from "@/lib/chat-instagram-share";
 import { IncomingCallDialog } from "@/components/calls/IncomingCallDialog";
-import { ActiveCallDialog } from "@/components/calls/ActiveCallDialog";
+import { useActiveCall } from "@/components/calls/ActiveCallDialog";
 import {
   Dialog,
   DialogContent,
@@ -1705,7 +1705,6 @@ function ChatPage() {
 
   // Estados para chamadas
   const [incomingCallOpen, setIncomingCallOpen] = useState(false);
-  const [activeCallOpen, setActiveCallOpen] = useState(false);
   const [currentCallId, setCurrentCallId] = useState("");
   const [currentCallContact, setCurrentCallContact] = useState<{ name: string; phone: string }>({
     name: "",
@@ -2512,22 +2511,15 @@ function ChatPage() {
     enabled: !!selectedContact?.id && isLeadHistoryOpen,
   });
 
-  // Estados para chamadas de voz recebidas e ativas no Chat
+  const { start: startActiveCall } = useActiveCall();
+
+  // Estados para chamadas de voz recebidas no Chat
   const [incomingCallData, setIncomingCallData] = useState<{
     callId: string;
     phoneId: string;
     contactName: string;
     contactPhone: string;
     sdpOffer?: string;
-  } | null>(null);
-
-  const [activeCallSession, setActiveCallSession] = useState<{
-    callId: string;
-    phoneId: string;
-    contactName: string;
-    contactPhone: string;
-    peerConnection: RTCPeerConnection;
-    localStream: MediaStream;
   } | null>(null);
 
   // Escuta global de eventos em tempo real do Chat e Chamadas via SSE
@@ -8768,26 +8760,7 @@ function ChatPage() {
               sdpOffer={incomingCallData.sdpOffer}
               onCallAccepted={(acceptedSession) => {
                 setIncomingCallData(null);
-                setActiveCallSession(acceptedSession);
-              }}
-            />
-          )}
-
-          {/* Diálogo de Chamada Ativa em Execução */}
-          {activeCallSession && (
-            <ActiveCallDialog
-              open={!!activeCallSession}
-              onOpenChange={(isOpen) => {
-                if (!isOpen) setActiveCallSession(null);
-              }}
-              contactName={activeCallSession.contactName}
-              contactPhone={activeCallSession.contactPhone}
-              callId={activeCallSession.callId}
-              phoneId={activeCallSession.phoneId}
-              peerConnection={activeCallSession.peerConnection}
-              localStream={activeCallSession.localStream}
-              onCallEnded={() => {
-                setActiveCallSession(null);
+                startActiveCall(acceptedSession);
               }}
             />
           )}
