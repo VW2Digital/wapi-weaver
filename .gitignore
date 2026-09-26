@@ -20,6 +20,7 @@ dist-ssr
 .env
 .env.*
 !.env.example
+coturn/turnserver.conf
 
 # Wrangler / Cloudflare
 .wrangler/

@@ -20,6 +20,7 @@ NC='\033[0m'
 
 APP_DIR="/var/www/wapi-weaver"
 COMPOSE_FILE="docker-compose.production.yml"
+COMPOSE_TURN_FILE="docker-compose.turn.yml"
 PERSISTENT_CONFIG_DIR="/etc/blivcrm"
 PERSISTENT_ENV_FILE="${PERSISTENT_CONFIG_DIR}/app.env"
 
@@ -505,15 +506,16 @@ apt-get update -y -qq
 apt-get install -y -qq curl git nginx certbot python3-certbot-nginx rsync ufw dnsutils
 
 # Configurar UFW com segurança
-echo "  Configurando regras do UFW (SSH 22, HTTP 80, HTTPS 443, TURN 3478 e relay UDP)..."
+echo "  Configurando regras do UFW (SSH 22, HTTP 80, HTTPS 443, TURN 3478/5349 e relay UDP)..."
 ufw allow 22/tcp >/dev/null 2>&1 || true
 ufw allow 80/tcp >/dev/null 2>&1 || true
 ufw allow 443/tcp >/dev/null 2>&1 || true
 ufw allow 3478/tcp >/dev/null 2>&1 || true
 ufw allow 3478/udp >/dev/null 2>&1 || true
-ufw allow 49160:49200/udp >/dev/null 2>&1 || true
+ufw allow 5349/tcp >/dev/null 2>&1 || true
+ufw allow 49152:49252/udp >/dev/null 2>&1 || true
 ufw --force enable >/dev/null 2>&1 || true
-print_ok "Firewall UFW habilitado (3306, 6379 e 3003 continuam privadas; TURN 3478/UDP relay aberto)."
+print_ok "Firewall UFW habilitado (TURN 3478 UDP/TCP, TURNS 5349/TCP, relay 49152-49252/UDP)."
 
 # Instalar Docker Engine oficial
 if ! command -v docker &>/dev/null; then
@@ -661,6 +663,7 @@ if [ -z "${TURN_EXTERNAL_IP_VAL}" ]; then
   TURN_EXTERNAL_IP_VAL=$(curl -4 -fsS --max-time 5 https://ifconfig.me 2>/dev/null || true)
 fi
 TURN_URLS_VAL=$(grep '^TURN_URLS=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+TURN_URL_VAL=$(grep '^TURN_URL=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 
 # Preservar DOMAIN, ADMIN_EMAIL e ADMIN_PASSWORD no modo UPDATE (ou se não informados interativamente)
 if [ -z "${DOMAIN}" ]; then
@@ -743,7 +746,8 @@ TURN_USERNAME="${TURN_USERNAME_VAL}"
 TURN_CREDENTIAL="${TURN_CREDENTIAL_VAL}"
 TURN_REALM="${DOMAIN}"
 TURN_EXTERNAL_IP="${TURN_EXTERNAL_IP_VAL}"
-TURN_URLS="${TURN_URLS_VAL:-turn:${DOMAIN}:3478?transport=udp,turn:${DOMAIN}:3478?transport=tcp}"
+TURN_URL="${TURN_URL_VAL:-turn:${DOMAIN}:3478?transport=udp}"
+TURN_URLS="${TURN_URLS_VAL:-turn:${DOMAIN}:3478?transport=udp,turn:${DOMAIN}:3478?transport=tcp,turns:${DOMAIN}:5349?transport=tcp}"
 EOF
 
 chmod 600 "${ENV_FILE}"
@@ -751,6 +755,45 @@ cp "${ENV_FILE}" "${PERSISTENT_ENV_FILE}"
 chmod 600 "${PERSISTENT_ENV_FILE}"
 print_ok "Arquivo .env gerado e protegido (chmod 600)."
 print_ok "Configuração persistente sincronizada em ${PERSISTENT_ENV_FILE}."
+
+mkdir -p "${APP_DIR}/coturn"
+TURN_CONF="${APP_DIR}/coturn/turnserver.conf"
+TURN_CERT_LINES=""
+if [ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/${DOMAIN}/privkey.pem" ]; then
+  TURN_CERT_LINES="cert=/etc/letsencrypt/live/${DOMAIN}/fullchain.pem
+pkey=/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
+fi
+TURN_EXT_LINE=""
+if [ -n "${TURN_EXTERNAL_IP_VAL}" ]; then
+  TURN_EXT_LINE="external-ip=${TURN_EXTERNAL_IP_VAL}"
+fi
+cat > "${TURN_CONF}" <<TURNEOF
+listening-port=3478
+tls-listening-port=5349
+min-port=49152
+max-port=49252
+realm=${DOMAIN}
+server-name=${DOMAIN}
+listening-ip=0.0.0.0
+${TURN_EXT_LINE}
+user=${TURN_USERNAME_VAL}:${TURN_CREDENTIAL_VAL}
+fingerprint
+lt-cred-mech
+no-multicast-peers
+no-cli
+no-tlsv1
+no-tlsv1_1
+denied-peer-ip=10.0.0.0-10.255.255.255
+denied-peer-ip=127.0.0.0-127.255.255.255
+denied-peer-ip=169.254.0.0-169.254.255.255
+denied-peer-ip=172.16.0.0-172.31.255.255
+denied-peer-ip=192.168.0.0-192.168.255.255
+${TURN_CERT_LINES}
+log-file=stdout
+verbose
+TURNEOF
+chmod 600 "${TURN_CONF}"
+print_ok "coturn/turnserver.conf gerado (sem interpolação no Compose)."
 
 # ---------------------------------------------------------------------------
 # 6. Subir a Stack Docker Compose e aplicar Migrações
@@ -777,7 +820,7 @@ fi
 
 # 6.2 Parar containers anteriores para garantir ciclo de vida limpo
 echo "  Parando containers anteriores para garantir ciclo de vida limpo..."
-docker compose -f "${COMPOSE_FILE}" down --remove-orphans 2>/dev/null || true
+docker compose -f "${COMPOSE_FILE}" -f "${COMPOSE_TURN_FILE}" down --remove-orphans 2>/dev/null || true
 
 # Definir se phpMyAdmin deve rodar
 COMPOSE_PROFILE_FLAG=""
@@ -790,8 +833,8 @@ ensure_docker_build_space
 echo "  Executando build da aplicação com cache seguro e imagem-base atualizada..."
 APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} build --pull app
 
-echo "  Subindo serviços de infraestrutura (MySQL e Redis)..."
-APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} up -d mysql redis
+echo "  Subindo serviços de infraestrutura (MySQL, Redis e coturn/TURN)..."
+APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" -f "${COMPOSE_TURN_FILE}" ${COMPOSE_PROFILE_FLAG} up -d mysql redis coturn
 
 echo "  Aguardando inicialização do banco MySQL..."
 MYSQL_READY=0
@@ -1062,8 +1105,14 @@ docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/smoke-te
 docker compose -f "${COMPOSE_FILE}" run --rm --no-deps app node scripts/test-payment-gateway-settings.js
 
 # Subir serviço da aplicação após banco criado, migrado e validado
-echo "  Iniciando serviço da aplicação (app)..."
-APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" ${COMPOSE_PROFILE_FLAG} up -d --force-recreate app
+echo "  Iniciando serviço da aplicação (app) e coturn..."
+APP_GIT_SHA="${LOCAL_SHA}" APP_GIT_BRANCH="main" docker compose -f "${COMPOSE_FILE}" -f "${COMPOSE_TURN_FILE}" ${COMPOSE_PROFILE_FLAG} up -d --force-recreate app coturn
+if docker ps --format '{{.Names}}' | grep -qx 'wapi_weaver_coturn'; then
+  print_ok "coturn (wapi_weaver_coturn) em execução."
+else
+  print_warn "coturn não ficou em execução. Chamadas em NAT/4G podem falhar com 138021/138023."
+  docker compose -f "${COMPOSE_FILE}" -f "${COMPOSE_TURN_FILE}" logs --tail=80 coturn || true
+fi
 
 # Aguardar disponibilidade HTTP e Healthcheck Docker do App
 echo "  Aguardando disponibilidade HTTP da aplicação (porta 3003)..."
@@ -1230,7 +1279,7 @@ print_ok "Git SHAs 100% idênticos!"
 # 8.5 Confirmação dos status dos containers (docker compose ps)
 echo "  Confirmando status dos serviços no Docker..."
 echo "------------------------------------------------------------"
-docker compose -f "${COMPOSE_FILE}" ps
+docker compose -f "${COMPOSE_FILE}" -f "${COMPOSE_TURN_FILE}" ps
 echo "------------------------------------------------------------"
 
 MYSQL_HEALTH=$(docker inspect -f '{{.State.Health.Status}}' wapi_weaver_mysql 2>/dev/null || echo "missing")

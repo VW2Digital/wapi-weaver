@@ -1,0 +1,33 @@
+# Coturn — WhatsApp Cloud Calling (ICE/TURN)
+# Generated at install time as coturn/turnserver.conf (not committed).
+
+listening-port=3478
+tls-listening-port=5349
+min-port=49152
+max-port=49252
+
+realm=app.seudominio.com
+server-name=app.seudominio.com
+listening-ip=0.0.0.0
+# external-ip=SEU_IP_PUBLICO
+
+# user=TURN_USERNAME:TURN_CREDENTIAL
+
+fingerprint
+lt-cred-mech
+no-multicast-peers
+no-cli
+no-tlsv1
+no-tlsv1_1
+
+denied-peer-ip=10.0.0.0-10.255.255.255
+denied-peer-ip=127.0.0.0-127.255.255.255
+denied-peer-ip=169.254.0.0-169.254.255.255
+denied-peer-ip=172.16.0.0-172.31.255.255
+denied-peer-ip=192.168.0.0-192.168.255.255
+
+# cert=/etc/letsencrypt/live/app.seudominio.com/fullchain.pem
+# pkey=/etc/letsencrypt/live/app.seudominio.com/privkey.pem
+
+log-file=stdout
+verbose

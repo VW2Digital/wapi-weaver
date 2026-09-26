@@ -14,15 +14,24 @@ const GOOGLE_STUN: CallIceServer[] = [
 ];
 
 function turnUrlsFromEnv(): string[] {
-  const explicit = String(process.env.TURN_URLS || "")
+  const fromUrls = String(process.env.TURN_URLS || "")
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
-  if (explicit.length) return explicit;
+  const fromUrl = String(process.env.TURN_URL || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const merged = [...new Set([...fromUrl, ...fromUrls])];
+  if (merged.length) return merged;
   try {
     const host = new URL(String(process.env.APP_URL || "")).hostname;
     if (!host) return [];
-    return [`turn:${host}:3478?transport=udp`, `turn:${host}:3478?transport=tcp`];
+    return [
+      `turn:${host}:3478?transport=udp`,
+      `turn:${host}:3478?transport=tcp`,
+      `turns:${host}:5349?transport=tcp`,
+    ];
   } catch {
     return [];
   }
