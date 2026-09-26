@@ -181,6 +181,8 @@ export function ActiveCallDialog({
   const playRemoteStream = (stream: MediaStream) => {
     const audio = playbackElement();
     if (!audio) return;
+    audio.muted = false;
+    audio.volume = isSpeakerOn ? 1 : 0.2;
     audio.srcObject = stream;
     audio.autoplay = true;
     void audio
@@ -276,7 +278,8 @@ export function ActiveCallDialog({
 
       if (
         isUsableRemoteAnswer(payload.sdp, payload.sdp_type) &&
-        peerConnection.signalingState === "have-local-offer"
+        (peerConnection.signalingState === "have-local-offer" ||
+          peerConnection.signalingState === "have-local-pranswer")
       ) {
         try {
           await peerConnection.setRemoteDescription(

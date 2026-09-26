@@ -18,7 +18,7 @@ import {
   deleteContact,
   autoFetchContactPhoto,
 } from "@/lib/contacts.functions";
-import { getProfile } from "@/lib/profile.functions";
+import { getProfile, listWhatsAppCallHistory } from "@/lib/profile.functions";
 import { resolveContactDisplayName } from "@/lib/messaging/services/contact-display.service";
 import { hydrateInstagramInboxContacts } from "@/lib/instagram-inbox-hydrate.functions";
 import {
@@ -972,22 +972,6 @@ function normalizeChatContactRecord(value: unknown): ChatContactRecord | null {
     kanban_stage_color: normalizeOptionalString(record.kanban_stage_color),
     custom_fields: normalizeContactCustomFields(record.custom_fields),
   };
-}
-
-function isCallConversation(contact: ChatContactRecord) {
-  const type = (contact.last_message_type || "").trim().toLowerCase();
-  const body = (contact.last_message_body || "").trim().toLowerCase();
-  return (
-    type === "call" ||
-    body.startsWith("[chamada") ||
-    body.includes("chamada de voz") ||
-    body.includes("chamada perdida") ||
-    body.includes("chamada recusada") ||
-    body.includes("chamada recebida") ||
-    body.includes("chamada iniciada") ||
-    body.includes("chamada encerrada") ||
-    body.includes("chamada efetuada")
-  );
 }
 
 function renderContactLastMessageSnippet(c: ChatContactRecord) {
@@ -2642,6 +2626,7 @@ function ChatPage() {
   }, []);
 
   const fetchLocalProfile = useServerFn(getProfile);
+  const fetchCallHistory = useServerFn(listWhatsAppCallHistory);
   const profileQuery = useQuery({
     queryKey: ["profile"],
     queryFn: () => fetchLocalProfile(),
@@ -2739,6 +2724,13 @@ function ChatPage() {
     | "webchat"
     | "whatsapp_group"
   >("all");
+
+  const callHistoryQuery = useQuery({
+    queryKey: ["whatsapp-call-history"],
+    queryFn: () => fetchCallHistory(),
+    enabled: filterView === "calls",
+    refetchInterval: filterView === "calls" ? 15000 : false,
+  });
 
   useEffect(() => {
     const isChannelView =
@@ -3774,7 +3766,6 @@ function ChatPage() {
     if (filterView === "messenger" && contact.channel !== "messenger") return false;
     if (filterView === "webchat" && contact.channel !== "webchat") return false;
     if (filterView === "whatsapp_group" && contact.channel !== "whatsapp_group") return false;
-    if (filterView === "calls" && !isCallConversation(contact)) return false;
 
     const term = searchQuery.toLowerCase().trim();
     const displayPhone = getDisplayPhone(contact);
@@ -5063,7 +5054,83 @@ function ChatPage() {
 
           {/* Lista de Contatos */}
           <div className="flex-1 min-h-0 overflow-y-auto divide-y bg-background order-5">
-            {contactsQuery.isLoading ? (
+            {filterView === "calls" ? (
+              callHistoryQuery.isLoading ? (
+                <div className="p-4 text-center text-muted-foreground flex flex-col items-center gap-2">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  <span>Carregando ligações...</span>
+                </div>
+              ) : (callHistoryQuery.data?.calls?.length ?? 0) === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">Nenhuma ligação encontrada.</div>
+              ) : (
+                (callHistoryQuery.data?.calls ?? []).map((call) => {
+                  const phone = call.phone_e164 || call.whatsapp_number || "";
+                  const displayName = call.contact_name || phone || "Ligação";
+                  const inbound = call.direction === "inbound";
+                  const missed =
+                    call.status === "rejected" ||
+                    call.status === "failed" ||
+                    (inbound && (call.status === "ended" || call.status === "incoming") && !call.duration_seconds);
+                  const caption = missed
+                    ? "Ligação perdida"
+                    : inbound
+                      ? "Ligação recebida"
+                      : "Ligação efetuada";
+                  const started = call.started_at ? new Date(call.started_at) : null;
+                  const timeLabel = started
+                    ? started.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+                    : "";
+                  return (
+                    <button
+                      key={call.id}
+                      type="button"
+                      className="relative w-full flex items-start gap-3 p-3.5 text-left transition-colors border-b border-border hover:bg-muted/40"
+                      onClick={() => {
+                        const match = (contactsQuery.data ?? []).find(
+                          (contact) =>
+                            contact.id === call.contact_id ||
+                            (phone &&
+                              (contact.phone_e164 === phone || contact.whatsapp_number === phone)),
+                        );
+                        if (match) {
+                          handleSelectContact(match);
+                          setReplyingTo(null);
+                        }
+                      }}
+                    >
+                      <div
+                        className={cn(
+                          "h-10 w-10 shrink-0 rounded-full flex items-center justify-center text-white",
+                          missed ? "bg-destructive" : inbound ? "bg-emerald-600" : "bg-blue-600",
+                        )}
+                      >
+                        {missed ? (
+                          <PhoneMissed className="h-4 w-4" />
+                        ) : inbound ? (
+                          <PhoneIncoming className="h-4 w-4" />
+                        ) : (
+                          <PhoneOutgoing className="h-4 w-4" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-foreground">{displayName}</p>
+                        <p
+                          className={cn(
+                            "text-xs truncate",
+                            missed ? "text-destructive" : "text-muted-foreground",
+                          )}
+                        >
+                          {caption}
+                        </p>
+                      </div>
+                      {timeLabel && (
+                        <span className="text-[11px] text-muted-foreground shrink-0">{timeLabel}</span>
+                      )}
+                    </button>
+                  );
+                })
+              )
+            ) : contactsQuery.isLoading ? (
               <div className="p-4 text-center text-muted-foreground flex flex-col items-center gap-2">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 <span>Carregando contatos...</span>

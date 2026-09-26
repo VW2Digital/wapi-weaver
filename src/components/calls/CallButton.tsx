@@ -55,6 +55,15 @@ async function generateSdpOffer(): Promise<WebRtcCallSession> {
     ],
   });
 
+  remoteAudio.muted = false;
+  remoteAudio.volume = 1;
+  pc.addEventListener("track", (event) => {
+    const stream = event.streams?.[0] ?? new MediaStream([event.track]);
+    remoteAudio.srcObject = stream;
+    remoteAudio.muted = false;
+    void remoteAudio.play().catch(() => {});
+  });
+
   let localStream: MediaStream | null = null;
   try {
     localStream = await navigator.mediaDevices.getUserMedia({

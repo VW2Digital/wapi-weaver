@@ -1661,11 +1661,28 @@ export const manageCall = createServerFn({ method: "POST" })
               const { randomUUID } = await import("crypto");
               const id = randomUUID();
               
+              let contactId: string | null = null;
+              if (targetPhone) {
+                const matches = (await query(
+                  `SELECT id FROM contacts
+                   WHERE tenant_id = ?
+                     AND (
+                       REPLACE(COALESCE(phone_e164, ''), '+', '') = ?
+                       OR REPLACE(COALESCE(whatsapp_number, ''), '+', '') = ?
+                       OR RIGHT(REPLACE(COALESCE(phone_e164, ''), '+', ''), 11) = RIGHT(?, 11)
+                     )
+                   LIMIT 1`,
+                  [context.userId, targetPhone, targetPhone, targetPhone],
+                )) as Array<{ id: string }>;
+                contactId = matches[0]?.id || null;
+              }
+
               await context.db
                 .from("whatsapp_calls")
                 .upsert({
                   id,
                   tenant_id: context.userId,
+                  contact_id: contactId,
                   phone_number_id: data.phoneId,
                   whatsapp_call_id: realCallId,
                   direction: "outbound",
@@ -1691,6 +1708,49 @@ export const manageCall = createServerFn({ method: "POST" })
     }
 
     return { ok: false, error: lastError, data: lastBody };
+  });
+
+export const listWhatsAppCallHistory = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const rows = (await query(
+      `SELECT
+         wc.id,
+         wc.whatsapp_call_id,
+         wc.direction,
+         wc.status,
+         wc.started_at,
+         wc.ended_at,
+         wc.duration_seconds,
+         wc.contact_id,
+         c.name AS contact_name,
+         c.phone_e164,
+         c.whatsapp_number,
+         c.avatar_url
+       FROM whatsapp_calls wc
+       LEFT JOIN contacts c
+         ON c.id = wc.contact_id
+        AND c.tenant_id = wc.tenant_id
+       WHERE wc.tenant_id = ?
+       ORDER BY COALESCE(wc.started_at, wc.created_at) DESC
+       LIMIT 100`,
+      [context.userId],
+    )) as Array<{
+      id: string;
+      whatsapp_call_id: string;
+      direction: string;
+      status: string;
+      started_at: string | Date | null;
+      ended_at: string | Date | null;
+      duration_seconds: number | null;
+      contact_id: string | null;
+      contact_name: string | null;
+      phone_e164: string | null;
+      whatsapp_number: string | null;
+      avatar_url: string | null;
+    }>;
+
+    return { ok: true as const, calls: rows || [] };
   });
 
 export const sendAdvancedSandboxMessage = createServerFn({ method: "POST" })

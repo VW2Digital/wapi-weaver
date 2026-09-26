@@ -144,6 +144,8 @@ export function IncomingCallDialog({
       playback.autoplay = true;
       playback.setAttribute("playsinline", "true");
       playback.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;";
+      playback.muted = false;
+      playback.volume = 1;
       document.body.appendChild(playback);
       void playback.play().catch(() => {});
 
