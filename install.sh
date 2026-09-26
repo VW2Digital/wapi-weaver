@@ -505,12 +505,15 @@ apt-get update -y -qq
 apt-get install -y -qq curl git nginx certbot python3-certbot-nginx rsync ufw dnsutils
 
 # Configurar UFW com segurança
-echo "  Configurando regras do UFW (liberando apenas SSH 22, HTTP 80, HTTPS 443)..."
+echo "  Configurando regras do UFW (SSH 22, HTTP 80, HTTPS 443, TURN 3478 e relay UDP)..."
 ufw allow 22/tcp >/dev/null 2>&1 || true
 ufw allow 80/tcp >/dev/null 2>&1 || true
 ufw allow 443/tcp >/dev/null 2>&1 || true
+ufw allow 3478/tcp >/dev/null 2>&1 || true
+ufw allow 3478/udp >/dev/null 2>&1 || true
+ufw allow 49160:49200/udp >/dev/null 2>&1 || true
 ufw --force enable >/dev/null 2>&1 || true
-print_ok "Firewall UFW habilitado com segurança (portas 3306, 6379 e 3003 mantidas privadas)."
+print_ok "Firewall UFW habilitado (3306, 6379 e 3003 continuam privadas; TURN 3478/UDP relay aberto)."
 
 # Instalar Docker Engine oficial
 if ! command -v docker &>/dev/null; then
@@ -649,6 +652,16 @@ TOKEN_ENC_KEY_VAL=$(grep '^TOKEN_ENCRYPTION_KEY=' "${ENV_FILE}" 2>/dev/null | cu
 META_CREDENTIALS_ENC_KEY_VAL=$(grep '^META_CREDENTIALS_ENCRYPTION_KEY=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
 [ -n "${META_CREDENTIALS_ENC_KEY_VAL}" ] || META_CREDENTIALS_ENC_KEY_VAL=$(openssl rand -hex 32)
 
+TURN_USERNAME_VAL=$(grep '^TURN_USERNAME=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+[ -n "${TURN_USERNAME_VAL}" ] || TURN_USERNAME_VAL="blivturn"
+TURN_CREDENTIAL_VAL=$(grep '^TURN_CREDENTIAL=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+[ -n "${TURN_CREDENTIAL_VAL}" ] || TURN_CREDENTIAL_VAL=$(openssl rand -hex 24)
+TURN_EXTERNAL_IP_VAL=$(grep '^TURN_EXTERNAL_IP=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+if [ -z "${TURN_EXTERNAL_IP_VAL}" ]; then
+  TURN_EXTERNAL_IP_VAL=$(curl -4 -fsS --max-time 5 https://ifconfig.me 2>/dev/null || true)
+fi
+TURN_URLS_VAL=$(grep '^TURN_URLS=' "${ENV_FILE}" 2>/dev/null | cut -d '=' -f2- | tr -d '"' | tr -d "'" || true)
+
 # Preservar DOMAIN, ADMIN_EMAIL e ADMIN_PASSWORD no modo UPDATE (ou se não informados interativamente)
 if [ -z "${DOMAIN}" ]; then
   DOMAIN=$(domain_from_env_file "${ENV_FILE}")
@@ -724,6 +737,13 @@ SSL_EMAIL="${SSL_EMAIL}"
 # Administrador Master
 ADMIN_EMAIL="${ADMIN_EMAIL}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD}"
+
+# TURN / coturn (WhatsApp Cloud Calling)
+TURN_USERNAME="${TURN_USERNAME_VAL}"
+TURN_CREDENTIAL="${TURN_CREDENTIAL_VAL}"
+TURN_REALM="${DOMAIN}"
+TURN_EXTERNAL_IP="${TURN_EXTERNAL_IP_VAL}"
+TURN_URLS="${TURN_URLS_VAL:-turn:${DOMAIN}:3478?transport=udp,turn:${DOMAIN}:3478?transport=tcp}"
 EOF
 
 chmod 600 "${ENV_FILE}"

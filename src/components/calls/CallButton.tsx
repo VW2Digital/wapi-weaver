@@ -14,6 +14,11 @@ import { isUsableRemoteAnswer, unwrapWhatsAppEmbeddedSdp, toWhatsAppSessionSdp, 
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { toFriendlyError } from "@/lib/meta-errors";
+import { getWebRtcIceServers } from "@/lib/webrtc-ice.functions";
+import {
+  createWhatsAppPeerConnection,
+  FALLBACK_STUN_ICE_SERVERS,
+} from "@/lib/webrtc-ice-client";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,7 +51,9 @@ interface WebRtcCallSession {
   remoteAudio: HTMLAudioElement;
 }
 
-async function generateSdpOffer(): Promise<WebRtcCallSession> {
+async function generateSdpOffer(
+  iceServers: Array<{ urls: string | string[]; username?: string; credential?: string }>,
+): Promise<WebRtcCallSession> {
   const remoteAudio = document.createElement("audio");
   remoteAudio.autoplay = true;
   remoteAudio.setAttribute("playsinline", "true");
@@ -54,18 +61,10 @@ async function generateSdpOffer(): Promise<WebRtcCallSession> {
   document.body.appendChild(remoteAudio);
   void remoteAudio.play().catch(() => {});
 
-  const pc = new RTCPeerConnection({
-    iceCandidatePoolSize: 2,
-    bundlePolicy: "max-bundle",
-    rtcpMuxPolicy: "require",
-    iceServers: [
-      { urls: "stun:stun.l.google.com:19302" },
-      { urls: "stun:stun1.l.google.com:19302" },
-      { urls: "stun:stun2.l.google.com:19302" },
-      { urls: "stun:stun3.l.google.com:19302" },
-      { urls: "stun:stun4.l.google.com:19302" },
-    ],
-  });
+  const pc = createWhatsAppPeerConnection(
+    iceServers.length ? iceServers : FALLBACK_STUN_ICE_SERVERS,
+    "outbound",
+  );
 
   remoteAudio.muted = false;
   remoteAudio.volume = 1;
@@ -162,6 +161,7 @@ export function CallButton({
   const sendVoiceCallFn = useServerFn(sendVoiceCallButtonMessage);
   const getDeepLinkFn = useServerFn(getWhatsAppCallDeepLink);
   const checkPermFn = useServerFn(checkCallPermissions);
+  const fetchIceServers = useServerFn(getWebRtcIceServers);
 
   const executeCall = async (targetPhone: string) => {
     setIsCalling(true);
@@ -170,7 +170,13 @@ export function CallButton({
     try {
       // 1. Gera o SDP Offer WebRTC e conecta microfone
       try {
-        session = await generateSdpOffer();
+        const ice = await fetchIceServers();
+        if (!ice.turnEnabled) {
+          console.warn("[CALL][outbound] TURN não configurado (TURN_USERNAME/TURN_CREDENTIAL). NAT simétrico tende a falhar com 138021/138023.");
+        } else {
+          console.info("[CALL][outbound] TURN habilitado", ice.iceServers.map((s) => s.urls));
+        }
+        session = await generateSdpOffer(ice.iceServers);
       } catch (err: any) {
         console.warn("[CALL] Erro ao instanciar WebRTC:", err);
       }

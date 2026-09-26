@@ -1300,10 +1300,14 @@ function isInventoryProduct(value: unknown): value is InventoryProduct {
   );
 }
 
+function isMetaHotlinkUrl(value: string) {
+  if (!value) return false;
+  return /cdninstagram\.com|fbcdn\.net|scontent[.-]|lookaside\.fbsbx\.com/i.test(value);
+}
+
 /** Extrai a URL de foto de perfil dos custom_fields do contato.
  *  WhatsApp continua com fallback de iniciais (não usa avatares de terceiros).
- *  Instagram e Messenger usam as URLs oficiais (fbcdn/fbsbx), com fallback
- *  para iniciais via onError quando o link expirar.
+ *  Instagram e Messenger passam por proxy autenticado — o CDN da Meta expira no browser.
  */
 function getContactAvatarUrl(contact: ChatContactRecord | null): string {
   const cf = contact?.custom_fields;
@@ -1313,10 +1317,14 @@ function getContactAvatarUrl(contact: ChatContactRecord | null): string {
     (cf && typeof cf === "object"
       ? cf.avatar_url || cf.photo_url || cf.photo || cf.picture || cf.image_url || cf.image || ""
       : "");
-  if (typeof rawUrl === "string" && (rawUrl.includes("whatsapp.net") || rawUrl.includes("whatsapp.com"))) {
+  if (typeof rawUrl !== "string" || !rawUrl) return "";
+  if (rawUrl.includes("whatsapp.net") || rawUrl.includes("whatsapp.com")) {
     return "";
   }
-  return typeof rawUrl === "string" ? rawUrl : "";
+  if (contact?.id && (isMetaHotlinkUrl(rawUrl) || contact.channel === "instagram")) {
+    return `/api/whatsapp/media?id=profile&contactId=${encodeURIComponent(contact.id)}`;
+  }
+  return rawUrl;
 }
 
 function SafeAvatarMedia({
@@ -6637,13 +6645,35 @@ function ChatPage() {
                                           typeof (msg.metadata as any)?.media_url === "string"
                                             ? String((msg.metadata as any).media_url)
                                             : "";
-                                        const chosen =
-                                          stored.startsWith("/api/storage/file") || stored.startsWith("/")
-                                            ? stored
-                                            : urlOrId;
-                                        if (!chosen) return "";
-                                        if (chosen.startsWith("/") || isUrl(chosen)) return chosen;
-                                        return `/api/whatsapp/media?id=${encodeURIComponent(chosen)}&messageId=${encodeURIComponent(messageId)}`;
+                                        const metaId = String(
+                                          (msg as any).image?.id ||
+                                            (msg as any).audio?.id ||
+                                            (msg as any).video?.id ||
+                                            (msg as any).document?.id ||
+                                            (msg as any).sticker?.id ||
+                                            (msg.metadata as any)?.media_id_meta ||
+                                            "",
+                                        );
+                                        const raw = urlOrId || stored || metaId;
+                                        if (!raw) return "";
+                                        const shouldProxy =
+                                          Boolean(messageId) &&
+                                          (isMetaHotlinkUrl(raw) ||
+                                            raw.includes("/api/storage/file") ||
+                                            /^\d{8,}$/.test(raw) ||
+                                            (!raw.startsWith("http") &&
+                                              !raw.startsWith("blob:") &&
+                                              !raw.startsWith("data:")));
+                                        if (shouldProxy) {
+                                          const id = /^\d{8,}$/.test(metaId || raw)
+                                            ? metaId || raw
+                                            : raw.includes("/api/storage/file")
+                                              ? "local"
+                                              : raw;
+                                          return `/api/whatsapp/media?id=${encodeURIComponent(id || "local")}&messageId=${encodeURIComponent(messageId)}`;
+                                        }
+                                        if (raw.startsWith("/") || isUrl(raw)) return raw;
+                                        return `/api/whatsapp/media?id=${encodeURIComponent(raw)}&messageId=${encodeURIComponent(messageId)}`;
                                       };
 
                                       const isCallEventMessage = (text: string) => {

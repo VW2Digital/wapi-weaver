@@ -14,6 +14,11 @@ import { manageCall } from "@/lib/profile.functions";
 import { toast } from "sonner";
 import { toWhatsAppSessionSdp, setWhatsAppCallSendersEnabled } from "@/components/calls/ActiveCallDialog";
 import { toFriendlyError } from "@/lib/meta-errors";
+import { getWebRtcIceServers } from "@/lib/webrtc-ice.functions";
+import {
+  createWhatsAppPeerConnection,
+  FALLBACK_STUN_ICE_SERVERS,
+} from "@/lib/webrtc-ice-client";
 
 export interface IncomingCallAcceptedPayload {
   peerConnection: RTCPeerConnection;
@@ -53,6 +58,7 @@ export function IncomingCallDialog({
   const ringtoneIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const manageCallFn = useServerFn(manageCall);
+  const fetchIceServers = useServerFn(getWebRtcIceServers);
 
   // Efeito sonoro de chamada recebida (Ringtone via Web Audio API)
   useEffect(() => {
@@ -151,19 +157,20 @@ export function IncomingCallDialog({
       playback.volume = 1;
       document.body.appendChild(playback);
 
-      // 1. Cria a conexão RTCPeerConnection
-      const pc = new RTCPeerConnection({
-        iceCandidatePoolSize: 2,
-        bundlePolicy: "max-bundle",
-        rtcpMuxPolicy: "require",
-        iceServers: [
-          { urls: "stun:stun.l.google.com:19302" },
-          { urls: "stun:stun1.l.google.com:19302" },
-          { urls: "stun:stun2.l.google.com:19302" },
-          { urls: "stun:stun3.l.google.com:19302" },
-          { urls: "stun:stun4.l.google.com:19302" },
-        ],
-      });
+      // 1. Cria a conexão RTCPeerConnection com STUN + TURN
+      const ice = await fetchIceServers().catch(() => ({
+        iceServers: FALLBACK_STUN_ICE_SERVERS,
+        turnEnabled: false,
+      }));
+      if (!ice.turnEnabled) {
+        console.warn("[CALL][inbound] TURN não configurado. NAT simétrico tende a falhar com 138021/138023.");
+      } else {
+        console.info("[CALL][inbound] TURN habilitado", ice.iceServers.map((s) => s.urls));
+      }
+      const pc = createWhatsAppPeerConnection(
+        ice.iceServers.length ? ice.iceServers : FALLBACK_STUN_ICE_SERVERS,
+        "inbound",
+      );
 
       // 2. Solicita acesso ao microfone com melhorias de áudio
       let stream: MediaStream | null = null;

@@ -64,3 +64,10 @@ export function resolveMediaContentType(options: {
 
   return declared || upstream || "application/octet-stream";
 }
+
+export function isMetaHotlinkUrl(value: string) {
+  if (!value) return false;
+  return /cdninstagram\.com|fbcdn\.net|scontent[.-]|lookaside\.fbsbx\.com|instagram\.com\/v\/|graph\.facebook\.com\/.*\/(picture|media)/i.test(
+    value,
+  );
+}
