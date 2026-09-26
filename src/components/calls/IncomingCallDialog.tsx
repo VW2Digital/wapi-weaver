@@ -16,6 +16,7 @@ import { toast } from "sonner";
 export interface IncomingCallAcceptedPayload {
   peerConnection: RTCPeerConnection;
   localStream: MediaStream;
+  remoteAudio: HTMLAudioElement;
   callId: string;
   phoneId: string;
   contactName: string;
@@ -135,8 +136,17 @@ export function IncomingCallDialog({
   const handleAnswer = async () => {
     setIsAnswering(true);
     stopRingtone();
+    let remoteAudio: HTMLAudioElement | null = null;
 
     try {
+      const playback = document.createElement("audio");
+      remoteAudio = playback;
+      playback.autoplay = true;
+      playback.setAttribute("playsinline", "true");
+      playback.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;";
+      document.body.appendChild(playback);
+      void playback.play().catch(() => {});
+
       // 1. Cria a conexão RTCPeerConnection
       const pc = new RTCPeerConnection({
         iceServers: [
@@ -167,6 +177,12 @@ export function IncomingCallDialog({
         pc.addTransceiver("audio", { direction: "sendrecv" });
       }
 
+      pc.addEventListener("track", (event) => {
+        const stream = event.streams?.[0] ?? new MediaStream([event.track]);
+        playback.srcObject = stream;
+        void playback.play().catch(() => {});
+      });
+
       // 3. Aplica o SDP Offer recebido da Meta
       if (sdpOffer) {
         const offerDesc = new RTCSessionDescription({
@@ -194,7 +210,7 @@ export function IncomingCallDialog({
             setTimeout(() => {
               pc.removeEventListener("icegatheringstatechange", onIceGather);
               resolve();
-            }, 1200);
+            }, 6000);
           }
         });
 
@@ -225,10 +241,11 @@ export function IncomingCallDialog({
         toast.success("Chamada atendida com sucesso!");
 
         // 8. Notifica o componente pai para abrir o modal de chamada ativa
-        if (onCallAccepted && stream) {
+        if (onCallAccepted) {
           onCallAccepted({
             peerConnection: pc,
-            localStream: stream,
+            localStream: stream ?? new MediaStream(),
+            remoteAudio: playback,
             callId,
             phoneId,
             contactName: contactName || contactPhone,
@@ -246,10 +263,11 @@ export function IncomingCallDialog({
           },
         });
         toast.success("Chamada atendida!");
-        if (onCallAccepted && stream) {
+        if (onCallAccepted) {
           onCallAccepted({
             peerConnection: pc,
-            localStream: stream,
+            localStream: stream ?? new MediaStream(),
+            remoteAudio: playback,
             callId,
             phoneId,
             contactName: contactName || contactPhone,
@@ -259,6 +277,7 @@ export function IncomingCallDialog({
         onOpenChange(false);
       }
     } catch (error: any) {
+      remoteAudio?.remove();
       console.error("[CALL] Erro ao atender chamada:", error);
       toast.error(error?.message || "Falha ao atender chamada.");
       setIsAnswering(false);

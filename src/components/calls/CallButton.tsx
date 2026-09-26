@@ -7,7 +7,7 @@ import {
   manageCall,
   sendCallPermissionRequest,
 } from "@/lib/profile.functions";
-import { useActiveCall } from "@/components/calls/ActiveCallDialog";
+import { isUsableRemoteAnswer, useActiveCall } from "@/components/calls/ActiveCallDialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { toFriendlyError } from "@/lib/meta-errors";
@@ -34,9 +34,17 @@ interface WebRtcCallSession {
   sdp: string;
   peerConnection: RTCPeerConnection;
   localStream: MediaStream | null;
+  remoteAudio: HTMLAudioElement;
 }
 
 async function generateSdpOffer(): Promise<WebRtcCallSession> {
+  const remoteAudio = document.createElement("audio");
+  remoteAudio.autoplay = true;
+  remoteAudio.setAttribute("playsinline", "true");
+  remoteAudio.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;";
+  document.body.appendChild(remoteAudio);
+  void remoteAudio.play().catch(() => {});
+
   const pc = new RTCPeerConnection({
     iceServers: [
       { urls: "stun:stun.l.google.com:19302" },
@@ -73,23 +81,37 @@ async function generateSdpOffer(): Promise<WebRtcCallSession> {
   await new Promise<void>((resolve) => {
     if (pc.iceGatheringState === "complete") {
       resolve();
-    } else {
-      const onStateChange = () => {
-        if (pc.iceGatheringState === "complete") {
-          pc.removeEventListener("icegatheringstatechange", onStateChange);
-          resolve();
-        }
-      };
-      pc.addEventListener("icegatheringstatechange", onStateChange);
-      setTimeout(() => {
-        pc.removeEventListener("icegatheringstatechange", onStateChange);
-        resolve();
-      }, 1500);
+      return;
     }
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      pc.removeEventListener("icegatheringstatechange", onStateChange);
+      resolve();
+    };
+    const onStateChange = () => {
+      if (pc.iceGatheringState === "complete") finish();
+    };
+    pc.addEventListener("icegatheringstatechange", onStateChange);
+    // A Meta precisa dos candidatos ICE no SDP. 1,5s cortava o STUN e a chamada caía ao atender.
+    setTimeout(finish, 6000);
   });
 
   const sdp = pc.localDescription?.sdp || offer.sdp || "";
-  return { sdp, peerConnection: pc, localStream };
+  return { sdp, peerConnection: pc, localStream, remoteAudio };
+}
+
+function releaseCallSession(session: WebRtcCallSession | null) {
+  session?.localStream?.getTracks().forEach((track) => track.stop());
+  try {
+    session?.peerConnection.close();
+  } catch {}
+  if (session?.remoteAudio) {
+    session.remoteAudio.srcObject = null;
+    session.remoteAudio.pause();
+    session.remoteAudio.remove();
+  }
 }
 
 export function CallButton({
@@ -171,8 +193,16 @@ export function CallButton({
           callResult.data?.session?.sdp ||
           callResult.data?.sdp ||
           callResult.data?.calls?.[0]?.session?.sdp;
+        const immediateType =
+          callResult.data?.session?.sdp_type ||
+          callResult.data?.sdp_type ||
+          callResult.data?.calls?.[0]?.session?.sdp_type;
 
-        if (immediateAnswer && session?.peerConnection) {
+        if (
+          session?.peerConnection &&
+          isUsableRemoteAnswer(immediateAnswer, immediateType) &&
+          session.peerConnection.signalingState === "have-local-offer"
+        ) {
           try {
             await session.peerConnection.setRemoteDescription(
               new RTCSessionDescription({
@@ -180,7 +210,6 @@ export function CallButton({
                 sdp: immediateAnswer,
               }),
             );
-            console.log("[CALL] SDP Answer imediato da Meta aplicado com sucesso!");
           } catch (sdpErr) {
             console.warn("[CALL] Erro ao aplicar SDP Answer imediato:", sdpErr);
           }
@@ -194,6 +223,7 @@ export function CallButton({
           contactPhone: targetPhone,
           peerConnection: session?.peerConnection || null,
           localStream: session?.localStream || null,
+          remoteAudio: session?.remoteAudio || null,
         });
         toast.success(`Chamando ${contactName || targetPhone}...`);
         return true;
@@ -220,20 +250,17 @@ export function CallButton({
             onClick: () => handleSendPermissionRequest(targetPhone),
           },
         });
-        session?.localStream?.getTracks().forEach((t) => t.stop());
-        session?.peerConnection.close();
+        releaseCallSession(session);
         return false;
       }
 
       toastCallMetaError(callResult.data ?? errMsg, "Falha ao iniciar chamada.");
-      session?.localStream?.getTracks().forEach((t) => t.stop());
-      session?.peerConnection.close();
+      releaseCallSession(session);
       return false;
     } catch (error: any) {
       console.error("[CALL] Erro ao iniciar chamada:", error);
       toastCallMetaError(error, "Falha ao iniciar chamada.");
-      session?.localStream?.getTracks().forEach((t) => t.stop());
-      session?.peerConnection?.close();
+      releaseCallSession(session);
       return false;
     } finally {
       setIsCalling(false);

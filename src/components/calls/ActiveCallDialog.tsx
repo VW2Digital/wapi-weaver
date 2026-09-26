@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useState, useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,56 @@ export type ActiveCallSession = {
   contactPhone: string;
   peerConnection: RTCPeerConnection | null;
   localStream: MediaStream | null;
+  remoteAudio?: HTMLAudioElement | null;
 };
+
+type CallSignalPayload = {
+  call_id?: string | null;
+  call_event?: string | null;
+  status?: string | null;
+  sdp?: string | null;
+  sdp_type?: string | null;
+};
+
+const recentCallSignals: Array<{ at: number; signal: CallSignalPayload }> = [];
+const callSignalListeners = new Set<(signal: CallSignalPayload) => void>();
+
+export function isUsableRemoteAnswer(sdp?: string | null, sdpType?: string | null) {
+  if (!sdp?.trim()) return false;
+  const type = (sdpType || "").toLowerCase();
+  if (type === "offer") return false;
+  if (/a=setup:actpass/i.test(sdp)) return false;
+  if (type === "answer") return true;
+  return /a=setup:(active|passive)/i.test(sdp);
+}
+
+export function isTerminalCallSignal(signal: CallSignalPayload, activeCallId: string) {
+  if (!activeCallId || !signal.call_id || signal.call_id !== activeCallId) return false;
+  const event = (signal.call_event || "").toLowerCase();
+  const status = (signal.status || "").toLowerCase();
+  if (event === "connect" || event === "accept" || event === "active" || event === "ringing" || event === "pre_accept") {
+    return false;
+  }
+  return (
+    event === "terminate" ||
+    event === "reject" ||
+    event === "ended" ||
+    event === "rejected" ||
+    event === "failed" ||
+    status === "ended" ||
+    status === "rejected" ||
+    status === "failed"
+  );
+}
+
+function rememberCallSignal(signal: CallSignalPayload) {
+  const now = Date.now();
+  recentCallSignals.push({ at: now, signal });
+  while (recentCallSignals.length > 0 && now - recentCallSignals[0].at > 30000) {
+    recentCallSignals.shift();
+  }
+  callSignalListeners.forEach((listener) => listener(signal));
+}
 
 const ActiveCallContext = createContext<{
   start: (session: ActiveCallSession) => void;
@@ -23,17 +72,37 @@ const ActiveCallContext = createContext<{
 export function ActiveCallProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<ActiveCallSession | null>(null);
 
-  const start = (next: ActiveCallSession) => {
+  useEffect(() => {
+    const es = new EventSource("/api/chat/events");
+    es.onmessage = (evt) => {
+      if (!evt.data || evt.data === "connected" || evt.data === "ping") return;
+      try {
+        const payload = JSON.parse(evt.data);
+        if (payload?.type === "call.signal") rememberCallSignal(payload);
+      } catch {
+        // evento que não é JSON de chamada
+      }
+    };
+    return () => es.close();
+  }, []);
+
+  const start = useCallback((next: ActiveCallSession) => {
     setSession((prev) => {
-      if (prev && prev.callId !== next.callId) {
+      if (
+        prev?.peerConnection &&
+        next.peerConnection &&
+        prev.peerConnection !== next.peerConnection
+      ) {
         prev.localStream?.getTracks().forEach((track) => track.stop());
         try {
-          prev.peerConnection?.close();
+          prev.peerConnection.close();
         } catch {}
+        prev.remoteAudio?.pause();
+        prev.remoteAudio?.remove();
       }
       return next;
     });
-  };
+  }, []);
 
   return (
     <ActiveCallContext.Provider value={{ start }}>
@@ -50,6 +119,7 @@ export function ActiveCallProvider({ children }: { children: ReactNode }) {
           phoneId={session.phoneId}
           peerConnection={session.peerConnection}
           localStream={session.localStream}
+          remoteAudio={session.remoteAudio}
           onCallEnded={() => setSession(null)}
         />
       )}
@@ -74,6 +144,7 @@ interface ActiveCallDialogProps {
   phoneId: string;
   peerConnection?: RTCPeerConnection | null;
   localStream?: MediaStream | null;
+  remoteAudio?: HTMLAudioElement | null;
   onCallEnded?: () => void;
 }
 
@@ -86,6 +157,7 @@ export function ActiveCallDialog({
   phoneId,
   peerConnection,
   localStream,
+  remoteAudio,
   onCallEnded,
 }: ActiveCallDialogProps) {
   const [isMuted, setIsMuted] = useState(false);
@@ -97,6 +169,27 @@ export function ActiveCallDialog({
   const [currentCallId, setCurrentCallId] = useState(callId);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const callIdRef = useRef(callId);
+  const onOpenChangeRef = useRef(onOpenChange);
+  const onCallEndedRef = useRef(onCallEnded);
+  callIdRef.current = callId;
+  onOpenChangeRef.current = onOpenChange;
+  onCallEndedRef.current = onCallEnded;
+
+  const playbackElement = () => remoteAudio || audioElementRef.current;
+
+  const playRemoteStream = (stream: MediaStream) => {
+    const audio = playbackElement();
+    if (!audio) return;
+    audio.srcObject = stream;
+    audio.autoplay = true;
+    void audio
+      .play()
+      .then(() => setIsAudioConnected(true))
+      .catch((err) => {
+        console.warn("[CALL] Erro ao iniciar reprodução de áudio:", err);
+      });
+  };
 
   const manageCallFn = useServerFn(manageCall);
 
@@ -131,24 +224,17 @@ export function ActiveCallDialog({
     if (!peerConnection) return;
 
     const handleTrack = (event: RTCTrackEvent) => {
-      console.log("[CALL WebRTC] Faixa de áudio recebida:", event);
-      if (event.streams && event.streams[0] && audioElementRef.current) {
-        audioElementRef.current.srcObject = event.streams[0];
-        audioElementRef.current
-          .play()
-          .then(() => {
-            setIsAudioConnected(true);
-            console.log("[CALL WebRTC] Reprodução de áudio iniciada!");
-          })
-          .catch((err) => {
-            console.warn("[CALL] Erro ao iniciar reprodução de áudio:", err);
-          });
-      }
+      const stream = event.streams?.[0] ?? (event.track ? new MediaStream([event.track]) : null);
+      if (stream) playRemoteStream(stream);
     };
 
-    peerConnection.ontrack = handleTrack;
+    peerConnection.addEventListener("track", handleTrack);
+    for (const receiver of peerConnection.getReceivers()) {
+      if (receiver.track?.kind === "audio" && receiver.track.readyState === "live") {
+        playRemoteStream(new MediaStream([receiver.track]));
+      }
+    }
 
-    // Monitora mudança no estado da conexão de gelo (ICE Connection State)
     const handleIceState = () => {
       console.log("[CALL WebRTC] ICE Connection State:", peerConnection.iceConnectionState);
       if (
@@ -160,73 +246,57 @@ export function ActiveCallDialog({
         peerConnection.iceConnectionState === "disconnected" ||
         peerConnection.iceConnectionState === "failed"
       ) {
-        console.warn("[CALL WebRTC] Conexão de mídia WebRTC desconectada.");
+        console.warn("[CALL WebRTC] Conexão de mídia instável. A chamada segue aberta.");
       }
     };
 
     peerConnection.addEventListener("iceconnectionstatechange", handleIceState);
 
     return () => {
+      peerConnection.removeEventListener("track", handleTrack);
       peerConnection.removeEventListener("iceconnectionstatechange", handleIceState);
     };
-  }, [peerConnection]);
+  }, [peerConnection, remoteAudio]);
 
-  // Escuta o fluxo de eventos SSE (/api/chat/events) para receber a resposta SDP (Answer) da Meta em tempo real
+  // Aplica o SDP Answer desta chamada. Sinais de outras chamadas não desligam esta.
   useEffect(() => {
     if (!open || !peerConnection) return;
 
-    const es = new EventSource("/api/chat/events");
+    const handleSignal = async (payload: CallSignalPayload) => {
+      const activeId = callIdRef.current;
+      if (payload.call_id && payload.call_id !== activeId) return;
 
-    es.onmessage = async (evt) => {
-      try {
-        if (!evt.data || evt.data === "connected" || evt.data === "ping") return;
-        const payload = JSON.parse(evt.data);
+      if (isTerminalCallSignal(payload, activeId)) {
+        toast.info("A chamada foi finalizada.");
+        cleanup();
+        onOpenChangeRef.current(false);
+        onCallEndedRef.current?.();
+        return;
+      }
 
-        if (payload.type === "call.signal") {
-          console.log("[CALL SSE] Sinalização recebida da Meta:", payload);
-          if (payload.call_id) {
-            setCurrentCallId(payload.call_id);
-          }
-
-          // Se a chamada foi terminada ou rejeitada
-          if (
-            payload.call_event === "terminate" ||
-            payload.call_event === "reject" ||
-            payload.status === "ended" ||
-            payload.status === "rejected"
-          ) {
-            toast.info("A chamada foi finalizada.");
-            cleanup();
-            onOpenChange(false);
-            onCallEnded?.();
-            return;
-          }
-
-          // Se a Meta enviou o SDP Answer
-          if (payload.sdp && peerConnection.signalingState === "have-local-offer") {
-            try {
-              const answerDesc = new RTCSessionDescription({
-                type: (payload.sdp_type || "answer") as RTCSdpType,
-                sdp: payload.sdp,
-              });
-              await peerConnection.setRemoteDescription(answerDesc);
-              setIsAudioConnected(true);
-              console.log("[CALL WebRTC] SDP Answer da Meta aplicado com sucesso via SSE!");
-              toast.success("Áudio conectado!");
-            } catch (sdpErr) {
-              console.error("[CALL WebRTC] Erro ao aplicar SDP Answer da Meta:", sdpErr);
-            }
-          }
+      if (
+        isUsableRemoteAnswer(payload.sdp, payload.sdp_type) &&
+        peerConnection.signalingState === "have-local-offer"
+      ) {
+        try {
+          await peerConnection.setRemoteDescription(
+            new RTCSessionDescription({ type: "answer", sdp: payload.sdp! }),
+          );
+          setIsAudioConnected(true);
+        } catch (sdpErr) {
+          console.error("[CALL WebRTC] Erro ao aplicar SDP Answer da Meta:", sdpErr);
         }
-      } catch (err) {
-        console.warn("[CALL SSE] Erro ao interpretar evento:", err);
       }
     };
 
+    for (const item of recentCallSignals) {
+      if (Date.now() - item.at < 30000) void handleSignal(item.signal);
+    }
+    callSignalListeners.add(handleSignal);
     return () => {
-      es.close();
+      callSignalListeners.delete(handleSignal);
     };
-  }, [open, peerConnection, onOpenChange, onCallEnded]);
+  }, [open, peerConnection]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -260,8 +330,9 @@ export function ActiveCallDialog({
   // Alternar Viva-Voz (Volume / Alto-falante)
   const toggleSpeaker = () => {
     const nextSpeaker = !isSpeakerOn;
-    if (audioElementRef.current) {
-      audioElementRef.current.volume = nextSpeaker ? 1.0 : 0.2;
+    const audio = playbackElement();
+    if (audio) {
+      audio.volume = nextSpeaker ? 1.0 : 0.2;
     }
     setIsSpeakerOn(nextSpeaker);
     if (nextSpeaker) {
@@ -307,8 +378,13 @@ export function ActiveCallDialog({
         peerConnection.close();
       } catch {}
     }
-    if (audioElementRef.current) {
-      audioElementRef.current.srcObject = null;
+    const audio = playbackElement();
+    if (audio) {
+      audio.srcObject = null;
+      if (remoteAudio && audio === remoteAudio) {
+        audio.pause();
+        audio.remove();
+      }
     }
   };
 
@@ -429,7 +505,12 @@ export function ActiveCallDialog({
           </div>
         )}
       </section>
-      <audio ref={audioElementRef} autoPlay playsInline className="hidden" />
+      <audio
+        ref={audioElementRef}
+        autoPlay
+        playsInline
+        className={remoteAudio ? "hidden" : "fixed h-px w-px opacity-0 pointer-events-none"}
+      />
     </div>
   );
 

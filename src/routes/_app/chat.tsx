@@ -974,6 +974,22 @@ function normalizeChatContactRecord(value: unknown): ChatContactRecord | null {
   };
 }
 
+function isCallConversation(contact: ChatContactRecord) {
+  const type = (contact.last_message_type || "").trim().toLowerCase();
+  const body = (contact.last_message_body || "").trim().toLowerCase();
+  return (
+    type === "call" ||
+    body.startsWith("[chamada") ||
+    body.includes("chamada de voz") ||
+    body.includes("chamada perdida") ||
+    body.includes("chamada recusada") ||
+    body.includes("chamada recebida") ||
+    body.includes("chamada iniciada") ||
+    body.includes("chamada encerrada") ||
+    body.includes("chamada efetuada")
+  );
+}
+
 function renderContactLastMessageSnippet(c: ChatContactRecord) {
   const body = (c.last_message_body || "").trim();
   const type = (c.last_message_type || "").trim().toLowerCase();
@@ -2536,8 +2552,8 @@ function ChatPage() {
           console.log("[CHAT SSE] Evento de chamada recebido:", payload);
 
           if (
-            (payload.call_event === "connect" || payload.status === "incoming") &&
-            (payload.direction === "inbound" || payload.sdp_type === "offer")
+            payload.direction === "inbound" &&
+            (payload.call_event === "connect" || payload.sdp_type === "offer" || payload.status === "incoming")
           ) {
             setIncomingCallData({
               callId: payload.call_id || `call_${Date.now()}`,
@@ -2716,6 +2732,7 @@ function ChatPage() {
     | "bot_paused"
     | "bot_active"
     | "archived"
+    | "calls"
     | "whatsapp"
     | "instagram"
     | "messenger"
@@ -2724,7 +2741,15 @@ function ChatPage() {
   >("all");
 
   useEffect(() => {
-    if (!configuredChannels.includes(filterView as "whatsapp" | "instagram" | "messenger" | "webchat" | "all")) {
+    const isChannelView =
+      filterView === "whatsapp" ||
+      filterView === "instagram" ||
+      filterView === "messenger" ||
+      filterView === "webchat";
+    if (
+      isChannelView &&
+      !configuredChannels.includes(filterView as "whatsapp" | "instagram" | "messenger" | "webchat" | "all")
+    ) {
       setFilterView("all");
     }
   }, [configuredChannels, filterView]);
@@ -3749,6 +3774,7 @@ function ChatPage() {
     if (filterView === "messenger" && contact.channel !== "messenger") return false;
     if (filterView === "webchat" && contact.channel !== "webchat") return false;
     if (filterView === "whatsapp_group" && contact.channel !== "whatsapp_group") return false;
+    if (filterView === "calls" && !isCallConversation(contact)) return false;
 
     const term = searchQuery.toLowerCase().trim();
     const displayPhone = getDisplayPhone(contact);
@@ -4681,13 +4707,12 @@ function ChatPage() {
           </div>
 
           {/* Abas Superiores com contadores e botões de ação */}
-          <AppToolbar className="p-3 border-b bg-muted/30 shrink-0">
-            <ToolbarGroup>
+          <div className="flex w-full min-w-0 flex-nowrap items-center justify-evenly gap-0 border-b bg-muted/30 px-1 py-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setActiveTab("novos")}
                 className={cn(
-                  "flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
+                  "flex shrink-0 items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold transition-all",
                   activeTab === "novos"
                     ? "bg-background text-foreground shadow-sm border"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
@@ -4703,7 +4728,7 @@ function ChatPage() {
                 type="button"
                 onClick={() => setActiveTab("meus")}
                 className={cn(
-                  "flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
+                  "flex shrink-0 items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold transition-all",
                   activeTab === "meus"
                     ? "bg-background text-foreground shadow-sm border"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
@@ -4719,7 +4744,7 @@ function ChatPage() {
                 type="button"
                 onClick={() => setActiveTab("outros")}
                 className={cn(
-                  "flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
+                  "flex shrink-0 items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold transition-all",
                   activeTab === "outros"
                     ? "bg-background text-foreground shadow-sm border"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
@@ -4730,22 +4755,34 @@ function ChatPage() {
                   {outrosUnreadCount}
                 </span>
               </button>
-            </ToolbarGroup>
-
-            <ToolbarPrimary>
+              <Button
+                onClick={() => setFilterView(filterView === "calls" ? "all" : "calls")}
+                size="icon"
+                variant={filterView === "calls" ? "secondary" : "ghost"}
+                title="Ligações"
+                aria-label="Ligações"
+                className={cn(
+                  "size-8 shrink-0 rounded-lg p-0",
+                  filterView === "calls"
+                    ? "text-primary bg-muted"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Phone className="size-4" />
+              </Button>
               <Button
                 onClick={() => setFilterView(filterView === "archived" ? "all" : "archived")}
                 size="icon"
                 variant={filterView === "archived" ? "secondary" : "ghost"}
                 title="Arquivados"
                 className={cn(
-                  "h-8 w-8 rounded-lg",
+                  "size-8 shrink-0 rounded-lg p-0",
                   filterView === "archived"
                     ? "text-primary bg-muted"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                <Archive className="h-4 w-4" />
+                <Archive className="size-4" />
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -4753,9 +4790,9 @@ function ChatPage() {
                     size="icon"
                     variant="ghost"
                     title="Menu"
-                    className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg"
+                    className="size-8 shrink-0 rounded-lg p-0 text-muted-foreground hover:text-foreground"
                   >
-                    <MoreVertical className="h-4 w-4" />
+                    <MoreVertical className="size-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
@@ -4874,8 +4911,7 @@ function ChatPage() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </ToolbarPrimary>
-          </AppToolbar>
+          </div>
 
           {/* Barra de Busca e botões de filtro */}
           <div className="p-3 border-b flex flex-col gap-2 bg-background shrink-0 order-2">
@@ -5034,7 +5070,7 @@ function ChatPage() {
               </div>
             ) : filteredContacts.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">
-                Nenhum contato encontrado.
+                {filterView === "calls" ? "Nenhuma ligação encontrada." : "Nenhum contato encontrado."}
               </div>
             ) : (
               filteredContacts.map((c) => {
