@@ -6633,9 +6633,17 @@ function ChatPage() {
 
                                       // Helper to get media source URL (agnóstico para WhatsApp e Instagram)
                                       const getMediaUrl = (urlOrId: string, messageId: string) => {
-                                        if (!urlOrId) return "";
-                                        if (urlOrId.startsWith("/") || isUrl(urlOrId)) return urlOrId;
-                                        return `/api/whatsapp/media?id=${encodeURIComponent(urlOrId)}&messageId=${encodeURIComponent(messageId)}`;
+                                        const stored =
+                                          typeof (msg.metadata as any)?.media_url === "string"
+                                            ? String((msg.metadata as any).media_url)
+                                            : "";
+                                        const chosen =
+                                          stored.startsWith("/api/storage/file") || stored.startsWith("/")
+                                            ? stored
+                                            : urlOrId;
+                                        if (!chosen) return "";
+                                        if (chosen.startsWith("/") || isUrl(chosen)) return chosen;
+                                        return `/api/whatsapp/media?id=${encodeURIComponent(chosen)}&messageId=${encodeURIComponent(messageId)}`;
                                       };
 
                                       const isCallEventMessage = (text: string) => {

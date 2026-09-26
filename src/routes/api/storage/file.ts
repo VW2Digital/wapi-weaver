@@ -1,9 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import fs from "node:fs";
 import path from "node:path";
 import {
   assertTenantStoragePath,
-  resolveUploadFilePath,
+  resolveExistingUploadFile,
   verifyStorageUser,
 } from "@/lib/tenant-storage";
 import { createUploadFileResponse } from "@/lib/upload-file-response.server";
@@ -46,9 +45,9 @@ async function serveFile(request: Request) {
       return new Response("Invalid path", { status: 403 });
     }
     const uploadsRoot = path.resolve(__dirname, "public", "uploads");
-    const fullPath = resolveUploadFilePath(uploadsRoot, safePath);
+    const fullPath = resolveExistingUploadFile(uploadsRoot, safePath, user);
 
-    if (!fs.existsSync(fullPath)) {
+    if (!fullPath) {
       return new Response("File not found", { status: 404 });
     }
 

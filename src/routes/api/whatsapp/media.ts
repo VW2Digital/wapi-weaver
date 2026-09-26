@@ -1,9 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import jwt from "jsonwebtoken";
+import path from "node:path";
 import { JWT_SECRET } from "@/lib/jwt-secret";
 import { resolveMediaContentType } from "@/lib/media-content-type";
 import db from "@/lib/db";
 import { decryptMetaCredential } from "@/lib/encryption";
+import { createUploadFileResponse } from "@/lib/upload-file-response.server";
+import { resolveExistingUploadFile } from "@/lib/tenant-storage";
 
 function getAuthUserId(request: Request): string {
   const url = new URL(request.url);
@@ -27,12 +30,53 @@ function getAuthUserId(request: Request): string {
   return decoded.sub;
 }
 
+function firstRow<T>(result: unknown): T | null {
+  if (Array.isArray(result) && result.length > 0) {
+    const first = result[0];
+    if (Array.isArray(first)) return (first[0] as T) ?? null;
+    return first as T;
+  }
+  return null;
+}
+
+function parseMetadata(raw: unknown): Record<string, any> {
+  if (!raw) return {};
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return typeof raw === "object" ? (raw as Record<string, any>) : {};
+}
+
+function storagePathFromMetadata(meta: Record<string, any>): string | null {
+  if (typeof meta.local_file_path === "string" && meta.local_file_path.trim()) {
+    return meta.local_file_path.trim().replace(/^\/?uploads\//, "");
+  }
+  const mediaUrl = typeof meta.media_url === "string" ? meta.media_url : "";
+  if (mediaUrl.includes("/api/storage/file")) {
+    try {
+      const parsed = new URL(mediaUrl, "http://localhost");
+      const p = parsed.searchParams.get("path");
+      if (p) return p;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 export const Route = createFileRoute("/api/whatsapp/media")({
   server: {
     handlers: {
       GET: async ({ request }) => {
         try {
           const userId = getAuthUserId(request);
+          const { resolveEffectiveUserId } = await import("@/lib/chat-helpers");
+          const tenantId = await resolveEffectiveUserId(userId);
           const url = new URL(request.url);
           const mediaId = url.searchParams.get("id");
           const messageId = url.searchParams.get("messageId");
@@ -46,99 +90,136 @@ export const Route = createFileRoute("/api/whatsapp/media")({
             return new Response("Missing messageId parameter", { status: 400 });
           }
 
-          // Resolve the message and its exact channel context
-          const [rows] = (await db.query(
+          const rows = await db.query(
             `SELECT
+               dm.id,
                dm.tenant_id,
                dm.user_id,
                dm.channel,
                dm.channel_connection_id,
-               dm.raw_payload
+               dm.raw_payload,
+               dm.metadata
              FROM direct_messages dm
-             WHERE dm.id = ? AND dm.user_id = ?
+             WHERE (dm.id = ? OR dm.wa_message_id = ?)
+               AND (dm.user_id = ? OR dm.tenant_id = ?)
              LIMIT 1`,
-            [messageId, userId],
-          )) as Array<{
+            [messageId, messageId, tenantId, tenantId],
+          );
+
+          const message = firstRow<{
+            id: string;
             tenant_id: string;
             user_id: string;
             channel: string;
             channel_connection_id: string | null;
             raw_payload: unknown;
-          }>[];
+            metadata: unknown;
+          }>(rows);
 
-          const message = rows?.[0];
           if (!message) {
             return new Response("Message not found or access denied", { status: 403 });
           }
 
-          if (message.user_id !== userId) {
-            return new Response("Cross-tenant access denied", { status: 403 });
-          }
-
-          const channelConnectionId = message.channel_connection_id;
-          if (!channelConnectionId) {
-            return new Response("Message has no channel connection", { status: 400 });
-          }
-
-          const [channelRows] = (await db.query(
-            `SELECT
-               cc.provider,
-               cc.external_account_id,
-               cc.access_token_encrypted,
-               mac.app_secret_encrypted,
-               mac.graph_version
-             FROM channel_connections cc
-             JOIN meta_app_connections mac ON mac.id = cc.meta_app_connection_id
-             WHERE cc.id = ? AND cc.tenant_id = ?
-             LIMIT 1`,
-            [channelConnectionId, message.tenant_id],
-          )) as Array<{
-            provider: string;
-            external_account_id: string;
-            access_token_encrypted: string | null;
-            app_secret_encrypted: string | null;
-            graph_version: string | null;
-          }>[];
-
-          const channel = channelRows?.[0];
-          if (!channel) {
-            return new Response("Channel not found or access denied", { status: 403 });
-          }
-
-          const provider = channel.provider as "whatsapp" | "instagram";
-          if (!["whatsapp", "instagram"].includes(provider)) {
-            return new Response("Unsupported media provider", { status: 400 });
+          const meta = parseMetadata(message.metadata);
+          const localRel = storagePathFromMetadata(meta);
+          if (localRel) {
+            const uploadsRoot = path.resolve(process.cwd(), "public", "uploads");
+            const fullPath = resolveExistingUploadFile(uploadsRoot, localRel, {
+              userId,
+              tenantId: message.tenant_id || tenantId,
+              email: "",
+              role: "user",
+            });
+            if (fullPath) {
+              return createUploadFileResponse(fullPath, request, {
+                "Cache-Control": "private, max-age=3600",
+              });
+            }
           }
 
           let accessToken = "";
-          if (channel.access_token_encrypted) {
-            try {
-              accessToken = decryptMetaCredential(channel.access_token_encrypted);
-            } catch (err) {
-              console.error("[media.ts] Failed to decrypt access token:", err);
-              return new Response("Failed to decrypt channel credentials", { status: 500 });
+          let apiVersion = "v26.0";
+          let phoneNumberId = "";
+
+          const channelConnectionId = message.channel_connection_id;
+          if (channelConnectionId) {
+            const channelRows = await db.query(
+              `SELECT
+                 cc.provider,
+                 cc.external_account_id,
+                 cc.access_token_encrypted,
+                 mac.app_secret_encrypted,
+                 mac.graph_version
+               FROM channel_connections cc
+               JOIN meta_app_connections mac ON mac.id = cc.meta_app_connection_id
+               WHERE cc.id = ? AND cc.tenant_id = ?
+               LIMIT 1`,
+              [channelConnectionId, message.tenant_id],
+            );
+
+            const channel = firstRow<{
+              provider: string;
+              external_account_id: string;
+              access_token_encrypted: string | null;
+              app_secret_encrypted: string | null;
+              graph_version: string | null;
+            }>(channelRows);
+
+            if (channel) {
+              const provider = channel.provider as "whatsapp" | "instagram";
+              if (!["whatsapp", "instagram"].includes(provider)) {
+                return new Response("Unsupported media provider", { status: 400 });
+              }
+              if (channel.access_token_encrypted) {
+                try {
+                  accessToken = decryptMetaCredential(channel.access_token_encrypted);
+                } catch (err) {
+                  console.error("[media.ts] Failed to decrypt access token:", err);
+                }
+              }
+              apiVersion = channel.graph_version?.startsWith("v")
+                ? channel.graph_version
+                : `v${channel.graph_version || "26.0"}`;
+              phoneNumberId = provider === "whatsapp" ? channel.external_account_id : "";
             }
+          }
+
+          if (!accessToken) {
+            const profileRows = await db.query(
+              `SELECT whatsapp_access_token, whatsapp_phone_number_id, meta_graph_version
+               FROM profiles WHERE id = ? LIMIT 1`,
+              [tenantId],
+            );
+            const profile = firstRow<{
+              whatsapp_access_token: string | null;
+              whatsapp_phone_number_id: string | null;
+              meta_graph_version: string | null;
+            }>(profileRows);
+            accessToken = String(profile?.whatsapp_access_token || "").trim();
+            phoneNumberId = phoneNumberId || String(profile?.whatsapp_phone_number_id || "").trim();
+            apiVersion = profile?.meta_graph_version || apiVersion;
           }
 
           if (!accessToken) {
             return new Response("Channel access token not available", { status: 401 });
           }
 
-          const apiVersion = channel.graph_version?.startsWith("v")
-            ? channel.graph_version
-            : `v${channel.graph_version || "26.0"}`;
-          const accountId = channel.external_account_id;
-          const phoneNumberId = provider === "whatsapp" ? accountId : "";
+          if (apiVersion.startsWith("v") && parseFloat(apiVersion.slice(1)) < 24.0) {
+            apiVersion = "v26.0";
+          }
+
+          const graphMediaId =
+            (typeof meta.media_id_meta === "string" && meta.media_id_meta) || mediaId;
 
           const metaUrl = phoneNumberId
-            ? `https://graph.facebook.com/${apiVersion}/${encodeURIComponent(mediaId)}?phone_number_id=${encodeURIComponent(phoneNumberId)}`
-            : `https://graph.facebook.com/${apiVersion}/${encodeURIComponent(mediaId)}`;
+            ? `https://graph.facebook.com/${apiVersion}/${encodeURIComponent(graphMediaId)}?phone_number_id=${encodeURIComponent(phoneNumberId)}`
+            : `https://graph.facebook.com/${apiVersion}/${encodeURIComponent(graphMediaId)}`;
 
           const metadataResponse = await fetch(metaUrl, {
             headers: { Authorization: `Bearer ${accessToken}` },
           });
 
-          const metaBody = await metadataResponse.json() as {
+          const metaBody = (await metadataResponse.json()) as {
             url?: string;
             mime_type?: string;
             filename?: string;

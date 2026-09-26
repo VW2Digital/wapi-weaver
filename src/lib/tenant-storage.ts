@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "path";
 import { verifyApiUser, type AuthenticatedUser } from "./subscription-helpers";
 import { getActorTenantAccess } from "./tenant-authorization";
@@ -63,8 +64,10 @@ export async function tenantUploadPath(requestedPath: unknown, user: Authenticat
 export async function assertTenantStoragePath(requestedPath: unknown, user: AuthenticatedUser) {
   const normalized = normalizeStoragePath(requestedPath);
   const access = await getActorTenantAccess(user.userId, user.tenantId);
+  const isBareFileName = !normalized.includes("/");
   if (
     !access.isMaster &&
+    !isBareFileName &&
     normalized !== user.tenantId &&
     !normalized.startsWith(`${user.tenantId}/`) &&
     normalized !== user.userId &&
@@ -79,4 +82,59 @@ export function resolveUploadFilePath(uploadsRoot: string, tenantPath: string): 
   const fullPath = path.resolve(uploadsRoot, tenantPath);
   if (!fullPath.startsWith(`${uploadsRoot}${path.sep}`)) throw new Error("Invalid path");
   return fullPath;
+}
+
+function walkFindFile(dir: string, fileName: string, uploadsRoot: string, depth: number): string | null {
+  if (depth > 5 || !fs.existsSync(dir)) return null;
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (!full.startsWith(`${uploadsRoot}${path.sep}`)) continue;
+    if (entry.isFile() && entry.name === fileName) return full;
+    if (entry.isDirectory()) {
+      const nested = walkFindFile(full, fileName, uploadsRoot, depth + 1);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+
+export function resolveExistingUploadFile(
+  uploadsRoot: string,
+  requestedPath: string,
+  user: AuthenticatedUser,
+): string | null {
+  const candidates = [requestedPath];
+  if (!requestedPath.startsWith(`${user.tenantId}/`)) {
+    candidates.push(`${user.tenantId}/${requestedPath}`);
+  }
+  if (user.userId !== user.tenantId && !requestedPath.startsWith(`${user.userId}/`)) {
+    candidates.push(`${user.userId}/${requestedPath}`);
+  }
+  for (const candidate of candidates) {
+    try {
+      const full = resolveUploadFilePath(uploadsRoot, candidate);
+      if (fs.existsSync(full) && fs.statSync(full).isFile()) return full;
+    } catch {
+      // skip invalid candidate
+    }
+  }
+  const base = path.posix.basename(requestedPath);
+  if (!base || base === "." || base.includes("..")) return null;
+  const searchRoots = [user.tenantId, user.userId].filter(Boolean);
+  for (const rootName of searchRoots) {
+    try {
+      const root = resolveUploadFilePath(uploadsRoot, rootName);
+      const found = walkFindFile(root, base, uploadsRoot, 0);
+      if (found) return found;
+    } catch {
+      // skip
+    }
+  }
+  return null;
 }
