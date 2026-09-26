@@ -19,7 +19,7 @@ import {
   autoFetchContactPhoto,
 } from "@/lib/contacts.functions";
 import { getProfile, listWhatsAppCallHistory } from "@/lib/profile.functions";
-import { resolveContactDisplayName } from "@/lib/messaging/services/contact-display.service";
+import { getContactAvatarUrl, resolveContactDisplayName } from "@/lib/messaging/services/contact-display.service";
 import { hydrateInstagramInboxContacts } from "@/lib/instagram-inbox-hydrate.functions";
 import {
   listTeams,
@@ -1303,28 +1303,6 @@ function isInventoryProduct(value: unknown): value is InventoryProduct {
 function isMetaHotlinkUrl(value: string) {
   if (!value) return false;
   return /cdninstagram\.com|fbcdn\.net|scontent[.-]|lookaside\.fbsbx\.com/i.test(value);
-}
-
-/** Extrai a URL de foto de perfil dos custom_fields do contato.
- *  WhatsApp continua com fallback de iniciais (não usa avatares de terceiros).
- *  Instagram e Messenger passam por proxy autenticado — o CDN da Meta expira no browser.
- */
-function getContactAvatarUrl(contact: ChatContactRecord | null): string {
-  const cf = contact?.custom_fields;
-  const fromRecord = typeof contact?.avatar_url === "string" ? contact.avatar_url : "";
-  const rawUrl =
-    fromRecord ||
-    (cf && typeof cf === "object"
-      ? cf.avatar_url || cf.photo_url || cf.photo || cf.picture || cf.image_url || cf.image || ""
-      : "");
-  if (typeof rawUrl !== "string" || !rawUrl) return "";
-  if (rawUrl.includes("whatsapp.net") || rawUrl.includes("whatsapp.com")) {
-    return "";
-  }
-  if (contact?.id && isMetaHotlinkUrl(rawUrl)) {
-    return `/api/whatsapp/media?id=profile&contactId=${encodeURIComponent(contact.id)}`;
-  }
-  return rawUrl;
 }
 
 function SafeAvatarMedia({

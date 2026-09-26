@@ -1,8 +1,11 @@
+import { isMetaHotlinkUrl } from "@/lib/media-content-type";
+
 export interface ContactDisplayInput {
   channel?: string | null;
   name?: string | null;
   phone_e164?: string | null;
   id?: string | null;
+  avatar_url?: string | null;
   custom_fields?: Record<string, unknown> | null;
 }
 
@@ -55,4 +58,36 @@ export function resolveContactDisplayName(contact: ContactDisplayInput): string 
   }
 
   return contact.name || "Sem Nome";
+}
+
+function firstCustomPhotoUrl(customFields: Record<string, unknown> | null | undefined): string {
+  if (!customFields) return "";
+  for (const key of ["avatar_url", "photo_url", "photo", "picture", "image_url", "image"]) {
+    const value = customFields[key];
+    if (typeof value === "string" && value) return value;
+  }
+  return "";
+}
+
+/**
+ * Extrai a URL de foto de perfil dos custom_fields do contato.
+ * WhatsApp continua com fallback de iniciais (não usa avatares de terceiros).
+ * Instagram e Messenger passam por proxy autenticado — o CDN da Meta expira no browser.
+ */
+export function getContactAvatarUrl(contact: ContactDisplayInput | null): string {
+  const fromRecord = typeof contact?.avatar_url === "string" ? contact.avatar_url : "";
+  const rawUrl = fromRecord || firstCustomPhotoUrl(contact?.custom_fields);
+  if (typeof rawUrl !== "string" || !rawUrl) return "";
+  if (rawUrl.includes("whatsapp.net") || rawUrl.includes("whatsapp.com")) {
+    return "";
+  }
+  const channel = contact?.channel;
+  const canProxyProfile = channel === "instagram" || channel === "messenger";
+  if (contact?.id && isMetaHotlinkUrl(rawUrl) && canProxyProfile) {
+    return `/api/whatsapp/media?id=profile&contactId=${encodeURIComponent(contact.id)}`;
+  }
+  if (isMetaHotlinkUrl(rawUrl)) {
+    return "";
+  }
+  return rawUrl;
 }
