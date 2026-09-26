@@ -12,6 +12,8 @@ import {
   extractContactFacts,
   formatContactAgendaBlock,
   formatHistoryText,
+  deriveConversationState,
+  formatConversationStateBlock,
   isWhatsAppReactionMessage,
   mergeContactFacts,
   retrieveKnowledgePassages,
@@ -37,14 +39,18 @@ async function loadRecentConversationHistory(params: {
   tenantId: string;
   phoneDigits: string;
 }): Promise<HistoryMessage[]> {
-  const { data: recentMsgs } = await dbAdmin
-    .from("direct_messages")
-    .select("direction, body, created_at, type")
-    .eq("user_id", params.tenantId)
-    .eq("contact_phone", params.phoneDigits)
-    .order("created_at", { ascending: false })
-    .limit(DS_AGENT_HISTORY_LIMIT);
-
+  const digits = String(params.phoneDigits || "").replace(/\D/g, "");
+  if (!digits) return [];
+  const { default: db } = await import("./db");
+  const recentMsgs = (await db.query(
+    `SELECT direction, body, created_at, type
+     FROM direct_messages
+     WHERE (tenant_id = ? OR user_id = ?)
+       AND REPLACE(REPLACE(IFNULL(contact_phone, ''), '+', ''), ' ', '') = ?
+     ORDER BY created_at DESC
+     LIMIT ${DS_AGENT_HISTORY_LIMIT}`,
+    [params.tenantId, params.tenantId, digits],
+  )) as HistoryMessage[];
   return takeLastHistory([...(recentMsgs || [])].reverse(), DS_AGENT_HISTORY_LIMIT);
 }
 
@@ -850,6 +856,7 @@ async function buildDsAgentSystemPrompt(params: {
   replyWithAssigned: boolean;
   processImages: boolean;
   knowledgeQuery?: string;
+  conversationStateBlock?: string;
 }): Promise<string> {
   const { db, agent, tenantId, agentId, phoneDigits, replyWithAssigned, processImages } = params;
   const mode = String(agent.mode || "basico");
@@ -914,6 +921,10 @@ async function buildDsAgentSystemPrompt(params: {
     "- Responda à mensagem mais recente de forma útil, considerando o contexto acumulado.\n" +
     "- Só confirme que um compromisso foi agendado DEPOIS de chamar a ferramenta calendar_create_event com sucesso. Se a ferramenta falhar, diga que não conseguiu agendar.\n" +
     "- Antes de falar de reunião, use o bloco AGENDA. Nunca copie 'amanhã' do histórico se a agenda disser HOJE.\n";
+
+  if (params.conversationStateBlock) {
+    systemPrompt += params.conversationStateBlock;
+  }
 
   systemPrompt += await loadContactMemory(db, tenantId, agentId, phoneDigits || "");
   if (phoneDigits) {
@@ -983,11 +994,9 @@ export async function runDsAgentCompletion(params: {
     }
 
     const isFollowup = params.purpose === "followup";
-    let resolvedUserMessage = userMessage;
-    if (!isFollowup && phoneDigits && historyText) {
-      const lastClient = [...historyText.split("\n")].reverse().find((line) => line.startsWith("Cliente:"));
-      if (lastClient) resolvedUserMessage = lastClient.replace(/^Cliente:\s*/, "").trim() || userMessage;
-    }
+    const state = deriveConversationState(historyText, userMessage);
+    historyText = state.historyText;
+    const resolvedUserMessage = isFollowup ? userMessage : state.currentMessage || userMessage;
 
     let systemPrompt = await buildDsAgentSystemPrompt({
       db,
@@ -997,13 +1006,37 @@ export async function runDsAgentCompletion(params: {
       phoneDigits: phoneDigits || undefined,
       replyWithAssigned,
       processImages,
-      knowledgeQuery: `${historyText}\n${resolvedUserMessage}`,
+      knowledgeQuery: isFollowup ? `${historyText}\n${resolvedUserMessage}` : resolvedUserMessage,
+      conversationStateBlock: isFollowup ? "" : formatConversationStateBlock(state),
     });
     if (isFollowup) {
       systemPrompt +=
         "\n\nEsta execução é um follow-up. Responda somente com a mensagem ao cliente. " +
         "Não repita perguntas já respondidas no histórico. Não invente dados. " +
         "A instrução do follow-up não é uma fala do cliente.\n";
+    } else {
+      try {
+        await db.query(
+          `INSERT INTO ds_agent_logs (id, tenant_id, agent_id, level, message, details)
+           VALUES (?, ?, ?, 'info', 'conversation_turn', ?)`,
+          [
+            crypto.randomUUID(),
+            tenantId,
+            agentId,
+            JSON.stringify({
+              history_lines: historyText.split("\n").filter(Boolean).length,
+              already_introduced: state.alreadyIntroduced,
+              hold_scheduling: state.holdScheduling,
+              knowledge_sources: (systemPrompt.match(/\[Fonte:/g) || []).length,
+              timezone: "America/Sao_Paulo",
+              instruction_chars: String(agent.instructions_basic || agent.instructions_advanced || agent.system_prompt || "").length,
+              tools_enabled: params.enableTools !== false,
+            }),
+          ],
+        );
+      } catch (err: any) {
+        logError("Falha ao gravar log da conversa", { error: err?.message });
+      }
     }
 
     const provider = String(agent.provider || "OpenAI Padrão");
