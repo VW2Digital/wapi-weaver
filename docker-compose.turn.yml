@@ -9,6 +9,8 @@ services:
     container_name: wapi_weaver_coturn
     restart: unless-stopped
     network_mode: host
+    # Root is required to read Let's Encrypt privkey (mode 600) for turns://5349.
+    user: "0:0"
     volumes:
       - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro

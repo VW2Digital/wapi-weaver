@@ -705,6 +705,15 @@ if [ -z "${ADMIN_PASSWORD}" ]; then
   exit 1
 fi
 
+if [ -z "${TURN_URL_VAL}" ]; then
+  TURN_URL_VAL="turn:${DOMAIN}:3478?transport=udp"
+fi
+if [ -z "${TURN_URLS_VAL}" ]; then
+  TURN_URLS_VAL="turn:${DOMAIN}:3478?transport=udp,turn:${DOMAIN}:3478?transport=tcp,turns:${DOMAIN}:5349?transport=tcp"
+elif ! echo "${TURN_URLS_VAL}" | grep -q 'turns:'; then
+  TURN_URLS_VAL="${TURN_URLS_VAL},turns:${DOMAIN}:5349?transport=tcp"
+fi
+
 # Gravar o arquivo .env
 cat > "${ENV_FILE}" <<EOF
 # Configuração do Banco de Dados (MySQL)
@@ -746,8 +755,8 @@ TURN_USERNAME="${TURN_USERNAME_VAL}"
 TURN_CREDENTIAL="${TURN_CREDENTIAL_VAL}"
 TURN_REALM="${DOMAIN}"
 TURN_EXTERNAL_IP="${TURN_EXTERNAL_IP_VAL}"
-TURN_URL="${TURN_URL_VAL:-turn:${DOMAIN}:3478?transport=udp}"
-TURN_URLS="${TURN_URLS_VAL:-turn:${DOMAIN}:3478?transport=udp,turn:${DOMAIN}:3478?transport=tcp,turns:${DOMAIN}:5349?transport=tcp}"
+TURN_URL="${TURN_URL_VAL}"
+TURN_URLS="${TURN_URLS_VAL}"
 EOF
 
 chmod 600 "${ENV_FILE}"
