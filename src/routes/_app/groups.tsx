@@ -1,12 +1,15 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   createWhatsAppGroup,
   listWhatsAppGroups,
   archiveWhatsAppGroup,
+  deleteWhatsAppGroup,
+  resetWhatsAppGroupInviteLink,
+  syncWhatsAppGroupsFromMeta,
+  getGroupsEligibility,
 } from "@/lib/groups.functions";
-import { getProfile } from "@/lib/profile.functions";
 import { usePageHeader } from "@/components/layout/page-header-provider";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,9 +32,11 @@ import {
   Copy,
   Check,
   Archive,
-  AlertCircle,
   ArrowRight,
   ShieldAlert,
+  RefreshCw,
+  Link2,
+  Trash2,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -58,29 +63,44 @@ function GroupsPage() {
   const fetchGroups = useServerFn(listWhatsAppGroups);
   const createGroup = useServerFn(createWhatsAppGroup);
   const archiveGroup = useServerFn(archiveWhatsAppGroup);
-  const fetchProfile = useServerFn(getProfile);
+  const deleteGroup = useServerFn(deleteWhatsAppGroup);
+  const resetInvite = useServerFn(resetWhatsAppGroupInviteLink);
+  const syncGroups = useServerFn(syncWhatsAppGroupsFromMeta);
+  const fetchEligibility = useServerFn(getGroupsEligibility);
 
   const [search, setSearch] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupDesc, setNewGroupDesc] = useState("");
+  const [joinApproval, setJoinApproval] = useState<"auto_approve" | "approval_required">(
+    "auto_approve",
+  );
   const [copiedGroupId, setCopiedGroupId] = useState<string | null>(null);
 
-  const profileQuery = useQuery({
-    queryKey: ["profile"],
-    queryFn: () => fetchProfile(),
+  const eligibilityQuery = useQuery({
+    queryKey: ["whatsapp-groups-eligibility"],
+    queryFn: () => fetchEligibility(),
   });
 
   const groupsQuery = useQuery({
     queryKey: ["whatsapp-groups", search],
     queryFn: () => fetchGroups({ data: { search } }),
+    enabled: eligibilityQuery.data?.enabled !== false,
   });
 
   const createMutation = useMutation({
-    mutationFn: (payload: { name: string; description?: string }) => createGroup({ data: payload }),
+    mutationFn: (payload: {
+      name: string;
+      description?: string;
+      join_approval_mode?: "auto_approve" | "approval_required";
+    }) => createGroup({ data: payload }),
     onSuccess: (res) => {
       if (res.success) {
-        toast.success("Grupo criado com sucesso!");
+        toast.success(
+          res.data?.invite_link
+            ? "Grupo criado na Meta. Envie o link de convite para os participantes."
+            : "Grupo criado. O link de convite chega pelo webhook de ciclo de vida.",
+        );
         setIsCreateOpen(false);
         setNewGroupName("");
         setNewGroupDesc("");
@@ -98,11 +118,48 @@ function GroupsPage() {
   const archiveMutation = useMutation({
     mutationFn: (id: string) => archiveGroup({ data: { id } }),
     onSuccess: () => {
-      toast.success("Grupo arquivado!");
+      toast.success("Grupo arquivado no painel.");
       qc.invalidateQueries({ queryKey: ["whatsapp-groups"] });
     },
     onError: (err: unknown) => {
       toast.error(getErrorMessage(err) || "Erro ao arquivar grupo.");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteGroup({ data: { id } }),
+    onSuccess: (res) => {
+      if (!res.success) {
+        toast.error(res.error?.message || "Falha ao excluir na Meta.");
+        return;
+      }
+      toast.success("Grupo excluído na Meta.");
+      qc.invalidateQueries({ queryKey: ["whatsapp-groups"] });
+      qc.invalidateQueries({ queryKey: ["chat-contacts"] });
+    },
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: (id: string) => resetInvite({ data: { id } }),
+    onSuccess: (res) => {
+      if (!res.success) {
+        toast.error(res.error?.message || "Falha ao resetar o convite.");
+        return;
+      }
+      toast.success("Novo link de convite gerado. Links anteriores ficaram inválidos.");
+      qc.invalidateQueries({ queryKey: ["whatsapp-groups"] });
+    },
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: () => syncGroups(),
+    onSuccess: (res) => {
+      if (!res.success) {
+        toast.error(res.error?.message || "Falha ao sincronizar.");
+        return;
+      }
+      toast.success(`${res.upserted ?? 0} grupo(s) sincronizado(s) da Meta.`);
+      qc.invalidateQueries({ queryKey: ["whatsapp-groups"] });
     },
   });
 
@@ -116,13 +173,112 @@ function GroupsPage() {
   const handleCreateGroup = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newGroupName.trim()) return;
-    createMutation.mutate({ name: newGroupName, description: newGroupDesc });
+    createMutation.mutate({
+      name: newGroupName,
+      description: newGroupDesc,
+      join_approval_mode: joinApproval,
+    });
   };
 
-  // Se o módulo estiver desativado no perfil ou nas variáveis de ambiente
-  const isEnabled = process.env.WHATSAPP_GROUPS_ENABLED === "true";
+  const eligibility = eligibilityQuery.data;
+  const groups: WhatsAppGroupRecord[] = groupsQuery.data?.groups ?? [];
 
-  if (!isEnabled) {
+  usePageHeader({
+    title: "Grupos de WhatsApp",
+    subtitle:
+      "Groups API: convite por link, até 8 participantes, 10.000 grupos por número. Requer OBA. Chamadas não são suportadas.",
+    action: (
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          onClick={() => syncMutation.mutate()}
+          disabled={syncMutation.isPending || eligibility?.eligible === false}
+        >
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Sincronizar
+        </Button>
+        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+          <DialogTrigger asChild>
+            <Button disabled={eligibility?.eligible === false}>
+              <Plus className="h-4 w-4 mr-2" /> Novo grupo
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md border-border">
+            <DialogHeader>
+              <DialogTitle>Criar grupo na Meta</DialogTitle>
+              <DialogDescription>
+                Participantes entram só pelo link de convite. Não é possível adicionar números
+                manualmente. Máximo 8 participantes. Tipos suportados: texto, mídia e templates.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleCreateGroup} className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <label htmlFor="groupName" className="text-xs font-semibold">
+                  Assunto do grupo *
+                </label>
+                <Input
+                  id="groupName"
+                  required
+                  placeholder="Ex: Consulta de compra"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  maxLength={128}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="groupDesc" className="text-xs font-semibold">
+                  Descrição (opcional)
+                </label>
+                <Textarea
+                  id="groupDesc"
+                  placeholder="Contexto do grupo para quem recebe o convite"
+                  value={newGroupDesc}
+                  onChange={(e) => setNewGroupDesc(e.target.value)}
+                  rows={3}
+                  maxLength={2048}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="joinMode" className="text-xs font-semibold">
+                  Pedidos de entrada
+                </label>
+                <select
+                  id="joinMode"
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  value={joinApproval}
+                  onChange={(e) =>
+                    setJoinApproval(e.target.value as "auto_approve" | "approval_required")
+                  }
+                >
+                  <option value="auto_approve">Entrada automática pelo link</option>
+                  <option value="approval_required">Exigir aprovação</option>
+                </select>
+              </div>
+              <DialogFooter className="pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsCreateOpen(false)}
+                  disabled={createMutation.isPending}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={createMutation.isPending}>
+                  {createMutation.isPending ? "Criando..." : "Criar grupo"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+    ),
+  });
+
+  if (eligibilityQuery.isLoading) {
+    return <div className="h-full bg-background animate-pulse" />;
+  }
+
+  if (eligibility && eligibility.enabled === false) {
     return (
       <div className="flex h-full flex-col p-6 items-center justify-center bg-background">
         <Card className="max-w-md w-full border-border shadow-md">
@@ -130,99 +286,38 @@ function GroupsPage() {
             <div className="mx-auto w-12 h-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mb-4">
               <ShieldAlert className="h-6 w-6" />
             </div>
-            <CardTitle className="text-xl font-bold">Módulo Desativado</CardTitle>
+            <CardTitle className="text-xl font-bold">Módulo desativado</CardTitle>
             <CardDescription className="mt-2 text-muted-foreground text-sm">
-              O gerenciamento de grupos do WhatsApp oficial não está ativo nesta instalação do Bliv.
+              {eligibility.reason ||
+                "O gerenciamento de grupos do WhatsApp não está ativo nesta instalação."}
             </CardDescription>
           </CardHeader>
-          <CardContent className="text-center pt-2">
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Para ativar esta funcionalidade, configure a variável de ambiente{" "}
-              <code className="bg-muted px-1.5 py-0.5 rounded font-mono font-bold text-foreground">
-                WHATSAPP_GROUPS_ENABLED=true
-              </code>{" "}
-              e reinicie a aplicação.
-            </p>
-          </CardContent>
         </Card>
       </div>
     );
   }
 
-  const groups: WhatsAppGroupRecord[] = groupsQuery.data?.groups ?? [];
-
-  usePageHeader({
-    title: "Grupos de WhatsApp",
-    subtitle: "Crie e gerencie grupos oficiais do WhatsApp diretamente pela API Cloud da Meta.",
-    action: (
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogTrigger asChild>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" /> Novo Grupo
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="max-w-md border-border">
-          <DialogHeader>
-            <DialogTitle>Criar Novo Grupo</DialogTitle>
-            <DialogDescription>
-              Cadastre um grupo para uso interno na plataforma. A criação automática oficial
-              na Meta ainda não está disponível neste fluxo.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleCreateGroup} className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <label htmlFor="groupName" className="text-xs font-semibold">
-                Nome do Grupo *
-              </label>
-              <Input
-                id="groupName"
-                required
-                placeholder="Ex: Suporte VIP Bliv"
-                value={newGroupName}
-                onChange={(e) => setNewGroupName(e.target.value)}
-                maxLength={25}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label htmlFor="groupDesc" className="text-xs font-semibold">
-                Descrição (Opcional)
-              </label>
-              <Textarea
-                id="groupDesc"
-                placeholder="Adicione um propósito ou regras para o grupo..."
-                value={newGroupDesc}
-                onChange={(e) => setNewGroupDesc(e.target.value)}
-                rows={3}
-              />
-            </div>
-            <DialogFooter className="pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsCreateOpen(false)}
-                disabled={createMutation.isPending}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                disabled={createMutation.isPending}
-              >
-                {createMutation.isPending ? "Criando..." : "Criar Grupo"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    ),
-  });
-
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
-
       <div className="p-6 flex-1 overflow-y-auto space-y-6">
-        {/* Barra de filtros */}
+        {eligibility?.eligible === false ? (
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle className="text-base">Eligibility for Groups API</CardTitle>
+              <CardDescription>
+                {eligibility.reason ||
+                  "A Groups API está aberta a negócios com Official Business Account (OBA). Números da WhatsApp Business app e Multi-solution Conversations não são elegíveis. Calling API não funciona em grupos."}
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        ) : (
+          <p className="text-xs text-muted-foreground max-w-3xl">
+            Convite exclusivo por link. Mensagens não suportadas: chamadas, desaparecimento,
+            visualização única, autenticação, commerce e interativas. Preço por mensagem.
+            Templates de grupo devem ser específicos (métricas de template 1:1 não se aplicam).
+          </p>
+        )}
+
         <div className="flex items-center gap-3">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -248,8 +343,8 @@ function GroupsPage() {
             </div>
             <div>
               <p className="font-semibold text-foreground text-sm">Nenhum grupo encontrado</p>
-              <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                Crie um novo grupo para gerenciar ou simular participantes oficiais.
+              <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+                Crie um grupo na Cloud API ou sincronize os grupos ativos deste número.
               </p>
             </div>
           </div>
@@ -260,7 +355,7 @@ function GroupsPage() {
                 key={group.id}
                 className={cn(
                   "border-border shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between overflow-hidden bg-card",
-                  group.status === "archived" && "opacity-75",
+                  (group.status === "archived" || group.status === "deleted") && "opacity-75",
                 )}
               >
                 <CardHeader className="pb-3">
@@ -273,69 +368,84 @@ function GroupsPage() {
                         {group.group_id}
                       </CardDescription>
                     </div>
-                    <span className="shrink-0 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase select-none">
-                      {group.status === "active" ? "Ativo" : "Arquivado"}
+                    <span className="shrink-0 bg-muted text-muted-foreground px-2 py-0.5 rounded text-[10px] font-extrabold uppercase select-none">
+                      {group.status === "active"
+                        ? "Ativo"
+                        : group.status === "deleted"
+                          ? "Excluído"
+                          : "Arquivado"}
                     </span>
                   </div>
                 </CardHeader>
                 <CardContent className="text-xs space-y-4 flex-1 flex flex-col justify-between">
                   <p className="text-muted-foreground line-clamp-2 min-h-8">
-                    {group.description || "Nenhuma descrição fornecida."}
+                    {group.description || "Sem descrição."}
                   </p>
 
                   <div className="space-y-2 pt-2 border-t border-border">
-                    {group.invite_link &&
-                      (() => {
-                        const inviteLink = group.invite_link;
-                        return (
-                          <div className="flex items-center justify-between bg-muted/65 p-2 rounded-lg gap-2">
-                            <span className="truncate text-muted-foreground select-none max-w-[190px]">
-                              {inviteLink}
-                            </span>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7 rounded-full shrink-0"
-                              onClick={() => handleCopyLink(group.id, inviteLink)}
-                            >
-                              {copiedGroupId === group.id ? (
-                                <Check className="h-3.5 w-3.5 text-success" />
-                              ) : (
-                                <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-                              )}
-                            </Button>
-                          </div>
-                        );
-                      })()}
-
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                      <span>Criado em:</span>
-                      <span className="font-semibold text-foreground">
-                        {group.created_at ? new Date(group.created_at).toLocaleDateString() : "-"}
-                      </span>
-                    </div>
+                    {group.invite_link ? (
+                      <div className="flex items-center justify-between bg-muted/65 p-2 rounded-lg gap-2">
+                        <span className="truncate text-muted-foreground select-none max-w-[190px]">
+                          {group.invite_link}
+                        </span>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 rounded-full shrink-0"
+                          onClick={() => handleCopyLink(group.id, group.invite_link as string)}
+                        >
+                          {copiedGroupId === group.id ? (
+                            <Check className="h-3.5 w-3.5 text-success" />
+                          ) : (
+                            <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                          )}
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground">
+                        Link de convite pendente (webhook group_lifecycle_update).
+                      </p>
+                    )}
                   </div>
                 </CardContent>
-                <div className="p-4 bg-muted/20 border-t border-border flex items-center justify-between gap-2 shrink-0">
+                <div className="p-4 bg-muted/20 border-t border-border flex flex-wrap items-center justify-between gap-2 shrink-0">
                   {group.status === "active" ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-destructive hover:bg-destructive/10 text-xs px-2.5 h-8 font-semibold"
-                      onClick={() => archiveMutation.mutate(group.id)}
-                      disabled={archiveMutation.isPending}
-                    >
-                      <Archive className="h-3.5 w-3.5 mr-1.5" /> Arquivar
-                    </Button>
+                    <div className="flex flex-wrap gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-xs px-2 h-8"
+                        onClick={() => resetMutation.mutate(group.id)}
+                        disabled={resetMutation.isPending}
+                      >
+                        <Link2 className="h-3.5 w-3.5 mr-1" /> Novo convite
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-xs px-2 h-8"
+                        onClick={() => archiveMutation.mutate(group.id)}
+                        disabled={archiveMutation.isPending}
+                      >
+                        <Archive className="h-3.5 w-3.5 mr-1" /> Arquivar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive hover:bg-destructive/10 text-xs px-2 h-8"
+                        onClick={() => deleteMutation.mutate(group.id)}
+                        disabled={deleteMutation.isPending}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Excluir
+                      </Button>
+                    </div>
                   ) : (
-                    <span className="text-xs text-muted-foreground italic pl-1">
-                      Grupo Arquivado
-                    </span>
+                    <span className="text-xs text-muted-foreground italic pl-1">Inativo</span>
                   )}
 
                   <Button
                     size="sm"
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3 h-8 font-semibold"
+                    className="text-xs px-3 h-8 font-semibold"
                     onClick={() =>
                       navigate({
                         to: "/chat",

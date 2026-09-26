@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Phone, PhoneOff, PhoneCall, Loader2 } from "lucide-react";
 import { manageCall } from "@/lib/profile.functions";
 import { toast } from "sonner";
+import { toWhatsAppSessionSdp, setWhatsAppCallSendersEnabled } from "@/components/calls/ActiveCallDialog";
+import { toFriendlyError } from "@/lib/meta-errors";
 
 export interface IncomingCallAcceptedPayload {
   peerConnection: RTCPeerConnection;
@@ -21,6 +23,7 @@ export interface IncomingCallAcceptedPayload {
   phoneId: string;
   contactName: string;
   contactPhone: string;
+  userInitiated?: boolean;
 }
 
 interface IncomingCallDialogProps {
@@ -144,13 +147,15 @@ export function IncomingCallDialog({
       playback.autoplay = true;
       playback.setAttribute("playsinline", "true");
       playback.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;";
-      playback.muted = false;
+      playback.muted = true;
       playback.volume = 1;
       document.body.appendChild(playback);
-      void playback.play().catch(() => {});
 
       // 1. Cria a conexão RTCPeerConnection
       const pc = new RTCPeerConnection({
+        iceCandidatePoolSize: 2,
+        bundlePolicy: "max-bundle",
+        rtcpMuxPolicy: "require",
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" },
           { urls: "stun:stun1.l.google.com:19302" },
@@ -170,14 +175,17 @@ export function IncomingCallDialog({
             autoGainControl: true,
           },
         });
-        stream.getAudioTracks().forEach((track) => {
-          track.enabled = true;
-          pc.addTrack(track, stream!);
-        });
+        const audioTrack = stream.getAudioTracks()[0];
+        if (audioTrack) {
+          audioTrack.enabled = false;
+          pc.addTrack(audioTrack, stream);
+        }
       } catch (micErr) {
         console.warn("[CALL] Não foi possível obter microfone, continuando com transceiver:", micErr);
         pc.addTransceiver("audio", { direction: "sendrecv" });
       }
+
+      setWhatsAppCallSendersEnabled(pc, false);
 
       pc.addEventListener("track", (event) => {
         const stream = event.streams?.[0] ?? new MediaStream([event.track]);
@@ -195,7 +203,10 @@ export function IncomingCallDialog({
 
         // 4. Cria a SDP Answer do navegador
         const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
+        await pc.setLocalDescription({
+          type: answer.type,
+          sdp: toWhatsAppSessionSdp(answer.sdp || ""),
+        });
 
         // 5. Aguarda gathering dos candidatos ICE
         await new Promise<void>((resolve) => {
@@ -217,32 +228,49 @@ export function IncomingCallDialog({
         });
 
         const localDesc = pc.localDescription || answer;
-
-        // 6. Envia o pre_accept com a SDP Answer para a Meta
-        if (localDesc?.sdp) {
-          await manageCallFn({
-            data: {
-              phoneId,
-              action: "pre_accept",
-              callId,
-              sdp: localDesc.sdp,
-              sdpType: "answer",
-            },
-          });
+        const answerSdp = toWhatsAppSessionSdp(localDesc?.sdp || "");
+        if (!answerSdp) {
+          throw new Error("Não foi possível gerar o SDP Answer para a Meta.");
         }
 
-        // 7. Envia a confirmação de aceitação da chamada (accept) para a Meta
-        await manageCallFn({
+        const preAcceptRes = await manageCallFn({
+          data: {
+            phoneId,
+            action: "pre_accept",
+            callId,
+            sdp: answerSdp,
+            sdpType: "answer",
+            opaqueCallbackData: callId.slice(0, 512),
+          },
+        });
+        if (!preAcceptRes.ok) {
+          console.warn("[CALL] pre_accept falhou, tentando accept com o mesmo SDP:", preAcceptRes.error);
+        }
+
+        const acceptRes = await manageCallFn({
           data: {
             phoneId,
             action: "accept",
             callId,
+            sdp: answerSdp,
+            sdpType: "answer",
+            opaqueCallbackData: callId.slice(0, 512),
           },
         });
+        if (!acceptRes.ok) {
+          const friendly = toFriendlyError(acceptRes.data ?? acceptRes.error, "A Meta recusou o accept da chamada.");
+          throw new Error([friendly.title, friendly.message, friendly.hint].filter(Boolean).join(" "));
+        }
+
+        setWhatsAppCallSendersEnabled(pc, true);
+        stream?.getAudioTracks().forEach((track) => {
+          track.enabled = true;
+        });
+        playback.muted = false;
+        void playback.play().catch(() => {});
 
         toast.success("Chamada atendida com sucesso!");
 
-        // 8. Notifica o componente pai para abrir o modal de chamada ativa
         if (onCallAccepted) {
           onCallAccepted({
             peerConnection: pc,
@@ -252,31 +280,15 @@ export function IncomingCallDialog({
             phoneId,
             contactName: contactName || contactPhone,
             contactPhone,
+            userInitiated: true,
           });
         }
         onOpenChange(false);
       } else {
-        // Se por algum motivo o sdpOffer não veio no evento inicial, envia o accept direto
-        await manageCallFn({
-          data: {
-            phoneId,
-            action: "accept",
-            callId,
-          },
-        });
-        toast.success("Chamada atendida!");
-        if (onCallAccepted) {
-          onCallAccepted({
-            peerConnection: pc,
-            localStream: stream ?? new MediaStream(),
-            remoteAudio: playback,
-            callId,
-            phoneId,
-            contactName: contactName || contactPhone,
-            contactPhone,
-          });
-        }
-        onOpenChange(false);
+        toast.error("Oferta SDP da Meta não chegou. Peça ao cliente para ligar de novo.");
+        playback.remove();
+        pc.close();
+        stream?.getTracks().forEach((track) => track.stop());
       }
     } catch (error: any) {
       remoteAudio?.remove();
@@ -314,6 +326,10 @@ export function IncomingCallDialog({
                   Chamada Recebida no WhatsApp
                 </Badge>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Ligacao iniciada pelo cliente: gratuita na Meta. Atender ou recusar ainda renova a
+                janela de 24h de mensagens.
+              </p>
               <h3 className="font-bold text-xl text-foreground font-display">
                 {contactName || contactPhone}
               </h3>

@@ -8,7 +8,7 @@ import { webhookQueue } from "@/lib/queue/webhook-queue";
 import { downloadAndPersistInboundMedia } from "@/lib/whatsapp-media-downloader";
 import { publishChatRealtimeEvent } from "@/lib/chat-realtime.server";
 import { insertWebhookEvent } from "@/lib/webhook-event-store.server";
-import { saveCall, type CallDirection, type CallStatus } from "@/lib/whatsapp-calls.functions";
+import { saveCall, getCallByWhatsAppId, type CallDirection, type CallStatus } from "@/lib/whatsapp-calls.functions";
 import { whatsappAdapter } from "@/lib/messaging/adapters/whatsapp.adapter";
 import { persistCanonicalEvents } from "@/lib/messaging/event-store.server";
 import { enqueueMessagingEvent } from "@/lib/queue/webhook-queue";
@@ -50,8 +50,13 @@ interface WebhookContact {
 
 interface WebhookMessageStatus {
   id?: string;
+  type?: string;
   status?: string;
   timestamp?: string;
+  recipient_id?: string;
+  recipient_user_id?: string;
+  recipient_parent_user_id?: string;
+  biz_opaque_callback_data?: string;
   errors?: JsonValue;
   pricing?: {
     billable?: boolean | null;
@@ -80,6 +85,12 @@ interface WebhookInteractiveMessage {
     name?: string;
     response_json?: string;
   };
+  call_permission_reply?: {
+    response?: string;
+    is_permanent?: boolean;
+    expiration_timestamp?: string;
+    response_source?: string;
+  };
 }
 
 interface WebhookCallEvent {
@@ -90,10 +101,59 @@ interface WebhookCallEvent {
   to?: string;
   timestamp?: string;
   from_user_id?: string;
+  from_parent_user_id?: string;
+  to_user_id?: string;
+  to_parent_user_id?: string;
+  biz_opaque_callback_data?: string;
+  status?: string;
+  start_time?: string;
+  end_time?: string;
+  duration?: number;
   session?: {
     sdp?: string;
     sdp_type?: string;
   };
+  connection?: {
+    webrtc?: {
+      sdp?: string;
+    };
+  };
+  cta_payload?: string;
+  deeplink_payload?: string;
+}
+
+export function extractCallSdp(call: WebhookCallEvent) {
+  const sessionSdp = call.session?.sdp?.trim();
+  const webrtcRaw = call.connection?.webrtc?.sdp?.trim();
+  let webrtcSdp = webrtcRaw;
+  let webrtcType: string | undefined;
+  if (webrtcRaw?.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(webrtcRaw) as { sdp?: unknown; type?: unknown };
+      webrtcSdp = typeof parsed.sdp === "string" ? parsed.sdp : webrtcRaw;
+      webrtcType = typeof parsed.type === "string" ? parsed.type : undefined;
+    } catch {
+      webrtcSdp = webrtcRaw;
+    }
+  }
+  return {
+    sdp: sessionSdp || webrtcSdp || undefined,
+    sdpType: call.session?.sdp_type || webrtcType,
+  };
+}
+
+export function resolveWhatsAppCallDirection(call: {
+  direction?: string;
+  event?: string;
+  session?: { sdp_type?: string };
+  connection?: { webrtc?: { sdp?: string } };
+}): CallDirection {
+  const raw = String(call.direction || "").toUpperCase();
+  if (raw === "USER_INITIATED" || raw === "INBOUND") return "inbound";
+  if (raw === "BUSINESS_INITIATED" || raw === "OUTBOUND") return "outbound";
+  const sdpType = String(extractCallSdp(call).sdpType || "").toLowerCase();
+  if (String(call.event || "").toLowerCase() === "connect" && sdpType === "offer") return "inbound";
+  return "outbound";
 }
 
 interface WebhookCallValue {
@@ -183,6 +243,13 @@ interface WebhookValue {
   calls?: WebhookCallEvent[];
   state_sync?: WebhookStateSyncItem[];
   history?: WebhookHistorySyncItem[];
+  errors?: Array<{
+    code?: number;
+    message?: string;
+    title?: string;
+    href?: string;
+    error_data?: { details?: string };
+  }>;
   message_template_id?: string;
   message_template_name?: string;
   message_template_language?: string;
@@ -423,12 +490,24 @@ function resolveDirectMessageContent(message: WebhookInboundMessage): ResolvedDi
     body = message.button?.text ?? "[Botão]";
     buttonPayload = message.button?.payload ?? "";
   } else if (message.type === "interactive") {
-    body =
-      message.interactive?.button_reply?.title ??
-      message.interactive?.list_reply?.title ??
-      "[Interação recebida]";
-    buttonPayload =
-      message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id ?? "";
+    if (message.interactive?.type === "call_permission_reply") {
+      const reply = message.interactive.call_permission_reply;
+      const accepted = String(reply?.response || "").toLowerCase() === "accept";
+      if (!accepted) {
+        body = "[Permissão para ligar recusada]";
+      } else if (reply?.is_permanent) {
+        body = "[Permissão permanente para ligar concedida]";
+      } else {
+        body = "[Permissão temporária para ligar concedida]";
+      }
+    } else {
+      body =
+        message.interactive?.button_reply?.title ??
+        message.interactive?.list_reply?.title ??
+        "[Interação recebida]";
+      buttonPayload =
+        message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id ?? "";
+    }
   } else if (message.type === "media_placeholder") {
     body = "[Mídia histórica sincronizada]";
     type = "text";
@@ -996,7 +1075,7 @@ export async function processInboundDirectMessages(value: WebhookValue | undefin
         }
       }
 
-      if (!isFlowReply) {
+      if (!isFlowReply && m.interactive?.type !== "call_permission_reply") {
         body =
           m.interactive?.button_reply?.title ??
           m.interactive?.list_reply?.title ??
@@ -1553,8 +1632,8 @@ async function handleWhatsAppGroupMessage(
   rawPayload: WebhookValue | undefined,
   phoneNumberId: string | null,
 ) {
-  if (process.env.WHATSAPP_GROUPS_ENABLED !== "true") {
-    logInfo("Mensagem de grupo ignorada pois WHATSAPP_GROUPS_ENABLED não é true");
+  if (process.env.WHATSAPP_GROUPS_ENABLED === "false") {
+    logInfo("Mensagem de grupo ignorada pois WHATSAPP_GROUPS_ENABLED=false");
     return;
   }
 
@@ -1600,6 +1679,7 @@ async function handleWhatsAppGroupMessage(
     await dbAdmin.from("contacts").insert({
       id: randomUUID(),
       user_id: userId,
+      tenant_id: userId,
       phone_e164: groupId,
       name: group.name,
       source: "whatsapp_group",
@@ -1775,8 +1855,13 @@ export async function processAccountUpdate(value: WebhookValue | undefined, user
 }
 
 export async function processCallEvents(value: WebhookValue | undefined, userId: string) {
-  const calls = value?.calls;
-  if (!calls || calls.length === 0) return;
+  const calls = value?.calls ?? [];
+  const callStatuses = (value?.statuses ?? []).filter((item) => {
+    const type = String(item.type || "").toLowerCase();
+    const id = String(item.id || "");
+    return type === "call" || id.startsWith("wacid.");
+  });
+  if (calls.length === 0 && callStatuses.length === 0) return;
 
   const metadata = value?.metadata;
   const waContacts = value?.contacts ?? [];
@@ -1784,14 +1869,14 @@ export async function processCallEvents(value: WebhookValue | undefined, userId:
 
   for (const call of calls) {
     const callId = call.id || "";
-    const rawDirection = String(call.direction || "").toUpperCase();
-    const direction: CallDirection =
-      rawDirection === "USER_INITIATED" || rawDirection === "INBOUND" ? "inbound" : "outbound";
     const event = String(call.event || "").toLowerCase();
+    const direction = resolveWhatsAppCallDirection(call);
     const rawFrom = call.from || primaryContact?.wa_id || "";
     const rawTo = call.to || metadata?.display_phone_number || "";
-    const phoneDigits = normalizePhoneDigits(direction === "inbound" ? rawFrom : rawTo);
-    const phoneNumberId = metadata?.phone_number_id || (direction === "outbound" ? rawFrom : rawTo);
+    const phoneDigits = normalizePhoneDigits(
+      direction === "inbound" ? rawFrom || primaryContact?.wa_id || "" : rawTo,
+    );
+    const phoneNumberId = metadata?.phone_number_id || "";
     const contactName = primaryContact?.profile?.name || null;
 
     logInfo("[CALL] Webhook de chamada recebido", {
@@ -1806,12 +1891,27 @@ export async function processCallEvents(value: WebhookValue | undefined, userId:
 
     if (!callId) continue;
 
+    const existingCall = await getCallByWhatsAppId(callId).catch(() => null);
+    const alreadyTerminal =
+      existingCall &&
+      (existingCall.status === "ended" ||
+        existingCall.status === "rejected" ||
+        existingCall.status === "failed");
+    const eventAgeSec = Number(call.timestamp || 0);
+    const staleConnect =
+      event === "connect" &&
+      eventAgeSec > 0 &&
+      Date.now() / 1000 - eventAgeSec > 120;
+
     // Mapeia o evento da Meta para o status do sistema
-    let status: CallStatus = "incoming";
+    let status: CallStatus = direction === "inbound" ? "incoming" : "connecting";
     let messageBody = "[Chamada de voz]";
     if (event === "connect") {
-      status = "incoming";
+      status = direction === "inbound" ? "incoming" : "connecting";
       messageBody = direction === "inbound" ? "[Chamada de voz recebida]" : "[Chamada de voz iniciada]";
+    } else if (event === "call_created") {
+      status = "connecting";
+      messageBody = "[Chamada SIP registrada]";
     } else if (event === "pre_accept" || event === "ringing") {
       status = "ringing";
       messageBody = "[Chamada de voz tocando]";
@@ -1822,30 +1922,60 @@ export async function processCallEvents(value: WebhookValue | undefined, userId:
       status = "rejected";
       messageBody = "[Chamada de voz recusada]";
     } else if (event === "terminate" || event === "ended") {
-      status = "ended";
-      messageBody = "[Chamada de voz encerrada]";
+      const terminateError = value?.errors?.[0];
+      const failed = String(call.status || "").toUpperCase() === "FAILED" || Boolean(terminateError);
+      status = failed ? "failed" : "ended";
+      if (terminateError?.code) {
+        messageBody = `[Chamada encerrada — Meta ${terminateError.code}]`;
+      } else {
+        messageBody = failed ? "[Chamada de voz falhou]" : "[Chamada de voz encerrada]";
+      }
     } else if (event === "failed") {
       status = "failed";
       messageBody = "[Chamada de voz falhou]";
     }
 
-    // Transmite o sinal da chamada e o SDP Answer/Offer em tempo real para a interface
+    if (event === "connect" && alreadyTerminal && existingCall) {
+      status = existingCall.status;
+      messageBody = "[Chamada ja encerrada (webhook duplicado ou fora de ordem)]";
+    } else if (event === "connect" && staleConnect) {
+      status = direction === "inbound" ? "connecting" : "connecting";
+      messageBody = "[Chamada connect atrasada (webhook stale)]";
+    }
+
+    const skipIncomingRing = event === "connect" && (Boolean(alreadyTerminal) || staleConnect);
+
+    const { sdp: extractedSdp, sdpType: extractedSdpType } = extractCallSdp(call);
+    const sdpType =
+      extractedSdpType ||
+      (event === "connect" && direction === "inbound" ? "offer" : event === "connect" ? "answer" : extractedSdpType);
+
+    if (!skipIncomingRing) {
     try {
       await publishChatRealtimeEvent({
         type: "call.signal",
         tenant_id: userId,
-        contact_phone: phoneDigits,
+        contact_phone: phoneDigits || call.from_user_id || primaryContact?.user_id || "",
         contact_name: contactName || primaryContact?.profile?.name || rawFrom,
         phone_number_id: phoneNumberId || metadata?.phone_number_id,
         direction,
         call_id: callId,
         call_event: event,
-        sdp: call.session?.sdp,
-        sdp_type: call.session?.sdp_type || (event === "connect" && direction === "inbound" ? "offer" : "answer"),
+        sdp: extractedSdp,
+        sdp_type: sdpType,
         status,
+        cta_payload: call.cta_payload || null,
+        deeplink_payload: call.deeplink_payload || null,
+        error_code: value?.errors?.[0]?.code ?? null,
+        error_message:
+          value?.errors?.[0]?.error_data?.details ||
+          value?.errors?.[0]?.message ||
+          value?.errors?.[0]?.title ||
+          null,
       });
     } catch (realtimeErr) {
       logError("[CALL] Erro ao publicar evento realtime da chamada", realtimeErr);
+    }
     }
 
     // 1. Garante que o contato existe na tabela contacts
@@ -1857,7 +1987,7 @@ export async function processCallEvents(value: WebhookValue | undefined, userId:
           phoneDigits,
           contactName,
           source: "whatsapp_call",
-          markUnread: event === "connect",
+          markUnread: event === "connect" && !skipIncomingRing,
           phoneNumberId: metadata?.phone_number_id,
           displayPhoneNumber: metadata?.display_phone_number,
           waId: primaryContact?.wa_id || (direction === "inbound" ? rawFrom : rawTo),
@@ -1904,6 +2034,7 @@ export async function processCallEvents(value: WebhookValue | undefined, userId:
         whatsappCallId: callId,
         direction,
         status,
+        durationSeconds: typeof call.duration === "number" ? call.duration : null,
       });
     } catch (saveCallErr: unknown) {
       logError("[CALL] Falha ao salvar chamada na tabela whatsapp_calls", saveCallErr);
@@ -1943,6 +2074,8 @@ export async function processCallEvents(value: WebhookValue | undefined, userId:
               timestamp: call.timestamp || null,
               session: call.session || null,
               from_user_id: call.from_user_id || null,
+              cta_payload: call.cta_payload || null,
+              deeplink_payload: call.deeplink_payload || null,
             },
             raw_payload: call as any,
           });
@@ -1959,6 +2092,162 @@ export async function processCallEvents(value: WebhookValue | undefined, userId:
         }
       } catch (msgErr: unknown) {
         logError("[CALL] Falha ao registrar mensagem de chamada no direct_messages", msgErr);
+      }
+    }
+  }
+
+  for (const item of callStatuses) {
+    const callId = item.id || "";
+    if (!callId) continue;
+    const rawStatus = String(item.status || "").toUpperCase();
+    let status: CallStatus = "connecting";
+    if (rawStatus === "RINGING") status = "ringing";
+    else if (rawStatus === "ACCEPTED") status = "active";
+    else if (rawStatus === "REJECTED") status = "rejected";
+    else if (rawStatus === "FAILED") status = "failed";
+
+    const phoneDigits = normalizePhoneDigits(item.recipient_id || primaryContact?.wa_id || "");
+    try {
+      await publishChatRealtimeEvent({
+        type: "call.signal",
+        tenant_id: userId,
+        contact_phone: phoneDigits,
+        contact_name: primaryContact?.profile?.name || item.recipient_id,
+        phone_number_id: metadata?.phone_number_id,
+        direction: "outbound",
+        call_id: callId,
+        call_event: rawStatus.toLowerCase(),
+        status,
+      });
+    } catch (realtimeErr) {
+      logError("[CALL] Erro ao publicar status realtime da chamada", realtimeErr);
+    }
+
+    try {
+      await saveCall({
+        tenantId: userId,
+        chatSessionId: null,
+        contactId: null,
+        phoneNumberId: metadata?.phone_number_id || "",
+        whatsappCallId: callId,
+        direction: "outbound",
+        status,
+      });
+    } catch (saveCallErr: unknown) {
+      logError("[CALL] Falha ao atualizar status da chamada", saveCallErr);
+    }
+
+    if (rawStatus === "ACCEPTED" && phoneDigits) {
+      try {
+        const windowWaId = `${callId}_cs_window`;
+        const { data: existingWindow } = await dbAdmin
+          .from("direct_messages")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("wa_message_id", windowWaId)
+          .maybeSingle();
+        if (!existingWindow?.id) {
+          await dbAdmin.from("direct_messages").insert({
+            id: randomUUID(),
+            tenant_id: userId,
+            user_id: userId,
+            contact_phone: phoneDigits,
+            direction: "incoming",
+            type: "text",
+            body: "[Janela de 24h renovada: o cliente atendeu a ligacao]",
+            wa_message_id: windowWaId,
+            status: "delivered",
+            channel: "whatsapp",
+            provider_account_id: metadata?.phone_number_id || null,
+            metadata: { call_id: callId, event: "accepted", customer_service_window: true },
+            raw_payload: item as any,
+          });
+        }
+      } catch (windowErr: unknown) {
+        logError("[CALL] Falha ao registrar renovacao da janela de 24h", windowErr);
+      }
+    }
+  }
+}
+
+async function processGroupMetadataUpdate(
+  field: string,
+  value: WebhookValue | undefined,
+  userId: string,
+) {
+  if (process.env.WHATSAPP_GROUPS_ENABLED === "false") return;
+  const raw = (value || {}) as Record<string, unknown>;
+  const groups = Array.isArray(raw.groups)
+    ? raw.groups
+    : raw.group
+      ? [raw.group]
+      : raw.id
+        ? [raw]
+        : [];
+  for (const item of groups) {
+    if (!item || typeof item !== "object") continue;
+    const g = item as Record<string, unknown>;
+    const groupId = String(g.id || g.group_id || "");
+    if (!groupId) continue;
+    const subject = typeof g.subject === "string" ? g.subject : null;
+    const description = typeof g.description === "string" ? g.description : null;
+    const inviteLink = typeof g.invite_link === "string" ? g.invite_link : null;
+    const event = String(g.event || g.type || field);
+    const status =
+      event.includes("delete") || event.includes("suspend") ? "deleted" : "active";
+
+    const { data: existing } = await dbAdmin
+      .from("whatsapp_groups")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("group_id", groupId)
+      .maybeSingle();
+
+    if (existing?.id) {
+      await dbAdmin
+        .from("whatsapp_groups")
+        .update({
+          ...(subject ? { name: subject } : {}),
+          ...(description ? { description } : {}),
+          ...(inviteLink ? { invite_link: inviteLink } : {}),
+          status,
+        })
+        .eq("id", existing.id)
+        .eq("user_id", userId);
+    } else if (status === "active") {
+      await dbAdmin.from("whatsapp_groups").insert({
+        id: randomUUID(),
+        user_id: userId,
+        group_id: groupId,
+        name: subject || "Grupo WhatsApp",
+        description,
+        invite_link: inviteLink,
+        status: "active",
+      });
+    }
+
+    if (field === "group_participants_update") {
+      const participants = Array.isArray(g.participants) ? g.participants : [];
+      for (const part of participants) {
+        if (!part || typeof part !== "object") continue;
+        const waId = String((part as { wa_id?: string }).wa_id || "");
+        if (!waId) continue;
+        const { data: existingP } = await dbAdmin
+          .from("whatsapp_group_participants")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("group_id", groupId)
+          .eq("wa_id", waId)
+          .maybeSingle();
+        if (!existingP) {
+          await dbAdmin.from("whatsapp_group_participants").insert({
+            id: randomUUID(),
+            user_id: userId,
+            group_id: groupId,
+            wa_id: waId,
+            status: "active",
+          });
+        }
       }
     }
   }
@@ -1991,6 +2280,13 @@ export async function processMetaWebhookEvent(entry: any[], userId: string) {
         await processAccountUpdate(change.value, userId);
       } else if (change.field === "calls") {
         await processCallEvents(change.value, userId);
+      } else if (
+        change.field === "group_lifecycle_update" ||
+        change.field === "group_participants_update" ||
+        change.field === "group_settings_update" ||
+        change.field === "group_status_update"
+      ) {
+        await processGroupMetadataUpdate(change.field, change.value, userId);
       }
     }
   }

@@ -22,6 +22,10 @@ export type MetaBillingTotals = {
   free_messages: number;
   cost: number;
   cost_available: boolean;
+  calls_completed: number;
+  calls_cost: number;
+  calls_avg_duration: number;
+  call_analytics_available: boolean;
   by_conversation_category: MetaBillingCategoryRow[];
   by_pricing_category: MetaPricingCategoryRow[];
 };
@@ -51,6 +55,7 @@ export function aggregateMetaBillingAnalytics(graphBody: {
   analytics?: unknown;
   conversation_analytics?: unknown;
   pricing_analytics?: unknown;
+  call_analytics?: unknown;
 }): MetaBillingTotals {
   const messagePoints = flattenMetaDataPoints(graphBody.analytics);
   let sent = 0;
@@ -108,6 +113,24 @@ export function aggregateMetaBillingAnalytics(graphBody: {
     priceMap.set(key, row);
   }
 
+  const callPoints = flattenMetaDataPoints(graphBody.call_analytics);
+  let callsCompleted = 0;
+  let callsCost = 0;
+  let callsDurationWeighted = 0;
+  let callAnalyticsAvailable = callPoints.length > 0;
+  for (const p of callPoints) {
+    const completed = num(p.completed ?? p.calls ?? p.count ?? p.call);
+    const cost = num(p.cost);
+    const avg = num(p.average_duration ?? p.avg_duration ?? p.duration);
+    callsCompleted += completed;
+    callsCost += cost;
+    if (avg > 0 && completed > 0) callsDurationWeighted += avg * completed;
+    else if (avg > 0) callsDurationWeighted += avg;
+    if (p.cost !== undefined && p.cost !== null) callAnalyticsAvailable = true;
+  }
+  const callsAvgDuration =
+    callsCompleted > 0 && callsDurationWeighted > 0 ? callsDurationWeighted / callsCompleted : 0;
+
   const cost = priceCostSeen ? priceCost : convCost;
   const costAvailable = priceCostSeen || convCostSeen;
 
@@ -121,6 +144,10 @@ export function aggregateMetaBillingAnalytics(graphBody: {
     free_messages: freeMessages,
     cost,
     cost_available: costAvailable,
+    calls_completed: callsCompleted,
+    calls_cost: callsCost,
+    calls_avg_duration: callsAvgDuration,
+    call_analytics_available: callAnalyticsAvailable,
     by_conversation_category: [...convMap.values()].sort((a, b) => b.conversations - a.conversations),
     by_pricing_category: [...priceMap.values()].sort((a, b) => b.volume - a.volume),
   };

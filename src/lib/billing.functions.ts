@@ -38,7 +38,19 @@ async function fetchWabaAnalytics(params: {
     `${base}?fields=${encodeURIComponent(combinedFields)}`,
     params.accessToken,
   );
-  if (combined.ok) return { ok: true, body: combined.body };
+
+  const callAnalytics = await graphGet(
+    `${base}?fields=${encodeURIComponent(`call_analytics.start(${params.start}).end(${params.end}).granularity(MONTHLY)`)}`,
+    params.accessToken,
+  );
+  const callField =
+    callAnalytics.ok && callAnalytics.body?.call_analytics
+      ? { call_analytics: callAnalytics.body.call_analytics }
+      : {};
+
+  if (combined.ok) {
+    return { ok: true, body: { ...combined.body, ...callField } };
+  }
 
   const parts = await Promise.all([
     graphGet(`${base}?fields=name,currency`, params.accessToken),
@@ -55,7 +67,7 @@ async function fetchWabaAnalytics(params: {
       params.accessToken,
     ),
   ]);
-  const merged: Record<string, unknown> = {};
+  const merged: Record<string, unknown> = { ...callField };
   if (parts[0].ok) {
     if (parts[0].body?.name) merged.name = parts[0].body.name;
     if (parts[0].body?.currency) merged.currency = parts[0].body.currency;
@@ -67,7 +79,12 @@ async function fetchWabaAnalytics(params: {
   if (parts[3].ok && parts[3].body?.pricing_analytics) {
     merged.pricing_analytics = parts[3].body.pricing_analytics;
   }
-  if (merged.conversation_analytics || merged.pricing_analytics || merged.analytics) {
+  if (
+    merged.conversation_analytics ||
+    merged.pricing_analytics ||
+    merged.analytics ||
+    merged.call_analytics
+  ) {
     return { ok: true, body: merged };
   }
   return { ok: false, error: combined.body };

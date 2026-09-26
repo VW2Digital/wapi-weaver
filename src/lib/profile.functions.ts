@@ -20,6 +20,41 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+export function parseWhatsAppCallPermissionsResponse(body: unknown) {
+  const root = asRecord(body) || {};
+  const firstData = Array.isArray(root.data) ? asRecord(root.data[0]) : null;
+  const permission = asRecord(root.permission) || firstData || {};
+  const status = String(permission.status || root.status || "no_permission").toLowerCase();
+  const actionsRaw = (Array.isArray(root.actions) ? root.actions : null)
+    || (Array.isArray(permission.available_actions) ? permission.available_actions : null)
+    || (Array.isArray(root.available_actions) ? root.available_actions : [])
+    || [];
+  const actions = actionsRaw as Array<Record<string, unknown>>;
+  const findAction = (name: string) =>
+    actions.find((item) => String(item.action_name || item.action || "") === name);
+  const startCall = findAction("start_call");
+  const sendRequest = findAction("send_call_permission_request");
+  const isGranted = status === "temporary" || status === "permanent" || status === "granted" || status === "approved" || status === "active";
+  const expirationRaw = permission.expiration_time ?? permission.expiration;
+  const expiration_time =
+    typeof expirationRaw === "number"
+      ? expirationRaw
+      : typeof expirationRaw === "string" && expirationRaw
+        ? Number(expirationRaw)
+        : null;
+  return {
+    is_granted: isGranted,
+    status,
+    expiration_time: Number.isFinite(expiration_time) ? expiration_time : null,
+    can_start_call: startCall ? startCall.can_perform_action !== false : isGranted,
+    can_send_request: sendRequest ? sendRequest.can_perform_action !== false : !isGranted,
+    available_actions: actions.map((item) => ({
+      action_name: String(item.action_name || item.action || ""),
+      can_perform_action: item.can_perform_action !== false,
+    })),
+  };
+}
+
 function getStringField(source: Record<string, unknown> | null, key: string) {
   const value = source?.[key];
   return typeof value === "string" ? value : undefined;
@@ -1273,48 +1308,34 @@ export const checkCallPermissions = createServerFn({ method: "POST" })
           continue;
         }
 
-        const permData = body?.data?.[0];
-        const status = String(permData?.status || body?.status || "").toLowerCase();
-        const availableActions = permData?.available_actions || body?.available_actions || [];
-        const hasStartCallAction = availableActions.some(
-          (a: any) =>
-            a.action === "start_call" && (a.can_perform_action === undefined || a.can_perform_action === true),
-        );
-
-        const isGranted =
-          status === "granted" ||
-          status === "temporary" ||
-          status === "active" ||
-          status === "approved" ||
-          hasStartCallAction;
-
-        if (isGranted) {
+        const parsed = parseWhatsAppCallPermissionsResponse(body);
+        if (parsed.is_granted) {
           return {
             ok: true,
             data: {
-              is_granted: true,
-              status,
+              ...parsed,
               target_phone: phoneCandidate,
-              available_actions: availableActions,
               raw: body,
+              error_message: null as string | null,
             },
           };
         }
+
+        lastError = parsed.status || lastError;
       } catch (err: any) {
         lastError = err?.message || lastError;
       }
     }
 
-    // Se nenhuma variação retornou status de permissão ativa, retorna o último resultado com is_granted: false
+    const parsedLast = parseWhatsAppCallPermissionsResponse(lastBody);
     return {
       ok: true,
       data: {
+        ...parsedLast,
         is_granted: false,
-        status: lastBody?.data?.[0]?.status || lastBody?.status || "no_permission",
         target_phone: cleanDigits,
-        available_actions: lastBody?.data?.[0]?.available_actions || lastBody?.available_actions || [],
         raw: lastBody,
-        error_message: lastError,
+        error_message: lastError as string | null,
       },
     };
   });
@@ -1374,6 +1395,107 @@ export const sendCallPermissionRequest = createServerFn({ method: "POST" })
     return { ok: true, data: body };
   });
 
+export const sendVoiceCallButtonMessage = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) =>
+    z
+      .object({
+        phoneId: z.string().trim().min(5),
+        to: z.string().trim().min(5),
+        bodyText: z.string().optional(),
+        displayText: z.string().trim().max(20).optional(),
+        ttlMinutes: z.number().int().min(1).max(43200).optional(),
+        payload: z.string().trim().max(512).optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: p } = await context.db
+      .from("profiles")
+      .select("whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    if (!p?.whatsapp_access_token) {
+      return { ok: false, error: "Access Token não configurado." };
+    }
+
+    const apiVersion = p.meta_graph_version || "v26.0";
+    const interactivePayload = {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: data.to.replace(/\D/g, ""),
+      type: "interactive",
+      interactive: {
+        type: "voice_call",
+        body: {
+          text:
+            data.bodyText ||
+            "Voce pode ligar no WhatsApp agora para um atendimento mais rapido.",
+        },
+        action: {
+          name: "voice_call",
+          parameters: {
+            display_text: data.displayText || "Ligar agora",
+            ttl_minutes: data.ttlMinutes ?? 10080,
+            payload: data.payload || data.to.replace(/\D/g, ""),
+          },
+        },
+      },
+    };
+
+    const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.phoneId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${p.whatsapp_access_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(interactivePayload),
+    });
+
+    const body = await r.json();
+    if (!r.ok) {
+      return { ok: false, error: body?.error?.message ?? "Falha ao enviar botao de chamada", data: body };
+    }
+    return { ok: true, data: body };
+  });
+
+export const getWhatsAppCallDeepLink = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((d) => z.object({ phoneId: z.string().trim().min(5) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: p } = await context.db
+      .from("profiles")
+      .select("whatsapp_access_token, meta_graph_version")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    if (!p?.whatsapp_access_token) {
+      return { ok: false, error: "Access Token não configurado." };
+    }
+
+    const apiVersion = p.meta_graph_version || "v26.0";
+    const r = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${data.phoneId}?fields=display_phone_number`,
+      { headers: { Authorization: `Bearer ${p.whatsapp_access_token}` } },
+    );
+    const body = await r.json();
+    if (!r.ok) {
+      return { ok: false, error: body?.error?.message ?? "Falha ao obter numero do negocio" };
+    }
+    const digits = String(body?.display_phone_number || "").replace(/\D/g, "");
+    if (!digits) {
+      return { ok: false, error: "Numero de exibicao do WhatsApp nao encontrado." };
+    }
+    return {
+      ok: true,
+      data: {
+        display_phone_number: digits,
+        url: `https://wa.me/call/${digits}`,
+      },
+    };
+  });
+
 export const checkCallingEligibility = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) => z.object({ phoneId: z.string().trim().min(5) }).parse(d))
@@ -1413,6 +1535,7 @@ export const checkCallingEligibility = createServerFn({ method: "POST" })
     // Verificar se Calling está habilitado
     const callingSettings = settingsBody?.calling || {};
     const isCallingEnabled = callingSettings.status === "ENABLED";
+    const isSipEnabled = callingSettings.sip?.status === "ENABLED";
     
     // Verificar subscrição do webhook calls
     const subscriptionsResponse = await fetch(
@@ -1438,6 +1561,7 @@ export const checkCallingEligibility = createServerFn({ method: "POST" })
         waba_id: p.whatsapp_waba_id,
         graph_api_version: apiVersion,
         calling_enabled: isCallingEnabled,
+        sip_enabled: isSipEnabled,
         calls_webhook_subscribed: isCallsWebhookSubscribed,
         call_settings: callingSettings,
       },
@@ -1465,6 +1589,9 @@ export const enableCallingAPI = createServerFn({ method: "POST" })
         status: "ENABLED",
         call_icon_visibility: "DEFAULT",
         callback_permission_status: "ENABLED",
+        sip: {
+          status: "DISABLED",
+        },
       },
     };
 
@@ -1496,6 +1623,7 @@ export const manageCall = createServerFn({ method: "POST" })
         callId: z.string().trim().optional(),
         sdp: z.string().trim().optional(),
         sdpType: z.string().trim().optional(),
+        opaqueCallbackData: z.string().trim().max(512).optional(),
       })
       .parse(d),
   )
@@ -1511,7 +1639,16 @@ export const manageCall = createServerFn({ method: "POST" })
     }
 
     const apiVersion = p.meta_graph_version || "v26.0";
-    
+    const sessionSdp = data.sdp
+      ? data.sdp.replace(/\r\n/g, "\n").replace(/\n/g, "\r\n")
+      : undefined;
+    if (sessionSdp && !/a=fingerprint:/i.test(sessionSdp)) {
+      return {
+        ok: false,
+        error: "SDP sem a=fingerprint (DTLS). A Meta recusa a chamada com 'No fingerprint found in SDP'.",
+      };
+    }
+
     // Ações de gerenciamento de chamada ativa/recebida (terminate, accept, reject, pre_accept)
     if (data.action !== "connect") {
       let effectiveCallId = data.callId;
@@ -1543,11 +1680,14 @@ export const manageCall = createServerFn({ method: "POST" })
       if (effectiveCallId) {
         payload.call_id = effectiveCallId;
       }
-      if (data.sdp) {
+      if (sessionSdp) {
         payload.session = {
-          sdp_type: data.sdpType || (data.action === "accept" ? "answer" : "offer"),
-          sdp: data.sdp,
+          sdp_type: data.sdpType || "answer",
+          sdp: sessionSdp,
         };
+      }
+      if (data.opaqueCallbackData) {
+        payload.biz_opaque_callback_data = data.opaqueCallbackData.slice(0, 512);
       }
 
       console.log(`[CALL API] Disparando ${data.action} para a Meta:`, { phoneId: data.phoneId, payload });
@@ -1628,11 +1768,14 @@ export const manageCall = createServerFn({ method: "POST" })
         action: "connect",
       };
       if (targetPhone) payload.to = targetPhone;
-      if (data.sdp) {
+      if (sessionSdp) {
         payload.session = {
           sdp_type: data.sdpType || "offer",
-          sdp: data.sdp,
+          sdp: sessionSdp,
         };
+      }
+      if (data.opaqueCallbackData) {
+        payload.biz_opaque_callback_data = data.opaqueCallbackData.slice(0, 512);
       }
 
       try {
@@ -2003,13 +2146,21 @@ export const updatePhoneSettings = createServerFn({ method: "POST" })
     }
 
     const apiVersion = p.meta_graph_version || "v26.0";
+    const payload = data.payload && typeof data.payload === "object" ? { ...data.payload } : data.payload;
+    if (payload?.calling && typeof payload.calling === "object") {
+      payload.calling = {
+        ...payload.calling,
+        sip: { status: "DISABLED" },
+      };
+    }
+
     const r = await fetch(`https://graph.facebook.com/${apiVersion}/${data.phoneId}/settings`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${p.whatsapp_access_token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(data.payload),
+      body: JSON.stringify(payload),
     });
 
     const body = await r.json();

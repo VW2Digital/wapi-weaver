@@ -29,6 +29,10 @@ export interface ChatRealtimeEvent {
   call_event?: string | null;
   sdp?: string | null;
   sdp_type?: string | null;
+  cta_payload?: string | null;
+  deeplink_payload?: string | null;
+  error_code?: number | string | null;
+  error_message?: string | null;
   occurred_at?: string;
 }
 

@@ -75,5 +75,19 @@ describe("aggregateMetaBillingAnalytics", () => {
     expect(totals.cost_available).toBe(false);
     expect(totals.by_conversation_category).toHaveLength(0);
     expect(totals.by_pricing_category).toHaveLength(0);
+    expect(totals.calls_completed).toBe(0);
+    expect(totals.call_analytics_available).toBe(false);
+  });
+
+  it("reads call_analytics totals without inventing rate cards", () => {
+    const totals = aggregateMetaBillingAnalytics({
+      call_analytics: {
+        data_points: [{ completed: 4, cost: 1.2, average_duration: 30 }],
+      },
+    });
+    expect(totals.calls_completed).toBe(4);
+    expect(totals.calls_cost).toBe(1.2);
+    expect(totals.calls_avg_duration).toBe(30);
+    expect(totals.call_analytics_available).toBe(true);
   });
 });

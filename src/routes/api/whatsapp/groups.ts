@@ -5,6 +5,9 @@ import {
   getWhatsAppGroupDetails,
   sendGroupMessage,
   archiveWhatsAppGroup,
+  deleteWhatsAppGroup,
+  resetWhatsAppGroupInviteLink,
+  syncWhatsAppGroupsFromMeta,
 } from "@/lib/groups.functions";
 
 export const Route = createFileRoute("/api/whatsapp/groups")({
@@ -93,9 +96,38 @@ export const Route = createFileRoute("/api/whatsapp/groups")({
             return Response.json(result);
           }
 
+          if (pathParts.length > 4 && pathParts[4] === "invite_link") {
+            const groupId = pathParts[3];
+            const result = await resetWhatsAppGroupInviteLink({
+              data: { id: groupId },
+              headers: request.headers,
+            });
+            return Response.json(result);
+          }
+
+          if (pathParts.length > 4 && pathParts[4] === "delete") {
+            const groupId = pathParts[3];
+            const result = await deleteWhatsAppGroup({
+              data: { id: groupId },
+              headers: request.headers,
+            });
+            return Response.json(result);
+          }
+
+          if (pathParts[3] === "sync") {
+            const result = await syncWhatsAppGroupsFromMeta({
+              headers: request.headers,
+            });
+            return Response.json(result);
+          }
+
           // POST /api/whatsapp/groups
           const result = await createWhatsAppGroup({
-            data: { name: body.name || "", description: body.description },
+            data: {
+              name: body.name || body.subject || "",
+              description: body.description,
+              join_approval_mode: body.join_approval_mode,
+            },
             headers: request.headers,
           });
           return Response.json(result);

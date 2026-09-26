@@ -40,6 +40,15 @@ export function toFriendlyError(
   const message: string = meta.message || (typeof raw === "string" ? raw : fallback);
   const blob = [message, userTitle, userMsg, detailsText].filter(Boolean).join(" ");
   const lowerEarly = blob.toLowerCase();
+  const callingMapped = mapWhatsAppCallingError({
+    code,
+    message,
+    detailsText,
+    type,
+    trace,
+    lower: lowerEarly,
+  });
+  if (callingMapped) return callingMapped;
 
   // Heurística prioritária: "Object with ID ... does not exist" vem como code 100 da Meta,
   // mas precisa de mensagem específica antes do mapeamento genérico de código.
@@ -303,6 +312,185 @@ export function toFriendlyError(
     type,
     trace,
   };
+}
+
+function callingNumericCode(code: unknown): number | null {
+  if (typeof code === "number" && Number.isFinite(code)) return code;
+  const raw = String(code ?? "").trim();
+  if (!raw) return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** Códigos oficiais: WhatsApp Calling API troubleshooting (Graph + webhooks de término). */
+export function mapWhatsAppCallingError(input: {
+  code?: unknown;
+  message?: string;
+  detailsText?: string;
+  type?: unknown;
+  trace?: unknown;
+  lower?: string;
+}): FriendlyError | null {
+  const numeric = callingNumericCode(input.code);
+  const type = input.type as string | undefined;
+  const trace = input.trace as string | undefined;
+  const detailsText = input.detailsText || "";
+  const message = input.message || "";
+  const lower = (input.lower || `${message} ${detailsText}`).toLowerCase();
+
+  const pack = (title: string, body: string, hint?: string, code: number | string | undefined = numeric ?? undefined): FriendlyError => ({
+    title,
+    message: body,
+    hint,
+    code,
+    type,
+    trace,
+  });
+
+  if (numeric === 100 && /sdp|ice|session description/i.test(`${message} ${detailsText}`)) {
+    return pack(
+      "Parametro de chamada invalido",
+      message || "A Meta rejeitou o SDP ou um parametro da Calling API.",
+      detailsText || "Revise o SDP (RFC 8866, Opus 48 kHz, ptime 20). Codigo 100.",
+    );
+  }
+
+  switch (numeric) {
+    case 613:
+      return pack(
+        "Limite de consulta de permissao",
+        "Muitas consultas a call_permissions neste segundo (maximo 5).",
+        "Aguarde e tente de novo. Codigo 613.",
+      );
+    case 131009:
+      return pack(
+        "Botao voice_call nao suportado",
+        "Este numero nao pode enviar mensagem interativa voice_call.",
+        "Confirme se o pais do remetente esta na lista da Calling API. Codigo 131009.",
+      );
+    case 131030:
+      return pack(
+        "Destinatario fora da lista de teste",
+        "Numero de teste publico: o destinatario nao esta na allowlist da Meta.",
+        "Adicione o numero em API Setup e tente de novo. Codigo 131030.",
+      );
+    case 138000:
+      return pack(
+        "Calling API desligada neste numero",
+        "As APIs de ligacao nao estao habilitadas neste Phone Number ID.",
+        "Abra Configuracoes do telefone, ligue Chamadas de voz e salve (SIP desligado). Codigo 138000.",
+      );
+    case 138001:
+      return pack(
+        "Destinatario nao pode receber ligacao",
+        "O numero nao e WhatsApp, o cliente nao aceitou os termos, ou o app nao e Android/iOS suportado.",
+        "Peca para atualizar o WhatsApp e confirmar que aceita contato. Codigo 138001.",
+      );
+    case 138002:
+      return pack("Limite de chamadas simultaneas", "Este numero atingiu 1000 chamadas concorrentes.", "Tente mais tarde. Codigo 138002.");
+    case 138003:
+      return pack("Chamada duplicada", "Ja existe uma chamada em andamento com este contato.", "Encerrar a atual e tentar de novo. Codigo 138003.");
+    case 138004:
+      return pack(
+        "Erro de conexao da chamada",
+        message || "A Meta nao conseguiu conectar a chamada.",
+        detailsText || "Revise SDP/ICE e tente de novo. Codigo 138004.",
+      );
+    case 138005:
+      return pack("Limite de iniciacao de chamadas", "Este numero iniciou chamadas demais.", "Reduza a frequencia. Codigo 138005.");
+    case 138006:
+      return pack(
+        "Sem permissao de ligacao",
+        "O cliente nao aprovou permissao temporaria para a empresa ligar.",
+        "Envie a solicitacao de permissao ou espere o cliente ligar para voce. Codigo 138006.",
+      );
+    case 138007:
+      return pack(
+        "Timeout ao conectar",
+        "A oferta/resposta SDP da Cloud API nao foi aplicada a tempo.",
+        "Aplique o SDP do webhook connect imediatamente no WebRTC. Codigo 138007.",
+      );
+    case 138009:
+      return pack(
+        "Limite de pedidos de permissao",
+        "Muitos pedidos de permissao para este par empresa/cliente.",
+        "Uma chamada atendida zera o limite. Codigo 138009.",
+      );
+    case 138012:
+      return pack(
+        "Limite diario de chamadas da empresa",
+        "Limite de chamadas iniciadas pela empresa nas ultimas 24h (ate 100 conectadas).",
+        detailsText ||
+          "A permissao do cliente continua valida. Espere o timestamp do Call Permissions API. Codigo 138012.",
+      );
+    case 138013:
+      return pack(
+        "Chamada iniciada pela empresa indisponivel",
+        "Este numero nao tem business-initiated calling.",
+        "Confira a disponibilidade regional da Calling API. Codigo 138013.",
+      );
+    case 138014:
+      return pack(
+        "Chamadas suspensas por qualidade",
+        "A Meta desligou temporariamente a Calling API neste numero (qualidade baixa).",
+        "Evite spam e tente depois do desbloqueio. Codigo 138014.",
+      );
+    case 138015:
+      return pack(
+        "Nao e possivel habilitar chamadas",
+        "O limite de mensagens deste numero e menor que 2000.",
+        "Suba o messaging limit na Meta e tente de novo. Codigo 138015.",
+      );
+    case 138017:
+      return pack(
+        "Permissao permanente ja existe",
+        "Nao envie outro pedido: o cliente ja concedeu permissao permanente.",
+        "Ligue direto. Codigo 138017.",
+      );
+    case 138018:
+      return pack(
+        "Pre-requisito tecnico ausente",
+        "Nao ha app inscrito no campo calls desta WABA (e SIP nao e o caminho da Bliv).",
+        "No app Meta, assine o webhook calls. Codigo 138018.",
+      );
+    case 138019:
+      return pack("Falha no setup da chamada", "O cliente WhatsApp nao conseguiu montar a chamada.", "Tente de novo. Codigo 138019.");
+    case 138020:
+      return pack("Falha no relay", "O cliente WhatsApp nao conectou ao servidor de midia da Meta.", "Tente de novo. Codigo 138020.");
+    case 138021:
+      return pack(
+        "Timeout de midia recebida",
+        "O WhatsApp encerrou: nao chegou midia do negocio por tempo demais (cerca de 20s no inicio ou 30s depois).",
+        "Mantenha o microfone enviando RTP/RTCP apos o accept 200. Codigo 138021.",
+      );
+    case 138022:
+      return pack(
+        "Timeout de midia enviada",
+        "O WhatsApp encerrou por nao transmitir midia por tempo demais.",
+        "Tente de novo. Codigo 138022.",
+      );
+    case 138023:
+      return pack(
+        "Atendida sem sinal de midia",
+        "A chamada foi aceita, mas a Cloud API nao viu conexao de midia.",
+        "Confira ICE e se o audio so flui apos o accept 200. Codigo 138023.",
+      );
+    case 131044:
+      return metaWabaBillingError("calling", 131044, type, trace);
+    case 131055:
+      return pack(
+        "Graph bloqueado: SIP ligado",
+        "Com SIP ENABLED a Meta recusa POST /calls da Graph API.",
+        "Salve as configuracoes do telefone na Bliv para forcar SIP DISABLED. Codigo 131055.",
+      );
+    default:
+      break;
+  }
+
+  if (lower.includes("method not allowed") && lower.includes("sip")) {
+    return pack("Graph bloqueado: SIP ligado", message || "Este numero esta com SIP ENABLED.", "Desligue o SIP nas configuracoes. Codigo 131055.", 131055);
+  }
+  return null;
 }
 
 function metaWabaBillingError(

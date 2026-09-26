@@ -42,6 +42,9 @@ export interface CallWebhookEvent {
 /**
  * Salva ou atualiza uma chamada no banco de dados
  */
+/**
+ * Salva ou atualiza uma chamada no banco de dados
+ */
 export async function saveCall(params: {
   tenantId: string;
   chatSessionId?: string | null;
@@ -50,6 +53,7 @@ export async function saveCall(params: {
   whatsappCallId: string;
   direction: CallDirection;
   status: CallStatus;
+  durationSeconds?: number | null;
 }): Promise<WhatsAppCall> {
   const {
     tenantId,
@@ -59,6 +63,7 @@ export async function saveCall(params: {
     whatsappCallId,
     direction,
     status,
+    durationSeconds,
   } = params;
 
   const id = randomUUID();
@@ -89,7 +94,10 @@ export async function saveCall(params: {
       if (existingCall.started_at) {
         const start = new Date(existingCall.started_at).getTime();
         const duration = Math.max(0, Math.floor((now.getTime() - start) / 1000));
-        updateData.duration_seconds = duration;
+        updateData.duration_seconds =
+          typeof durationSeconds === "number" && durationSeconds >= 0 ? durationSeconds : duration;
+      } else if (typeof durationSeconds === "number" && durationSeconds >= 0) {
+        updateData.duration_seconds = durationSeconds;
       }
     }
 

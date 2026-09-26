@@ -17,6 +17,7 @@ import {
   CalendarIcon,
   ChevronLeft,
   ChevronRight,
+  Phone,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_app/billing")({ component: BillingPage });
@@ -149,6 +150,36 @@ function BillingPage() {
                 hint={`${totals.free_messages} gratuitas no pricing analytics`}
               />
             </div>
+
+            <Card className="p-6">
+              <h2 className="font-display text-lg font-semibold mb-1">Ligacoes (Calling API)</h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                Campo oficial <code className="text-xs">call_analytics</code>. Ligacoes iniciadas
+                pelo cliente sao gratuitas. Ligacoes da empresa cobram na WABA por pulsos de 6
+                segundos, pais e faixa de volume do mes (fuso da WABA). Pedido de permissao segue
+                preco de mensagem. E preciso cartao valido na WABA.
+              </p>
+              {totals.call_analytics_available ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <StatCard icon={Phone} label="Chamadas concluídas" value={totals.calls_completed} />
+                  <StatCard
+                    icon={DollarSign}
+                    label="Custo de ligacoes"
+                    value={formatMetaMoney(totals.calls_cost, data.currency)}
+                  />
+                  <StatCard
+                    icon={CheckCheck}
+                    label="Duracao media (s)"
+                    value={Math.round(totals.calls_avg_duration)}
+                  />
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  A Meta nao devolveu call_analytics neste periodo (campo ausente, permissao ou
+                  ainda sem ligacoes cobradas).
+                </p>
+              )}
+            </Card>
 
             <Card className="p-6">
               <h2 className="font-display text-lg font-semibold mb-1">Conversas por categoria</h2>

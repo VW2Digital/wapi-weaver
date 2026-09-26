@@ -2550,7 +2550,8 @@ function ChatPage() {
             payload.call_event === "terminate" ||
             payload.call_event === "reject" ||
             payload.status === "ended" ||
-            payload.status === "rejected"
+            payload.status === "rejected" ||
+            payload.status === "failed"
           ) {
             // Se a chamada recebida foi cancelada pelo cliente antes de atender
             setIncomingCallData((curr) => (curr?.callId === payload.call_id ? null : curr));
@@ -3887,9 +3888,10 @@ function ChatPage() {
     }) => {
       if (!selectedPhone) throw new Error("Nenhum contato selecionado");
       if (selectedContact?.channel === "whatsapp_group") {
-        if (payload.type !== "text") {
+        const unsupported = ["interactive", "reaction", "location", "contacts"];
+        if (unsupported.includes(payload.type || "")) {
           throw new Error(
-            "Envio de mídia para grupos ainda não está disponível neste painel. Use apenas texto por enquanto.",
+            "Grupos não suportam mensagens interativas, chamadas, auth, commerce, visualização única nem desaparecimento.",
           );
         }
         const bodyText = payload.text?.body;
@@ -3897,6 +3899,15 @@ function ChatPage() {
           data: {
             groupId: selectedPhone,
             body: bodyText || "",
+            type:
+              (payload.type as "text" | "image" | "audio" | "video" | "document" | "sticker") ||
+              "text",
+            text: payload.text,
+            image: payload.image,
+            audio: payload.audio,
+            video: payload.video,
+            document: payload.document,
+            sticker: payload.sticker,
           },
         });
         if (!res.success) {

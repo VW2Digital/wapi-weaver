@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Phone, Mic, MicOff, PhoneOff, Volume2, VolumeX, Loader2, Radio, ChevronUp, ChevronDown } from "lucide-react";
 import { manageCall } from "@/lib/profile.functions";
 import { toast } from "sonner";
+import { toFriendlyError } from "@/lib/meta-errors";
 
 export type ActiveCallSession = {
   callId: string;
@@ -15,6 +16,7 @@ export type ActiveCallSession = {
   peerConnection: RTCPeerConnection | null;
   localStream: MediaStream | null;
   remoteAudio?: HTMLAudioElement | null;
+  userInitiated?: boolean;
 };
 
 type CallSignalPayload = {
@@ -23,25 +25,99 @@ type CallSignalPayload = {
   status?: string | null;
   sdp?: string | null;
   sdp_type?: string | null;
+  error_code?: number | string | null;
+  error_message?: string | null;
 };
 
 const recentCallSignals: Array<{ at: number; signal: CallSignalPayload }> = [];
 const callSignalListeners = new Set<(signal: CallSignalPayload) => void>();
 
+/** Pulsos de 6s da Calling API. Fracao conta como 1 pulso (56s = 10 pulsos). */
+export function countWhatsAppCallingPulses(durationSeconds: number): number {
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) return 0;
+  return Math.ceil(durationSeconds / 6);
+}
+
+export function unwrapWhatsAppEmbeddedSdp(raw?: string | null): { sdp?: string; sdpType?: string } {
+  if (!raw?.trim()) return {};
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(trimmed) as { sdp?: unknown; type?: unknown };
+      const inner = typeof parsed.sdp === "string" ? parsed.sdp : "";
+      const sdpType = typeof parsed.type === "string" ? parsed.type : undefined;
+      return { sdp: inner || undefined, sdpType };
+    } catch {
+      return { sdp: trimmed };
+    }
+  }
+  return { sdp: trimmed };
+}
+
 export function isUsableRemoteAnswer(sdp?: string | null, sdpType?: string | null) {
-  if (!sdp?.trim()) return false;
-  const type = (sdpType || "").toLowerCase();
+  const unwrapped = unwrapWhatsAppEmbeddedSdp(sdp);
+  const text = unwrapped.sdp;
+  if (!text?.trim()) return false;
+  const type = (sdpType || unwrapped.sdpType || "").toLowerCase();
   if (type === "offer") return false;
-  if (/a=setup:actpass/i.test(sdp)) return false;
+  if (/a=setup:actpass/i.test(text)) return false;
   if (type === "answer") return true;
-  return /a=setup:(active|passive)/i.test(sdp);
+  return /a=setup:(active|passive)/i.test(text);
+}
+
+/** Opus 48 kHz, ptime 20 ms e DTMF 8 kHz — requisitos da Calling API (Graph + WebRTC). */
+export function applyWhatsAppCallingSdpConstraints(sdp: string): string {
+  if (!sdp.trim()) return sdp;
+  const nl = sdp.includes("\r\n") ? "\r\n" : "\n";
+  const parts = sdp.split(/(?=m=)/);
+  return parts
+    .map((part) => {
+      if (!part.startsWith("m=audio")) return part;
+      let next = part.replace(/a=rtpmap:(\d+) telephone-event\/(?!8000)\d+/gi, "a=rtpmap:$1 telephone-event/8000");
+      if (/a=ptime:/i.test(next)) {
+        next = next.replace(/a=ptime:\d+/i, "a=ptime:20");
+      } else {
+        next = next.replace(/\s*$/, `${nl}a=ptime:20${nl}`);
+      }
+      if (/a=maxptime:/i.test(next)) {
+        next = next.replace(/a=maxptime:\d+/i, "a=maxptime:20");
+      } else {
+        next = next.replace(/a=ptime:20/i, `a=ptime:20${nl}a=maxptime:20`);
+      }
+      return next;
+    })
+    .join("");
+}
+
+export function toWhatsAppSessionSdp(sdp: string): string {
+  return applyWhatsAppCallingSdpConstraints(sdp).replace(/\r\n/g, "\n").replace(/\n/g, "\r\n");
+}
+
+export function whatsappSdpHasDtlsFingerprint(sdp: string): boolean {
+  return /a=fingerprint:/i.test(sdp);
+}
+
+export function setWhatsAppCallSendersEnabled(peer: RTCPeerConnection, enabled: boolean) {
+  peer.getSenders().forEach((sender) => {
+    if (sender.track && sender.track.kind === "audio") sender.track.enabled = enabled;
+  });
 }
 
 export function isTerminalCallSignal(signal: CallSignalPayload, activeCallId: string) {
   if (!activeCallId || !signal.call_id || signal.call_id !== activeCallId) return false;
   const event = (signal.call_event || "").toLowerCase();
   const status = (signal.status || "").toLowerCase();
-  if (event === "connect" || event === "accept" || event === "active" || event === "ringing" || event === "pre_accept") {
+  if (
+    event === "connect" ||
+    event === "accept" ||
+    event === "active" ||
+    event === "ringing" ||
+    event === "pre_accept" ||
+    event === "accepted"
+  ) {
+    return false;
+  }
+  if (status === "ringing" || status === "accepted" || status === "incoming" || status === "connecting" || status === "active") {
     return false;
   }
   return (
@@ -120,6 +196,7 @@ export function ActiveCallProvider({ children }: { children: ReactNode }) {
           peerConnection={session.peerConnection}
           localStream={session.localStream}
           remoteAudio={session.remoteAudio}
+          userInitiated={session.userInitiated}
           onCallEnded={() => setSession(null)}
         />
       )}
@@ -145,6 +222,7 @@ interface ActiveCallDialogProps {
   peerConnection?: RTCPeerConnection | null;
   localStream?: MediaStream | null;
   remoteAudio?: HTMLAudioElement | null;
+  userInitiated?: boolean;
   onCallEnded?: () => void;
 }
 
@@ -158,6 +236,7 @@ export function ActiveCallDialog({
   peerConnection,
   localStream,
   remoteAudio,
+  userInitiated = false,
   onCallEnded,
 }: ActiveCallDialogProps) {
   const [isMuted, setIsMuted] = useState(false);
@@ -269,7 +348,23 @@ export function ActiveCallDialog({
       if (payload.call_id && payload.call_id !== activeId) return;
 
       if (isTerminalCallSignal(payload, activeId)) {
-        toast.info("A chamada foi finalizada.");
+        const friendly = toFriendlyError(
+          {
+            error: {
+              code: payload.error_code,
+              message: payload.error_message,
+            },
+          },
+          "A chamada foi finalizada.",
+        );
+        if (payload.error_code) {
+          toast.error(friendly.title, {
+            description: [friendly.message, friendly.hint].filter(Boolean).join(" "),
+            duration: 14000,
+          });
+        } else {
+          toast.info("A chamada foi finalizada.");
+        }
         cleanup();
         onOpenChangeRef.current(false);
         onCallEndedRef.current?.();
@@ -283,7 +378,10 @@ export function ActiveCallDialog({
       ) {
         try {
           await peerConnection.setRemoteDescription(
-            new RTCSessionDescription({ type: "answer", sdp: payload.sdp! }),
+            new RTCSessionDescription({
+              type: "answer",
+              sdp: unwrapWhatsAppEmbeddedSdp(payload.sdp).sdp || payload.sdp!,
+            }),
           );
           setIsAudioConnected(true);
         } catch (sdpErr) {
@@ -410,6 +508,11 @@ export function ActiveCallDialog({
             </p>
             <p className="text-[11px] text-muted-foreground font-mono">
               {formatDuration(duration)} · {isAudioConnected ? "Voz conectada" : "Conectando"}
+              {userInitiated
+                ? " · gratuita (cliente ligou)"
+                : duration > 0
+                  ? ` · ${countWhatsAppCallingPulses(duration)} pulsos de 6s na WABA`
+                  : " · cobrada na WABA apos atender"}
             </p>
           </div>
           <Button

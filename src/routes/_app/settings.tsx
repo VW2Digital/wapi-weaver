@@ -6396,6 +6396,14 @@ function WABASection() {
   const [obaReason, setObaReason] = useState("");
   const [callingEnabled, setCallingEnabled] = useState(true);
   const [sipEnabled, setSipEnabled] = useState(false);
+  const [callIconVisibility, setCallIconVisibility] = useState("DEFAULT");
+  const [callHoursEnabled, setCallHoursEnabled] = useState(false);
+  const [callHoursTimezone, setCallHoursTimezone] = useState("America/Sao_Paulo");
+  const [callHoursOpen, setCallHoursOpen] = useState("0800");
+  const [callHoursClose, setCallHoursClose] = useState("1800");
+  const [callHoursHolidays, setCallHoursHolidays] = useState<
+    Array<{ date?: string; start_time?: string; end_time?: string }>
+  >([]);
 
   // WABA Edit states
   const updateWABAFn = useServerFn(updateWABA);
@@ -6588,8 +6596,27 @@ function WABASection() {
         setDisplayName(data.info.verified_name || "");
       }
       if (data.settings) {
-        setCallingEnabled(data.settings.calling_enabled ?? true);
-        setSipEnabled(data.settings.sip_enabled ?? false);
+        const calling = data.settings.calling || {};
+        setCallingEnabled(calling.status === "ENABLED");
+        setSipEnabled(calling.sip?.status === "ENABLED");
+        setCallIconVisibility(
+          calling.call_icon_visibility === "DISABLE ALL"
+            ? "DISABLE ALL"
+            : calling.call_icon_visibility === "HIDE_IN_CHAT"
+              ? "HIDE_IN_CHAT"
+              : "DEFAULT",
+        );
+        const hours = calling.call_hours || {};
+        setCallHoursEnabled(hours.status === "ENABLED");
+        setCallHoursTimezone(hours.timezone_id || "America/Sao_Paulo");
+        const firstHour = Array.isArray(hours.weekly_operating_hours)
+          ? hours.weekly_operating_hours[0]
+          : null;
+        setCallHoursOpen(String(firstHour?.open_time || "0800").replace(":", ""));
+        setCallHoursClose(String(firstHour?.close_time || "1800").replace(":", ""));
+        setCallHoursHolidays(
+          Array.isArray(hours.holiday_schedule) ? hours.holiday_schedule : [],
+        );
       }
       if (data.oba) {
         setObaStatus(data.oba);
@@ -6607,8 +6634,35 @@ function WABASection() {
         data: {
           phoneId: settingsPhoneId,
           payload: {
-            calling_enabled: callingEnabled,
-            sip_enabled: sipEnabled,
+            calling: {
+              status: callingEnabled ? "ENABLED" : "DISABLED",
+              call_icon_visibility:
+                callIconVisibility === "DISABLE ALL"
+                  ? "DISABLE ALL"
+                  : callIconVisibility === "HIDE_IN_CHAT"
+                    ? "HIDE_IN_CHAT"
+                    : "DEFAULT",
+              callback_permission_status: callingEnabled ? "ENABLED" : "DISABLED",
+              sip: {
+                status: "DISABLED",
+              },
+              call_hours: {
+                status: callHoursEnabled ? "ENABLED" : "DISABLED",
+                timezone_id: callHoursTimezone || "America/Sao_Paulo",
+                weekly_operating_hours: [
+                  "MONDAY",
+                  "TUESDAY",
+                  "WEDNESDAY",
+                  "THURSDAY",
+                  "FRIDAY",
+                ].map((day_of_week) => ({
+                  day_of_week,
+                  open_time: callHoursOpen.replace(":", "") || "0800",
+                  close_time: callHoursClose.replace(":", "") || "1800",
+                })),
+                holiday_schedule: callHoursHolidays,
+              },
+            },
           },
         },
       });
@@ -6623,7 +6677,8 @@ function WABASection() {
       });
     },
     onSuccess: () => {
-      toast.success("Configurações salvas com sucesso!");
+      toast.success("Configurações salvas. SIP permanece desligado para as ligações na Bliv.");
+      setSipEnabled(false);
       setPhoneSettingsOpen(false);
       // Refresh phone list
       const activeWaba = searchId || details?.id || list.find((w) => phonesMap[w.id])?.id;
@@ -7632,35 +7687,144 @@ function WABASection() {
 
               {settingsTab === "calling" && (
                 <div className="space-y-4">
+                  <div className="rounded-lg border border-border p-3 space-y-2">
+                    <p className="text-xs font-semibold text-foreground">Estado visivel para App Review</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant={callingEnabled ? "default" : "secondary"}>
+                        Calling API: {callingEnabled ? "ENABLED" : "DISABLED"}
+                      </Badge>
+                      <Badge
+                        variant={
+                          callingEnabled && callIconVisibility === "DEFAULT" ? "default" : "secondary"
+                        }
+                      >
+                        Icone de chamada:{" "}
+                        {callingEnabled && callIconVisibility === "DEFAULT"
+                          ? "visivel no chat e no perfil"
+                          : "oculto"}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Ligacoes iniciadas pelo cliente sao gratuitas na Meta. Ligacoes da empresa
+                      cobram na WABA por duracao (pulsos de 6s), pais e faixa de volume do mes;
+                      e preciso metodo de pagamento valido na WABA (erro 131044). Pedido de
+                      permissao de ligacao segue preco de mensagem. A janela de 24h de chat abre
+                      ou renova quando o cliente liga (mesmo sem atender) ou quando ele atende
+                      a sua ligacao.
+                    </p>
+                  </div>
+
                   <div className="flex items-center justify-between border-b pb-3">
                     <div>
-                      <Label className="font-semibold">Habilitar Chamadas de Voz</Label>
+                      <Label className="font-semibold">Calling API neste numero</Label>
                       <p className="text-xs text-muted-foreground">
-                        Permite receber chamadas de voz de usuários do WhatsApp.
+                        Envia POST /PHONE_NUMBER_ID/settings com calling.status. Exige limite de
+                        mensagens 2000 ou mais. Desligar remove o icone de chamada no WhatsApp do
+                        cliente.
                       </p>
                     </div>
                     <input
                       type="checkbox"
                       checked={callingEnabled}
-                      onChange={(e) => setCallingEnabled(e.target.checked)}
+                      onChange={(e) => {
+                        const next = e.target.checked;
+                        setCallingEnabled(next);
+                        if (next) setCallIconVisibility("DEFAULT");
+                      }}
                       className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                     />
                   </div>
 
-                  <div className="flex items-center justify-between pb-3">
+                  <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className="font-semibold">Sinalização SIP (PABX)</Label>
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {sipEnabled ? "Ativo na Meta" : "Desligado"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Com SIP ligado, a Meta bloqueia os endpoints Graph de chamada e, por padrao,
+                      nao envia webhooks de ligacao. A Bliv usa Graph + WebRTC no navegador; o SIP
+                      permanece desligado. PABX SIP (TLS em wa.meta.vc, digest, senha Meta) nao e
+                      suportado neste produto.
+                    </p>
+                    {sipEnabled && (
+                      <p className="text-xs text-destructive">
+                        Este numero esta com SIP ENABLED. Salve para desligar o SIP e voltar a
+                        ligar pelo chat.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Icone de chamada no WhatsApp</Label>
+                    <Select value={callIconVisibility} onValueChange={setCallIconVisibility}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="DEFAULT">
+                          Visivel no chat e no perfil
+                        </SelectItem>
+                        <SelectItem value="HIDE_IN_CHAT">
+                          Oculto so no chat (perfil pode mostrar)
+                        </SelectItem>
+                        <SelectItem value="DISABLE ALL">
+                          DISABLE ALL (oculta entradas no perfil)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      O icone no WhatsApp do cliente pode levar ate 7 dias para atualizar. DISABLE
+                      ALL nao impede CTA, recentes nem contato salvo. WhatsApp Web nao liga para
+                      empresa. Graph v26.0; SDP vai em session com CRLF, sem connection legado.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between border-b pb-3">
                     <div>
-                      <Label className="font-semibold">Protocolo SIP (PABX)</Label>
+                      <Label className="font-semibold">Horario de chamadas recebidas</Label>
                       <p className="text-xs text-muted-foreground">
-                        Roteia chamadas via SIP para integração com centrais VoIP.
+                        Fora deste horario o WhatsApp oferece chat ou callback, se a permissao
+                        automatica estiver ativa.
                       </p>
                     </div>
                     <input
                       type="checkbox"
-                      checked={sipEnabled}
-                      onChange={(e) => setSipEnabled(e.target.checked)}
+                      checked={callHoursEnabled}
+                      onChange={(e) => setCallHoursEnabled(e.target.checked)}
                       className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                     />
                   </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1.5 sm:col-span-1">
+                      <Label>Fuso</Label>
+                      <Input
+                        value={callHoursTimezone}
+                        onChange={(e) => setCallHoursTimezone(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Abre (HHMM)</Label>
+                      <Input
+                        value={callHoursOpen}
+                        onChange={(e) => setCallHoursOpen(e.target.value)}
+                        placeholder="0800"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Fecha (HHMM)</Label>
+                      <Input
+                        value={callHoursClose}
+                        onChange={(e) => setCallHoursClose(e.target.value)}
+                        placeholder="1800"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Segunda a sexta. Formato 24h sem dois pontos, por exemplo 0800 e 1800.
+                    Feriados ja configurados na Meta sao mantidos ao salvar.
+                  </p>
                 </div>
               )}
 
