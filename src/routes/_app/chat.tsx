@@ -1321,7 +1321,7 @@ function getContactAvatarUrl(contact: ChatContactRecord | null): string {
   if (rawUrl.includes("whatsapp.net") || rawUrl.includes("whatsapp.com")) {
     return "";
   }
-  if (contact?.id && (isMetaHotlinkUrl(rawUrl) || contact.channel === "instagram")) {
+  if (contact?.id && isMetaHotlinkUrl(rawUrl)) {
     return `/api/whatsapp/media?id=profile&contactId=${encodeURIComponent(contact.id)}`;
   }
   return rawUrl;

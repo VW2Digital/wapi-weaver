@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { JWT_SECRET } from "@/lib/jwt-secret";
-import { resolveMediaContentType } from "@/lib/media-content-type";
+import { resolveMediaContentType, isMetaHotlinkUrl } from "@/lib/media-content-type";
 import db from "@/lib/db";
 import { createUploadFileResponse } from "@/lib/upload-file-response.server";
 import { resolveExistingUploadFile } from "@/lib/tenant-storage";
@@ -203,91 +203,137 @@ export const Route = createFileRoute("/api/whatsapp/media")({
           const uploadsRoot = path.resolve(process.cwd(), "public", "uploads");
 
           if (contactId) {
-            const contactRows = await db.query(
-              `SELECT id, tenant_id, user_id, channel, custom_fields, avatar_url, phone_e164, external_contact_id
-               FROM contacts
-               WHERE id = ? AND (user_id = ? OR tenant_id = ?)
-               LIMIT 1`,
-              [contactId, tenantId, tenantId],
-            );
-            const contact = firstRow<{
-              id: string;
-              tenant_id: string;
-              channel: string | null;
-              custom_fields: unknown;
-              avatar_url: string | null;
-              phone_e164: string | null;
-              external_contact_id: string | null;
-            }>(contactRows);
-            if (!contact) {
-              return new Response("Contact not found or access denied", { status: 403 });
-            }
-            const cached = resolveExistingUploadFile(uploadsRoot, `${contact.tenant_id}/avatars/${contact.id}.jpg`, {
-              userId,
-              tenantId: contact.tenant_id || tenantId,
-              email: "",
-              role: "user",
-            });
-            if (cached) {
-              return createUploadFileResponse(cached, request, { "Cache-Control": "private, max-age=3600" });
-            }
-
-            const cf = parseMetadata(contact.custom_fields);
-            const igsid = String(
-              cf.igsid || cf.ig_sid || contact.external_contact_id || contact.phone_e164 || "",
-            ).trim();
-            let token = "";
-            if (contact.channel === "instagram" && igsid) {
-              const msgConnRows = await db.query(
-                `SELECT channel_connection_id, provider_account_id
-                 FROM direct_messages
-                 WHERE tenant_id = ?
-                   AND channel = 'instagram'
-                   AND (contact_phone = ? OR contact_phone = ?)
-                   AND channel_connection_id IS NOT NULL
-                 ORDER BY created_at DESC
+            try {
+              const contactRows = await db.query(
+                `SELECT id, tenant_id, user_id, channel, custom_fields, phone_e164,
+                        external_contact_id, instagram_id, external_id
+                 FROM contacts
+                 WHERE id = ? AND (user_id = ? OR tenant_id = ?)
                  LIMIT 1`,
-                [contact.tenant_id || tenantId, contact.phone_e164, contact.external_contact_id],
+                [contactId, tenantId, tenantId],
               );
-              const msgConn = firstRow<{
-                channel_connection_id: string;
-                provider_account_id: string | null;
-              }>(msgConnRows);
-              if (msgConn?.channel_connection_id) {
-                try {
-                  const ch = await getChannelConnection(
-                    msgConn.channel_connection_id,
-                    contact.tenant_id || tenantId,
-                  );
-                  token = resolveChannelAccessToken(ch);
-                } catch {
-                  token = "";
-                }
+              const contact = firstRow<{
+                id: string;
+                tenant_id: string | null;
+                channel: string | null;
+                custom_fields: unknown;
+                phone_e164: string | null;
+                external_contact_id: string | null;
+                instagram_id: string | null;
+                external_id: string | null;
+              }>(contactRows);
+              if (!contact) {
+                return new Response(null, { status: 404 });
               }
-            }
-            if (token && igsid) {
-              const profileRes = await fetch(
-                `https://graph.facebook.com/v26.0/${encodeURIComponent(igsid)}?fields=profile_pic`,
-                { headers: { Authorization: `Bearer ${token}` } },
+              const ownerTenant = contact.tenant_id || tenantId;
+              const cached = resolveExistingUploadFile(
+                uploadsRoot,
+                `${ownerTenant}/avatars/${contact.id}.jpg`,
+                { userId, tenantId: ownerTenant, email: "", role: "user" },
               );
-              const profileJson = (await profileRes.json().catch(() => ({}))) as { profile_pic?: string };
-              if (profileJson.profile_pic) {
-                const bin = await fetchBinary(profileJson.profile_pic, token);
-                if (bin) {
-                  const avatarRel = `${contact.tenant_id}/avatars/${contact.id}.jpg`;
-                  const avatarDir = path.resolve(uploadsRoot, contact.tenant_id, "avatars");
-                  fs.mkdirSync(avatarDir, { recursive: true });
-                  fs.writeFileSync(path.join(avatarDir, `${contact.id}.jpg`), Buffer.from(bin.bytes));
-                  const mimeType = resolveMediaContentType({
-                    fileName: "avatar.jpg",
-                    upstreamContentType: bin.contentType,
-                    bytes: bin.bytes,
+              if (cached) {
+                return createUploadFileResponse(cached, request, {
+                  "Cache-Control": "private, max-age=86400",
+                });
+              }
+
+              const cf = parseMetadata(contact.custom_fields);
+              const storedPhoto = String(
+                cf.avatar_url || cf.photo_url || cf.photo || cf.picture || cf.image_url || cf.image || "",
+              ).trim();
+              const igsid = String(
+                cf.igsid ||
+                  cf.ig_sid ||
+                  contact.instagram_id ||
+                  contact.external_contact_id ||
+                  contact.external_id ||
+                  contact.phone_e164 ||
+                  "",
+              ).trim();
+
+              const tryPersistAvatar = (bytes: Uint8Array, contentType: string | null) => {
+                const avatarDir = path.resolve(uploadsRoot, ownerTenant, "avatars");
+                fs.mkdirSync(avatarDir, { recursive: true });
+                fs.writeFileSync(path.join(avatarDir, `${contact.id}.jpg`), Buffer.from(bytes));
+                const mimeType = resolveMediaContentType({
+                  fileName: "avatar.jpg",
+                  upstreamContentType: contentType,
+                  bytes,
+                });
+                return respondWithBytes(request, bytes, mimeType, "avatar.jpg", false);
+              };
+
+              if (storedPhoto.includes("/api/storage/file")) {
+                const localPath = storagePathFromMetadata({ media_url: storedPhoto });
+                if (localPath) {
+                  const full = resolveExistingUploadFile(uploadsRoot, localPath, {
+                    userId,
+                    tenantId: ownerTenant,
+                    email: "",
+                    role: "user",
                   });
-                  return respondWithBytes(request, bin.bytes, mimeType, "avatar.jpg", false);
+                  if (full) {
+                    return createUploadFileResponse(full, request, {
+                      "Cache-Control": "private, max-age=86400",
+                    });
+                  }
                 }
               }
+
+              if (storedPhoto.startsWith("http") && isMetaHotlinkUrl(storedPhoto)) {
+                const bin = await fetchBinary(storedPhoto);
+                if (bin) return tryPersistAvatar(bin.bytes, bin.contentType);
+              }
+
+              let token = "";
+              if (igsid) {
+                const msgConnRows = await db.query(
+                  `SELECT channel_connection_id
+                   FROM direct_messages
+                   WHERE tenant_id = ?
+                     AND channel = 'instagram'
+                     AND (
+                       contact_phone = ?
+                       OR contact_phone = ?
+                       OR contact_phone = ?
+                     )
+                     AND channel_connection_id IS NOT NULL
+                   ORDER BY created_at DESC
+                   LIMIT 1`,
+                  [
+                    ownerTenant,
+                    contact.phone_e164,
+                    contact.external_contact_id,
+                    contact.instagram_id,
+                  ],
+                );
+                const msgConn = firstRow<{ channel_connection_id: string }>(msgConnRows);
+                if (msgConn?.channel_connection_id) {
+                  try {
+                    const ch = await getChannelConnection(msgConn.channel_connection_id, ownerTenant);
+                    token = resolveChannelAccessToken(ch);
+                  } catch {
+                    token = "";
+                  }
+                }
+              }
+              if (token && igsid) {
+                const profileRes = await fetch(
+                  `https://graph.facebook.com/v26.0/${encodeURIComponent(igsid)}?fields=profile_pic`,
+                  { headers: { Authorization: `Bearer ${token}` } },
+                );
+                const profileJson = (await profileRes.json().catch(() => ({}))) as {
+                  profile_pic?: string;
+                };
+                if (profileJson.profile_pic) {
+                  const bin = await fetchBinary(profileJson.profile_pic, token);
+                  if (bin) return tryPersistAvatar(bin.bytes, bin.contentType);
+                }
+              }
+            } catch (avatarErr) {
+              console.error("[Media Proxy] Avatar lookup failed:", avatarErr);
             }
-            return new Response("Avatar unavailable", { status: 404 });
+            return new Response(null, { status: 404 });
           }
 
           if (!messageId) {
@@ -513,10 +559,12 @@ export const Route = createFileRoute("/api/whatsapp/media")({
             download,
           );
         } catch (e: any) {
-          console.error("[Media Proxy API Error]:", e.message);
-          return new Response(e.message || "Internal Server Error", {
-            status: e.message === "Unauthorized" ? 401 : 500,
-          });
+          const message = String(e?.message || "");
+          console.error("[Media Proxy API Error]:", message);
+          if (message === "Unauthorized" || message.includes("Unauthorized")) {
+            return new Response("Unauthorized", { status: 401 });
+          }
+          return new Response(null, { status: 404 });
         }
       },
     },
