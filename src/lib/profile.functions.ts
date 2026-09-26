@@ -1648,6 +1648,12 @@ export const manageCall = createServerFn({ method: "POST" })
         error: "SDP sem a=fingerprint (DTLS). A Meta recusa a chamada com 'No fingerprint found in SDP'.",
       };
     }
+    if (data.action === "connect" && !sessionSdp) {
+      return {
+        ok: false,
+        error: "SDP Offer obrigatório para iniciar a ligação. O áudio não foi preparado.",
+      };
+    }
 
     // Ações de gerenciamento de chamada ativa/recebida (terminate, accept, reject, pre_accept)
     if (data.action !== "connect") {

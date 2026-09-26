@@ -18,6 +18,8 @@ import { getWebRtcIceServers } from "@/lib/webrtc-ice.functions";
 import {
   createWhatsAppPeerConnection,
   FALLBACK_STUN_ICE_SERVERS,
+  sdpHasUsableIceCandidates,
+  waitForIceGathering,
 } from "@/lib/webrtc-ice-client";
 import {
   DropdownMenu,
@@ -85,13 +87,20 @@ async function generateSdpOffer(
       },
     });
     const audioTrack = localStream.getAudioTracks()[0];
-    if (audioTrack) {
-      audioTrack.enabled = true;
-      pc.addTrack(audioTrack, localStream);
+    if (!audioTrack) {
+      throw new Error("Nenhuma faixa de áudio foi capturada do microfone.");
     }
-  } catch (micErr) {
-    console.warn("[CALL] Não foi possível acessar microfone:", micErr);
-    pc.addTransceiver("audio", { direction: "sendrecv" });
+    audioTrack.enabled = true;
+    pc.addTrack(audioTrack, localStream);
+  } catch (micErr: any) {
+    pc.close();
+    remoteAudio.remove();
+    const denied = micErr?.name === "NotAllowedError" || micErr?.name === "PermissionDeniedError";
+    throw new Error(
+      denied
+        ? "Permissão de microfone negada. Autorize o microfone no navegador para ligar."
+        : "Não foi possível acessar o microfone para a ligação de saída.",
+    );
   }
 
   const offer = await pc.createOffer({
@@ -103,28 +112,15 @@ async function generateSdpOffer(
     sdp: toWhatsAppSessionSdp(offer.sdp || ""),
   };
   await pc.setLocalDescription(constrainedOffer);
-
-  await new Promise<void>((resolve) => {
-    if (pc.iceGatheringState === "complete") {
-      resolve();
-      return;
-    }
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      pc.removeEventListener("icegatheringstatechange", onStateChange);
-      resolve();
-    };
-    const onStateChange = () => {
-      if (pc.iceGatheringState === "complete") finish();
-    };
-    pc.addEventListener("icegatheringstatechange", onStateChange);
-    // A Meta precisa dos candidatos ICE no SDP. 1,5s cortava o STUN e a chamada caía ao atender.
-    setTimeout(finish, 6000);
-  });
+  await waitForIceGathering(pc, 8000);
 
   const sdp = toWhatsAppSessionSdp(pc.localDescription?.sdp || offer.sdp || "");
+  if (!sdp || !/a=fingerprint:/i.test(sdp) || !sdpHasUsableIceCandidates(sdp)) {
+    localStream.getTracks().forEach((track) => track.stop());
+    pc.close();
+    remoteAudio.remove();
+    throw new Error("ICE não reuniu candidatos utilizáveis. A ligação não foi disparada na Meta.");
+  }
   return { sdp, peerConnection: pc, localStream, remoteAudio };
 }
 
@@ -168,20 +164,27 @@ export function CallButton({
     let session: WebRtcCallSession | null = null;
 
     try {
-      // 1. Gera o SDP Offer WebRTC e conecta microfone
-      try {
-        const ice = await fetchIceServers();
-        if (!ice.turnEnabled) {
-          console.warn("[CALL][outbound] TURN não configurado (TURN_USERNAME/TURN_CREDENTIAL). NAT simétrico tende a falhar com 138021/138023.");
-        } else {
-          console.info("[CALL][outbound] TURN habilitado", ice.iceServers.map((s) => s.urls));
-        }
-        session = await generateSdpOffer(ice.iceServers);
-      } catch (err: any) {
-        console.warn("[CALL] Erro ao instanciar WebRTC:", err);
+    try {
+      const ice = await fetchIceServers();
+      if (!ice.turnEnabled) {
+        console.warn("[CALL][outbound] TURN não configurado (TURN_USERNAME/TURN_CREDENTIAL). NAT simétrico tende a falhar com 138021/138023.");
+      } else {
+        console.info("[CALL][outbound] TURN habilitado", ice.iceServers.map((s) => s.urls));
       }
+      session = await generateSdpOffer(ice.iceServers);
+    } catch (err: any) {
+      console.warn("[CALL] Erro ao instanciar WebRTC:", err);
+      toast.error(err?.message || "Não foi possível preparar o áudio da ligação.");
+      releaseCallSession(session);
+      return false;
+    }
 
-      const sdpOffer = session?.sdp || "";
+    const sdpOffer = session.sdp;
+    if (!sdpOffer) {
+      toast.error("SDP Offer ausente. A ligação não foi enviada à Meta.");
+      releaseCallSession(session);
+      return false;
+    }
 
       // 2. Dispara a chamada na Meta
       let callResult = await manageCallFn({
@@ -189,8 +192,8 @@ export function CallButton({
           phoneId,
           action: "connect",
           to: targetPhone,
-          sdp: sdpOffer || undefined,
-          sdpType: sdpOffer ? "offer" : undefined,
+          sdp: sdpOffer,
+          sdpType: "offer",
           opaqueCallbackData: `bliv:${phoneId}:${String(targetPhone).slice(0, 80)}`,
         },
       });
@@ -212,8 +215,8 @@ export function CallButton({
               phoneId,
               action: "connect",
               to: targetPhone,
-              sdp: sdpOffer || undefined,
-              sdpType: sdpOffer ? "offer" : undefined,
+              sdp: sdpOffer,
+              sdpType: "offer",
               opaqueCallbackData: `bliv:${phoneId}:${String(targetPhone).slice(0, 80)}`,
             },
           });
@@ -266,7 +269,9 @@ export function CallButton({
           remoteAudio: session?.remoteAudio || null,
           userInitiated: false,
         });
-        toast.success(`Chamando ${contactName || targetPhone}...`);
+        toast.info(`Chamando ${contactName || targetPhone}...`, {
+          description: "A voz só confirma quando o ICE conectar.",
+        });
         return true;
       }
 
@@ -397,6 +402,7 @@ export function CallButton({
       toast.error("Número de telefone do contato não encontrado.");
       return;
     }
+    if (isCalling || isRequestingPerm) return;
 
     setIsCalling(true);
     try {
@@ -414,23 +420,24 @@ export function CallButton({
             description: "A Meta limita a 1 pedido em 24h e 2 em 7 dias por cliente.",
             duration: 12000,
           });
+          setIsCalling(false);
           return;
         }
         toast.info("O cliente precisa autorizar ligacoes da empresa.", {
           description:
             "O pedido de permissao e cobrado como mensagem na WABA, nao como ligacao.",
         });
+        setIsCalling(false);
         await handleSendPermissionRequest(targetPhone);
         return;
       }
       if (perm?.is_granted && perm.can_start_call === false) {
         toast.error("Limite de chamadas conectadas atingido nas últimas 24 horas.");
+        setIsCalling(false);
         return;
       }
     } catch (permErr) {
       console.warn("[CALL] Falha ao consultar call_permissions, tentando discar:", permErr);
-    } finally {
-      setIsCalling(false);
     }
 
     await executeCall(targetPhone);

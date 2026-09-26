@@ -18,6 +18,7 @@ import { getWebRtcIceServers } from "@/lib/webrtc-ice.functions";
 import {
   createWhatsAppPeerConnection,
   FALLBACK_STUN_ICE_SERVERS,
+  waitForIceGathering,
 } from "@/lib/webrtc-ice-client";
 
 export interface IncomingCallAcceptedPayload {
@@ -146,6 +147,8 @@ export function IncomingCallDialog({
     setIsAnswering(true);
     stopRingtone();
     let remoteAudio: HTMLAudioElement | null = null;
+    let pc: RTCPeerConnection | null = null;
+    let stream: MediaStream | null = null;
 
     try {
       const playback = document.createElement("audio");
@@ -167,28 +170,31 @@ export function IncomingCallDialog({
       } else {
         console.info("[CALL][inbound] TURN habilitado", ice.iceServers.map((s) => s.urls));
       }
-      const pc = createWhatsAppPeerConnection(
+      const pcCreated = createWhatsAppPeerConnection(
         ice.iceServers.length ? ice.iceServers : FALLBACK_STUN_ICE_SERVERS,
         "inbound",
       );
+      pc = pcCreated;
 
       // 2. Solicita acesso ao microfone com melhorias de áudio
-      let stream: MediaStream | null = null;
+      let captured: MediaStream | null = null;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
+        captured = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
             autoGainControl: true,
           },
         });
-        const audioTrack = stream.getAudioTracks()[0];
+        stream = captured;
+        const audioTrack = captured.getAudioTracks()[0];
         if (audioTrack) {
           audioTrack.enabled = false;
-          pc.addTrack(audioTrack, stream);
+          pc.addTrack(audioTrack, captured);
         }
       } catch (micErr) {
-        console.warn("[CALL] Não foi possível obter microfone, continuando com transceiver:", micErr);
+        console.warn("[CALL] Microfone indisponível no atendimento:", micErr);
+        toast.error("Microfone indisponível. A ligação será atendida só para ouvir, sem enviar áudio.");
         pc.addTransceiver("audio", { direction: "sendrecv" });
       }
 
@@ -214,25 +220,7 @@ export function IncomingCallDialog({
           type: answer.type,
           sdp: toWhatsAppSessionSdp(answer.sdp || ""),
         });
-
-        // 5. Aguarda gathering dos candidatos ICE
-        await new Promise<void>((resolve) => {
-          if (pc.iceGatheringState === "complete") {
-            resolve();
-          } else {
-            const onIceGather = () => {
-              if (pc.iceGatheringState === "complete") {
-                pc.removeEventListener("icegatheringstatechange", onIceGather);
-                resolve();
-              }
-            };
-            pc.addEventListener("icegatheringstatechange", onIceGather);
-            setTimeout(() => {
-              pc.removeEventListener("icegatheringstatechange", onIceGather);
-              resolve();
-            }, 6000);
-          }
-        });
+        await waitForIceGathering(pc, 8000);
 
         const localDesc = pc.localDescription || answer;
         const answerSdp = toWhatsAppSessionSdp(localDesc?.sdp || "");
@@ -276,7 +264,7 @@ export function IncomingCallDialog({
         playback.muted = false;
         void playback.play().catch(() => {});
 
-        toast.success("Chamada atendida com sucesso!");
+        toast.info("Chamada em atendimento. A voz confirma quando o ICE conectar.");
 
         if (onCallAccepted) {
           onCallAccepted({
@@ -299,6 +287,10 @@ export function IncomingCallDialog({
       }
     } catch (error: any) {
       remoteAudio?.remove();
+      stream?.getTracks().forEach((track) => track.stop());
+      try {
+        pc?.close();
+      } catch {}
       console.error("[CALL] Erro ao atender chamada:", error);
       toast.error(error?.message || "Falha ao atender chamada.");
       setIsAnswering(false);

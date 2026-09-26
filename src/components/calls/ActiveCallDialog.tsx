@@ -316,6 +316,7 @@ export function ActiveCallDialog({
       }
     }
 
+    const iceFailedRef = { current: false };
     const handleIceState = () => {
       console.log("[CALL WebRTC] ICE Connection State:", peerConnection.iceConnectionState);
       if (
@@ -323,11 +324,15 @@ export function ActiveCallDialog({
         peerConnection.iceConnectionState === "completed"
       ) {
         setIsAudioConnected(true);
-      } else if (
-        peerConnection.iceConnectionState === "disconnected" ||
-        peerConnection.iceConnectionState === "failed"
-      ) {
-        console.warn("[CALL WebRTC] Conexão de mídia instável. A chamada segue aberta.");
+      } else if (peerConnection.iceConnectionState === "failed" && !iceFailedRef.current) {
+        iceFailedRef.current = true;
+        setIsAudioConnected(false);
+        toast.error("A mídia da chamada falhou (ICE).", {
+          description: "Desligue e tente novamente. Não há reconexão automática.",
+          duration: 12000,
+        });
+      } else if (peerConnection.iceConnectionState === "disconnected") {
+        console.warn("[CALL WebRTC] ICE disconnected — aguardando recuperação nativa, sem retry.");
       }
     };
 
@@ -383,7 +388,6 @@ export function ActiveCallDialog({
               sdp: unwrapWhatsAppEmbeddedSdp(payload.sdp).sdp || payload.sdp!,
             }),
           );
-          setIsAudioConnected(true);
         } catch (sdpErr) {
           console.error("[CALL WebRTC] Erro ao aplicar SDP Answer da Meta:", sdpErr);
         }
@@ -507,10 +511,10 @@ export function ActiveCallDialog({
               {contactName || contactPhone}
             </p>
             <p className="text-[11px] text-muted-foreground font-mono">
-              {formatDuration(duration)} · {isAudioConnected ? "Voz conectada" : "Conectando"}
+              {formatDuration(duration)} · {isAudioConnected ? "Voz conectada" : "Chamando / conectando áudio"}
               {userInitiated
                 ? " · gratuita (cliente ligou)"
-                : duration > 0
+                : isAudioConnected
                   ? ` · ${countWhatsAppCallingPulses(duration)} pulsos de 6s na WABA`
                   : " · cobrada na WABA apos atender"}
             </p>
@@ -546,7 +550,7 @@ export function ActiveCallDialog({
                 className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-xs px-2 py-0.5 font-medium flex items-center gap-1.5"
               >
                 <Radio className="h-3 w-3 animate-pulse text-emerald-500" />
-                {isAudioConnected ? "Voz conectada" : "Conectando áudio..."}
+                {isAudioConnected ? "Voz conectada" : "Chamando / conectando áudio..."}
               </Badge>
             </div>
             <div className="grid grid-cols-3 gap-3">
