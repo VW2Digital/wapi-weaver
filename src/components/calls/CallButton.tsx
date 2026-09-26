@@ -10,6 +10,15 @@ import {
 import { ActiveCallDialog } from "@/components/calls/ActiveCallDialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { toFriendlyError } from "@/lib/meta-errors";
+
+function toastCallMetaError(raw: unknown, fallback: string) {
+  const friendly = toFriendlyError(raw, fallback);
+  toast.error(friendly.title, {
+    description: [friendly.message, friendly.hint].filter(Boolean).join(" "),
+    duration: 14000,
+  });
+}
 
 interface CallButtonProps {
   phoneId: string;
@@ -225,13 +234,13 @@ export function CallButton({
         return false;
       }
 
-      toast.error(errMsg || "Falha ao iniciar chamada.");
+      toastCallMetaError(callResult.data ?? errMsg, "Falha ao iniciar chamada.");
       session?.localStream?.getTracks().forEach((t) => t.stop());
       session?.peerConnection.close();
       return false;
     } catch (error: any) {
       console.error("[CALL] Erro ao iniciar chamada:", error);
-      toast.error(error?.message || "Falha ao iniciar chamada.");
+      toastCallMetaError(error, "Falha ao iniciar chamada.");
       session?.localStream?.getTracks().forEach((t) => t.stop());
       session?.peerConnection?.close();
       return false;
@@ -258,14 +267,14 @@ export function CallButton({
           return;
         }
 
-        toast.error(errMsg || "Falha ao enviar solicitação de permissão.");
+        toastCallMetaError((res as { data?: unknown }).data ?? errMsg, "Falha ao enviar solicitação de permissão.");
         return;
       }
 
       toast.success("Solicitação de chamada enviada no WhatsApp do cliente!");
     } catch (err: any) {
       console.error("[CALL] Erro ao enviar solicitação de permissão:", err);
-      toast.error(err?.message || "Erro ao solicitar permissão.");
+      toastCallMetaError(err, "Erro ao solicitar permissão.");
     } finally {
       setIsRequestingPerm(false);
     }

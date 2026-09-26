@@ -77,7 +77,8 @@ function isUnfrozen(file, manifest) {
   const unfreeze = manifest.unfreeze || {};
 
   if (unfreeze.whatsapp?.enabled) {
-    if (WHATSAPP_PATTERNS.some((p) => matchesPattern(file, p))) {
+    const extra = Array.isArray(unfreeze.whatsapp.patterns) ? unfreeze.whatsapp.patterns : [];
+    if ([...WHATSAPP_PATTERNS, ...extra].some((p) => matchesPattern(file, p))) {
       return true;
     }
   }

@@ -178,4 +178,27 @@ describe("toFriendlyTemplateError", () => {
     expect(friendly.hint).toMatch(/bid_spec/);
     expect(friendly.hint).not.toMatch(/destinatário/);
   });
+
+  it("explains Meta 131044 calling billing as WABA payment, not Bliv", () => {
+    const friendly = toFriendlyError({
+      error: {
+        message: "Business eligibility payment issue for calling",
+        type: "OAuthException",
+        code: 131044,
+        error_user_title: "Business eligibility payment issue for calling",
+        error_user_msg: "",
+      },
+    });
+    expect(friendly.title).toBe("A Meta bloqueou esta ligação");
+    expect(friendly.message).toMatch(/não é um erro da Bliv/i);
+    expect(friendly.message).toMatch(/WABA/);
+    expect(String(friendly.hint)).toMatch(/131044/);
+    expect(friendly.title).not.toMatch(/Business eligibility/i);
+  });
+
+  it("maps the English calling title even without a numeric code", () => {
+    const friendly = toFriendlyError("Business eligibility payment issue for calling");
+    expect(friendly.title).toBe("A Meta bloqueou esta ligação");
+    expect(String(friendly.hint)).toMatch(/WhatsApp Manager/);
+  });
 });

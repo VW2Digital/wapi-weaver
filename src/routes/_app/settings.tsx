@@ -65,6 +65,12 @@ import {
 import { inferMetaMediaType, uploadMetaMediaViaApi } from "@/lib/meta-media-upload";
 import { onboardWhatsApp } from "@/lib/whatsapp-business-profile.functions";
 import {
+  buildEmbeddedSignupLoginOptions,
+  mapCoexistenceError,
+  parseEmbeddedSignupSession,
+  type EmbeddedSignupMode,
+} from "@/lib/whatsapp-embedded-signup-coex";
+import {
   assignWhatsAppPartnerSystemUser,
   getWhatsAppPartnerStatus,
   listWhatsAppPartnerAccountsForMaster,
@@ -828,14 +834,27 @@ function SettingsPage() {
     }) => doOnboardWhatsApp({ data }),
     onSuccess: (res: any) => {
       if (res.success) {
-        toast.success("WhatsApp conectado com sucesso!");
+        toast.success(
+          res.partner?.migration_type === "coexistence" || res.phone_number_id
+            ? "WhatsApp conectado. Coexistência não usa /register (SMS); os webhooks da WABA já foram assinados."
+            : "WhatsApp conectado com sucesso!",
+        );
+        if (res.requires_phone_selection) {
+          toast.info(
+            "A Meta não enviou phone_number_id no popup de coexistência. Selecione o número da WABA na lista abaixo.",
+          );
+        }
         qc.invalidateQueries({ queryKey: ["profile"] });
         qc.invalidateQueries({ queryKey: ["whatsapp-partner-status"] });
       } else {
-        toast.error(res.message || "Erro ao conectar WhatsApp via Embedded Signup.");
+        const mapped = mapCoexistenceError(res.message);
+        toast.error(mapped.title, { description: mapped.message, duration: 12000 });
       }
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: any) => {
+      const mapped = mapCoexistenceError(e?.message || e);
+      toast.error(mapped.title, { description: mapped.message, duration: 12000 });
+    },
   });
 
   useEffect(() => {
@@ -848,26 +867,13 @@ function SettingsPage() {
       }
       try {
         const data = JSON.parse(event.data);
-        if (data.type === "WA_EMBEDDED_SIGNUP") {
-          if (
-            data.event === "FINISH" ||
-            data.event === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING" ||
-            data.event === "FINISH_OBO_MIGRATION" ||
-            data.event === "FINISH_GRANT_ONLY_API_ACCESS"
-          ) {
-            const waba_id = data.data?.waba_id;
-            const phone_number_id = data.data?.phone_number_id;
-            const customer_business_id = data.data?.business_id || data.data?.business_portfolio_id;
-            (window as any).__wa_embedded_waba_id = waba_id;
-            (window as any).__wa_embedded_phone_number_id = phone_number_id;
-            (window as any).__wa_embedded_customer_business_id = customer_business_id;
-            (window as any).__wa_embedded_finish_type = data.event;
-            if (data.event === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING") {
-              (window as any).__wa_embedded_is_coexistence = true;
-            } else {
-              (window as any).__wa_embedded_is_coexistence = false;
-            }
-          }
+        const session = parseEmbeddedSignupSession(data);
+        if (session && (session.event.startsWith("FINISH") || session.waba_id)) {
+          (window as any).__wa_embedded_waba_id = session.waba_id;
+          (window as any).__wa_embedded_phone_number_id = session.phone_number_id;
+          (window as any).__wa_embedded_customer_business_id = session.customer_business_id;
+          (window as any).__wa_embedded_finish_type = session.event;
+          (window as any).__wa_embedded_is_coexistence = session.is_coexistence;
         }
       } catch (e) {}
     };
@@ -877,7 +883,7 @@ function SettingsPage() {
 
   const [selectedMetaConnectionId, setSelectedMetaConnectionId] = useState<string>("");
 
-  const handleEmbeddedSignup = () => {
+  const handleEmbeddedSignup = (mode: EmbeddedSignupMode) => {
     if (typeof (window as any).FB === "undefined") {
       toast.error("SDK do Facebook ainda não carregou.");
       return;
@@ -923,11 +929,12 @@ function SettingsPage() {
         if (typeof code === "string" && code.trim()) {
           const waba_id = (window as any).__wa_embedded_waba_id;
           const phone_number_id = (window as any).__wa_embedded_phone_number_id;
-          const is_coexistence = (window as any).__wa_embedded_is_coexistence;
+          const is_coexistence =
+            mode === "coexistence" || Boolean((window as any).__wa_embedded_is_coexistence);
           const flow_finish_type = (window as any).__wa_embedded_finish_type;
           const customer_business_id = (window as any).__wa_embedded_customer_business_id;
           const migration_type =
-            flow_finish_type === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING"
+            flow_finish_type === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING" || mode === "coexistence"
               ? "coexistence"
               : flow_finish_type === "FINISH_OBO_MIGRATION"
                 ? "obo"
@@ -949,22 +956,14 @@ function SettingsPage() {
           return;
         }
         const metaError = response?.error_message || response?.errorCode || response?.status;
-        toast.error(
+        const mapped = mapCoexistenceError(
           metaError
-            ? `Login da Meta não retornou código (${metaError}). Verifique o Config ID do Embedded Signup.`
+            ? `Login da Meta não retornou código (${metaError}).`
             : "Login da Meta não retornou código. Verifique o Config ID do Embedded Signup no App Dashboard.",
         );
+        toast.error(mapped.title, { description: mapped.message, duration: 12000 });
       },
-      {
-        config_id: configId,
-        response_type: "code",
-        override_default_response_type: true,
-        extras: {
-          setup: {},
-          featureType: "",
-          sessionInfoVersion: "3",
-        },
-      },
+      buildEmbeddedSignupLoginOptions(configId, mode),
     );
   };
   const [debugResult, setDebugResult] = useState<any>(null);
@@ -2049,21 +2048,33 @@ function SettingsPage() {
                                     Conexão Simplificada (Recomendado)
                                   </h3>
                                   <p className="text-xs text-muted-foreground text-center max-w-md mb-4">
-                                    Use o fluxo de Embedded Signup para conectar seu número
-                                    existente sem perder o acesso no celular (coexistência).
+                                    Coexistência: o cliente mantém o WhatsApp Business no celular.
+                                    A Meta converte a conta existente; a Bliv não chama /register
+                                    (SMS). Use um Login for Business com variação Embedded Signup
+                                    (v4) e Config ID cadastrado.
                                   </p>
-                                  <Button
-                                    onClick={handleEmbeddedSignup}
-                                    disabled={onboardWhatsAppMut.isPending}
-                                    className="bg-[#1877F2] hover:bg-[#1877F2]/90 text-white font-semibold flex items-center gap-2"
-                                  >
-                                    {onboardWhatsAppMut.isPending ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <Facebook className="h-4 w-4" />
-                                    )}
-                                    Conectar WhatsApp
-                                  </Button>
+                                  <div className="flex flex-col sm:flex-row gap-2">
+                                    <Button
+                                      onClick={() => handleEmbeddedSignup("coexistence")}
+                                      disabled={onboardWhatsAppMut.isPending}
+                                      className="bg-[#1877F2] hover:bg-[#1877F2]/90 text-white font-semibold flex items-center gap-2"
+                                    >
+                                      {onboardWhatsAppMut.isPending ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <Facebook className="h-4 w-4" />
+                                      )}
+                                      Conectar com app Business
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      onClick={() => handleEmbeddedSignup("cloud")}
+                                      disabled={onboardWhatsAppMut.isPending}
+                                      className="font-semibold"
+                                    >
+                                      Número novo (Cloud API)
+                                    </Button>
+                                  </div>
                                 </div>
 
                                 {isAdminMaster && (

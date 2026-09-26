@@ -1,13 +1,83 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "@/integrations/mysql/auth-middleware";
+import { toFriendlyError } from "@/lib/meta-errors";
+import { aggregateMetaBillingAnalytics } from "@/lib/meta-waba-analytics";
+
+function monthBoundsUnix(month: string): { start: number; end: number } {
+  const [y, m] = month.split("-").map(Number);
+  const start = Math.floor(Date.UTC(y, m - 1, 1) / 1000);
+  const end = Math.floor(Date.UTC(y, m, 1) / 1000);
+  return { start, end };
+}
+
+async function graphGet(url: string, accessToken: string) {
+  const r = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const body = await r.json().catch(() => ({}));
+  return { ok: r.ok && !body?.error, status: r.status, body };
+}
+
+async function fetchWabaAnalytics(params: {
+  wabaId: string;
+  accessToken: string;
+  graphVersion: string;
+  start: number;
+  end: number;
+}): Promise<{ ok: true; body: any } | { ok: false; error: unknown }> {
+  const base = `https://graph.facebook.com/${params.graphVersion}/${params.wabaId}`;
+  const combinedFields = [
+    "name",
+    "currency",
+    `analytics.start(${params.start}).end(${params.end}).granularity(MONTH)`,
+    `conversation_analytics.start(${params.start}).end(${params.end}).granularity(MONTHLY).dimensions(CONVERSATION_CATEGORY,CONVERSATION_TYPE)`,
+    `pricing_analytics.start(${params.start}).end(${params.end}).granularity(MONTHLY).dimensions(PRICING_CATEGORY,PRICING_TYPE)`,
+  ].join(",");
+  const combined = await graphGet(
+    `${base}?fields=${encodeURIComponent(combinedFields)}`,
+    params.accessToken,
+  );
+  if (combined.ok) return { ok: true, body: combined.body };
+
+  const parts = await Promise.all([
+    graphGet(`${base}?fields=name,currency`, params.accessToken),
+    graphGet(
+      `${base}?fields=${encodeURIComponent(`analytics.start(${params.start}).end(${params.end}).granularity(DAY)`)}`,
+      params.accessToken,
+    ),
+    graphGet(
+      `${base}?fields=${encodeURIComponent(`conversation_analytics.start(${params.start}).end(${params.end}).granularity(MONTHLY).dimensions(CONVERSATION_CATEGORY,CONVERSATION_TYPE)`)}`,
+      params.accessToken,
+    ),
+    graphGet(
+      `${base}?fields=${encodeURIComponent(`pricing_analytics.start(${params.start}).end(${params.end}).granularity(MONTHLY).dimensions(PRICING_CATEGORY,PRICING_TYPE)`)}`,
+      params.accessToken,
+    ),
+  ]);
+  const merged: Record<string, unknown> = {};
+  if (parts[0].ok) {
+    if (parts[0].body?.name) merged.name = parts[0].body.name;
+    if (parts[0].body?.currency) merged.currency = parts[0].body.currency;
+  }
+  if (parts[1].ok && parts[1].body?.analytics) merged.analytics = parts[1].body.analytics;
+  if (parts[2].ok && parts[2].body?.conversation_analytics) {
+    merged.conversation_analytics = parts[2].body.conversation_analytics;
+  }
+  if (parts[3].ok && parts[3].body?.pricing_analytics) {
+    merged.pricing_analytics = parts[3].body.pricing_analytics;
+  }
+  if (merged.conversation_analytics || merged.pricing_analytics || merged.analytics) {
+    return { ok: true, body: merged };
+  }
+  return { ok: false, error: combined.body };
+}
 
 export const getBillingReport = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((d) =>
     z
       .object({
-        // ISO yyyy-mm — default: mês corrente
         month: z
           .string()
           .regex(/^\d{4}-\d{2}$/)
@@ -17,79 +87,62 @@ export const getBillingReport = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { resolveEffectiveUserId } = await import("./chat-helpers");
-    const { default: db } = await import("./db");
-    const effectiveUserId = await resolveEffectiveUserId(context.userId);
+    const { resolveOfficialWhatsAppTemplateAccount } = await import("./whatsapp-template-credentials");
+    const tenantId = await resolveEffectiveUserId(context.userId);
 
     const now = new Date();
     const month =
       data.month ?? `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
-    const [y, m] = month.split("-").map(Number);
-    const start = new Date(Date.UTC(y, m - 1, 1)).toISOString();
-    const end = new Date(Date.UTC(y, m, 1)).toISOString();
+    const { start, end } = monthBoundsUnix(month);
 
-    // Mensagens de campanha (com dados de cobrança detalhados)
-    const campaignRows = (await db.query(
-      "SELECT status, pricing_billable, pricing_category, conversation_id, conversation_origin, created_at FROM campaign_messages WHERE user_id = ? AND COALESCE(sent_at, created_at) >= ? AND COALESCE(sent_at, created_at) < ?",
-      [effectiveUserId, start, end],
-    )) as any[];
+    const account = await resolveOfficialWhatsAppTemplateAccount(tenantId);
+    if (!account) {
+      return {
+        month,
+        source: "meta" as const,
+        ok: false,
+        error:
+          "Não há WABA WhatsApp conectada neste tenant. Conecte o número oficial da empresa para ver o consumo cobrado pela Meta.",
+        wabaId: null,
+        wabaName: null,
+        currency: null,
+        totals: aggregateMetaBillingAnalytics({}),
+      };
+    }
 
-    // Mensagens de chat direto (também geram custos na API da Meta)
-    const directRows = (await db.query(
-      "SELECT status, created_at FROM direct_messages WHERE user_id = ? AND direction = 'outgoing' AND created_at >= ? AND created_at < ?",
-      [effectiveUserId, start, end],
-    )) as any[];
+    const fetched = await fetchWabaAnalytics({
+      wabaId: account.wabaId,
+      accessToken: account.accessToken,
+      graphVersion: account.graphVersion,
+      start,
+      end,
+    });
 
-    const totals = {
-      total_messages: (campaignRows?.length ?? 0) + (directRows?.length ?? 0),
-      campaign_messages: campaignRows?.length ?? 0,
-      direct_messages: directRows?.length ?? 0,
-      sent: 0,
-      delivered: 0,
-      read: 0,
-      failed: 0,
-      billable_messages: 0,
-      free_messages: 0,
-      by_category: {} as Record<string, { messages: number; conversations: number }>,
-      unique_conversations: 0,
+    if (!fetched.ok) {
+      const friendly = toFriendlyError(fetched.error, "A Meta recusou a consulta de analytics desta WABA.");
+      return {
+        month,
+        source: "meta" as const,
+        ok: false,
+        error: `${friendly.title}: ${friendly.message}${friendly.hint ? ` ${friendly.hint}` : ""}`,
+        wabaId: account.wabaId,
+        wabaName: null,
+        currency: null,
+        totals: aggregateMetaBillingAnalytics({}),
+        metaError: fetched.error,
+      };
+    }
+
+    return {
+      month,
+      source: "meta" as const,
+      ok: true,
+      error: null,
+      wabaId: account.wabaId,
+      wabaName: typeof fetched.body?.name === "string" ? fetched.body.name : null,
+      currency: typeof fetched.body?.currency === "string" ? fetched.body.currency : "USD",
+      totals: aggregateMetaBillingAnalytics(fetched.body),
     };
-
-    const conversationsByCategory = new Map<string, Set<string>>();
-    const allConversations = new Set<string>();
-
-    for (const r of campaignRows ?? []) {
-      if (r.status === "sent") totals.sent++;
-      else if (r.status === "delivered") totals.delivered++;
-      else if (r.status === "read") totals.read++;
-      else if (r.status === "failed") totals.failed++;
-
-      if (r.pricing_billable === true) totals.billable_messages++;
-      else if (r.pricing_billable === false) totals.free_messages++;
-
-      const cat = r.pricing_category ?? "unknown";
-      if (!totals.by_category[cat]) totals.by_category[cat] = { messages: 0, conversations: 0 };
-      totals.by_category[cat].messages++;
-
-      if (r.conversation_id) {
-        allConversations.add(r.conversation_id);
-        if (!conversationsByCategory.has(cat)) conversationsByCategory.set(cat, new Set());
-        conversationsByCategory.get(cat)!.add(r.conversation_id);
-      }
-    }
-
-    // Contabilizar mensagens diretas nos totais de status
-    for (const r of directRows ?? []) {
-      if (r.status === "sent") totals.sent++;
-      else if (r.status === "delivered") totals.delivered++;
-      else if (r.status === "read") totals.read++;
-      else if (r.status === "failed") totals.failed++;
-    }
-
-    for (const [cat, set] of conversationsByCategory) {
-      totals.by_category[cat].conversations = set.size;
-    }
-    totals.unique_conversations = allConversations.size;
-
-    return { month, totals };
   });
 
 export const listPublicCommercialPlans = createServerFn({ method: "GET" })

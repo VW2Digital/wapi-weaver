@@ -327,15 +327,28 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
       }
 
       const accessToken = tokenData.access_token;
-      const wabaId = data.waba_id;
-      const phoneNumberId = data.phone_number_id;
+      let wabaId = data.waba_id;
+      let phoneNumberId = data.phone_number_id;
+      const isCoexistence =
+        Boolean(data.is_coexistence) || data.migration_type === "coexistence";
 
       if (!wabaId) {
         throw new Error("waba_id é obrigatório. O Embedded Signup não retornou a WABA.");
       }
 
-      // 3. Registrar o número para uso na Cloud API (coexistência ignora o registro, pois já está registrado)
-      if (phoneNumberId && !data.is_coexistence) {
+      if (isCoexistence && !phoneNumberId) {
+        const phonesResp = await fetch(
+          `https://graph.facebook.com/${GRAPH_VERSION}/${wabaId}/phone_numbers?fields=id,display_phone_number,is_on_biz_app`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+        const phonesBody = await phonesResp.json().catch(() => ({}));
+        const phones = Array.isArray(phonesBody?.data) ? phonesBody.data : [];
+        const onBiz = phones.find((p: any) => p?.is_on_biz_app) || phones[0];
+        if (onBiz?.id) phoneNumberId = String(onBiz.id);
+      }
+
+      // Cloud API nova: registra o número. Coexistência: a Meta já converteu a conta; não usar /register (SMS).
+      if (phoneNumberId && !isCoexistence) {
         const registerUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/register`;
         const registerBody: Record<string, string> = { messaging_product: "whatsapp" };
         if (data.registration_pin) registerBody.pin = data.registration_pin;
@@ -353,7 +366,6 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
         }
       }
 
-      // 4. Assinar seu app aos webhooks dessa WABA
       const subscribeUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${wabaId}/subscribed_apps`;
       const subscribeResp = await fetch(subscribeUrl, {
         method: "POST",
@@ -366,24 +378,29 @@ export const onboardWhatsApp = createServerFn({ method: "POST" })
         throw new Error(err.error?.message || "Erro ao assinar webhooks.");
       }
 
-      // 4.5. Se for coexistência, solicitar sincronização inicial (smb_app_data)
-      if (data.is_coexistence && phoneNumberId) {
-        const syncUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/smb_app_data`;
-        const syncResp = await fetch(syncUrl, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            history_sync: true, // Configuração base (você pode optar por history_sync: false se não quiser mensagens antigas)
-            contacts_sync: true,
-          }),
-        });
-        if (!syncResp.ok) {
-          const err = await syncResp.json();
-          console.warn("Falha ao iniciar sincronização de coexistência:", err.error?.message);
-          // Não abortamos o onboarding se apenas a sincronização falhar.
+      if (isCoexistence && phoneNumberId) {
+        for (const syncType of ["smb_app_state_sync", "history"] as const) {
+          const syncResp = await fetch(
+            `https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/smb_app_data`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                messaging_product: "whatsapp",
+                sync_type: syncType,
+              }),
+            },
+          );
+          if (!syncResp.ok) {
+            const err = await syncResp.json().catch(() => ({}));
+            console.warn(
+              `[CoEx] smb_app_data ${syncType} falhou:`,
+              err?.error?.message || syncResp.status,
+            );
+          }
         }
       }
 

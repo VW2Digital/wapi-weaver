@@ -1501,9 +1501,10 @@ export async function processMessageEchoes(value: WebhookValue | undefined, user
 
     const resolvedContent = resolveDirectMessageContent(message);
     const createdAt = toIsoFromUnixTimestamp(message.timestamp);
+    const newDbMessageId = randomUUID();
 
-    await dbAdmin.from("direct_messages").insert({
-      id: randomUUID(),
+    const { error: echoInsertError } = await dbAdmin.from("direct_messages").insert({
+      id: newDbMessageId,
       tenant_id: userId,
       user_id: userId,
       contact_phone: contactPhone,
@@ -1521,6 +1522,26 @@ export async function processMessageEchoes(value: WebhookValue | undefined, user
       },
       raw_payload: value ?? null,
       created_at: createdAt ?? undefined,
+    });
+
+    if (echoInsertError) {
+      logError("[WEBHOOK] Falha ao persistir smb_message_echoes", {
+        error: echoInsertError.message,
+        waMessageId,
+        contactPhone,
+      });
+      continue;
+    }
+
+    await publishChatRealtimeEvent({
+      type: "message.sent",
+      tenant_id: userId,
+      contact_phone: contactPhone,
+      phone_number_id: phoneNumberId,
+      direction: "outgoing",
+      message_id: newDbMessageId,
+      provider_message_id: waMessageId,
+      status: "sent",
     });
   }
 }

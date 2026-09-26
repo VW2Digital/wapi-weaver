@@ -6,8 +6,14 @@
   "requireExplicitUnfreeze": true,
   "unfreeze": {
     "whatsapp": {
-      "enabled": false,
-      "since": "STEP12_AUTHORIZED"
+      "enabled": true,
+      "since": "UNFREEZE_WHATSAPP",
+      "patterns": [
+        "src/routes/api/public/whatsapp-webhook.ts",
+        "src/lib/whatsapp-business-profile.functions.ts",
+        "src/lib/whatsapp-business-profile.service.ts",
+        "src/lib/whatsapp-business-profile.shared.ts"
+      ]
     },
     "instagram": {
       "enabled": true,

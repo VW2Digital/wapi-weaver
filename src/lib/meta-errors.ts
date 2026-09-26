@@ -33,8 +33,13 @@ export function toFriendlyError(
   const code = meta.code;
   const type = meta.type;
   const trace = meta.fbtrace_id;
+  const userTitle = String(meta.error_user_title || "").trim();
+  const userMsg = String(meta.error_user_msg || "").trim();
+  const dataDetails = meta.error_data?.details;
+  const detailsText = typeof dataDetails === "string" ? dataDetails.trim() : "";
   const message: string = meta.message || (typeof raw === "string" ? raw : fallback);
-  const lowerEarly = (message || "").toLowerCase();
+  const blob = [message, userTitle, userMsg, detailsText].filter(Boolean).join(" ");
+  const lowerEarly = blob.toLowerCase();
 
   // Heurística prioritária: "Object with ID ... does not exist" vem como code 100 da Meta,
   // mas precisa de mensagem específica antes do mapeamento genérico de código.
@@ -193,10 +198,24 @@ export function toFriendlyError(
         type,
         trace,
       };
+    case 131042:
+      return metaWabaBillingError("messaging", code, type, trace);
+    case 131044:
+      return metaWabaBillingError("calling", code, type, trace);
   }
 
-  // Heurísticas por mensagem
-  const lower = (message || "").toLowerCase();
+  // Heurísticas por mensagem (inclui error_user_title / error_user_msg da Meta)
+  const lower = lowerEarly;
+
+  if (
+    String(code) === "131044" ||
+    (lower.includes("eligibility payment") && lower.includes("calling"))
+  ) {
+    return metaWabaBillingError("calling", code ?? 131044, type, trace);
+  }
+  if (String(code) === "131042" || (lower.includes("eligibility payment") && !lower.includes("calling"))) {
+    return metaWabaBillingError("messaging", code ?? 131042, type, trace);
+  }
 
   // "Unsupported get/post request. Object with ID '...' does not exist, cannot be loaded due to missing permissions, or does not support this operation."
   if (lower.includes("does not exist") && lower.includes("missing permissions")) {
@@ -283,6 +302,27 @@ export function toFriendlyError(
     code,
     type,
     trace,
+  };
+}
+
+function metaWabaBillingError(
+  kind: "calling" | "messaging",
+  code: number | string | undefined,
+  type: unknown,
+  trace: unknown,
+): FriendlyError {
+  const isCalling = kind === "calling";
+  return {
+    title: isCalling ? "A Meta bloqueou esta ligação" : "A Meta bloqueou o envio",
+    message: isCalling
+      ? "A WhatsApp Cloud API recusou a chamada porque a conta comercial no Meta (WABA) não tem cobrança válida para ligações. Isso não é um erro da Bliv nem da assinatura do CRM."
+      : "A WhatsApp Cloud API recusou o envio porque a conta comercial no Meta (WABA) não tem cobrança válida. Isso não é um erro da Bliv nem da assinatura do CRM.",
+    hint: isCalling
+      ? "No Meta Business Suite, abra o WhatsApp Manager da mesma WABA deste número e vincule um método de pagamento à conta WhatsApp (não só à conta de anúncios). Quite faturas em atraso e confirme fuso e moeda. Código Meta 131044."
+      : "No Meta Business Suite, vincule um método de pagamento à WABA (não só à conta de anúncios), quite faturas em atraso e confirme fuso e moeda. Código Meta 131042.",
+    code,
+    type: type as string | undefined,
+    trace: trace as string | undefined,
   };
 }
 
