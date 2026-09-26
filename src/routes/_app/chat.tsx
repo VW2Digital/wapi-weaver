@@ -59,6 +59,7 @@ import { ChatVideoBubble } from "@/components/chat/ChatVideoBubble";
 import { MessageLinkPreviews } from "@/components/chat/message-link-preview";
 import { linkifyHtml } from "@/lib/chat-linkify";
 import { resolveInstagramShareUrl } from "@/lib/chat-instagram-share";
+import { pickPreferredMediaRef } from "@/lib/chat-media-url";
 import { IncomingCallDialog } from "@/components/calls/IncomingCallDialog";
 import { useActiveCall } from "@/components/calls/ActiveCallDialog";
 import {
@@ -6429,25 +6430,31 @@ function ChatPage() {
                                             : null;
 
                                         if (header.type === "image" || hImg || typeof header.image === "string") {
-                                          headerMediaUrl =
-                                            hImg?.link ||
-                                            hImg?.id ||
-                                            hImg?.url ||
-                                            (typeof header.image === "string" ? header.image : "");
+                                          headerMediaUrl = pickPreferredMediaRef(
+                                            hImg?.link,
+                                            hImg?.url,
+                                            metadataMediaUrl,
+                                            typeof header.image === "string" ? header.image : "",
+                                            hImg?.id,
+                                          );
                                           headerMediaType = "image";
                                         } else if (header.type === "video" || hVid || typeof header.video === "string") {
-                                          headerMediaUrl =
-                                            hVid?.link ||
-                                            hVid?.id ||
-                                            hVid?.url ||
-                                            (typeof header.video === "string" ? header.video : "");
+                                          headerMediaUrl = pickPreferredMediaRef(
+                                            hVid?.link,
+                                            hVid?.url,
+                                            metadataMediaUrl,
+                                            typeof header.video === "string" ? header.video : "",
+                                            hVid?.id,
+                                          );
                                           headerMediaType = "video";
                                         } else if (header.type === "document" || hDoc || typeof header.document === "string") {
-                                          headerMediaUrl =
-                                            hDoc?.link ||
-                                            hDoc?.id ||
-                                            hDoc?.url ||
-                                            (typeof header.document === "string" ? header.document : "");
+                                          headerMediaUrl = pickPreferredMediaRef(
+                                            hDoc?.link,
+                                            hDoc?.url,
+                                            metadataMediaUrl,
+                                            typeof header.document === "string" ? header.document : "",
+                                            hDoc?.id,
+                                          );
                                           headerMediaType = "document";
                                         } else if (header.type === "text" && header.text) {
                                           headerText = header.text;
@@ -6622,7 +6629,9 @@ function ChatPage() {
                                         const stored =
                                           typeof (msg.metadata as any)?.media_url === "string"
                                             ? String((msg.metadata as any).media_url)
-                                            : "";
+                                            : typeof (msg.metadata as any)?.mediaUrl === "string"
+                                              ? String((msg.metadata as any).mediaUrl)
+                                              : "";
                                         const metaId = String(
                                           (msg as any).image?.id ||
                                             (msg as any).audio?.id ||
@@ -6632,8 +6641,9 @@ function ChatPage() {
                                             (msg.metadata as any)?.media_id_meta ||
                                             "",
                                         );
-                                        const raw = urlOrId || stored || metaId;
+                                        const raw = pickPreferredMediaRef(stored, urlOrId, metaId);
                                         if (!raw) return "";
+                                        if (raw.startsWith("data:")) return raw;
                                         const shouldProxy =
                                           Boolean(messageId) &&
                                           (isMetaHotlinkUrl(raw) ||
@@ -6643,10 +6653,10 @@ function ChatPage() {
                                               !raw.startsWith("blob:") &&
                                               !raw.startsWith("data:")));
                                         if (shouldProxy) {
-                                          const id = /^\d{8,}$/.test(metaId || raw)
-                                            ? metaId || raw
-                                            : raw.includes("/api/storage/file")
-                                              ? "local"
+                                          const id = raw.includes("/api/storage/file")
+                                            ? "local"
+                                            : /^\d{8,}$/.test(raw)
+                                              ? raw
                                               : raw;
                                           return `/api/whatsapp/media?id=${encodeURIComponent(id || "local")}&messageId=${encodeURIComponent(messageId)}`;
                                         }
@@ -6937,14 +6947,15 @@ function ChatPage() {
                                               >
                                                 {(() => {
                                                   const imageSrc = getMediaUrl(
-                                                    msg.image?.link ||
-                                                      msg.image?.id ||
-                                                      (msg.metadata as any)?.image?.link ||
-                                                      (msg.metadata as any)?.image?.url ||
-                                                      (msg.metadata as any)?.image?.id ||
-                                                      (msg.metadata as any)?.media_url ||
-                                                      (msg.metadata as any)?.mediaUrl ||
+                                                    pickPreferredMediaRef(
+                                                      (msg.metadata as any)?.media_url,
+                                                      (msg.metadata as any)?.image?.link,
+                                                      msg.image?.link,
+                                                      (msg.metadata as any)?.image?.url,
+                                                      msg.image?.id,
+                                                      (msg.metadata as any)?.image?.id,
                                                       (isUrl(bodyText) || /^\d{15,18}$/.test(bodyText) ? bodyText : ""),
+                                                    ),
                                                     msg.id,
                                                   );
                                                   return imageSrc ? (
@@ -6981,14 +6992,15 @@ function ChatPage() {
                                               <div className="px-1 py-1">
                                                 {(() => {
                                                   const audioSrc = getMediaUrl(
-                                                    msg.audio?.link ||
-                                                      msg.audio?.id ||
-                                                      (msg.metadata as any)?.audio?.link ||
-                                                      (msg.metadata as any)?.audio?.url ||
-                                                      (msg.metadata as any)?.audio?.id ||
-                                                      (msg.metadata as any)?.media_url ||
-                                                      (msg.metadata as any)?.mediaUrl ||
+                                                    pickPreferredMediaRef(
+                                                      (msg.metadata as any)?.media_url,
+                                                      (msg.metadata as any)?.audio?.link,
+                                                      msg.audio?.link,
+                                                      (msg.metadata as any)?.audio?.url,
+                                                      msg.audio?.id,
+                                                      (msg.metadata as any)?.audio?.id,
                                                       (isUrl(bodyText) || /^\d{15,18}$/.test(bodyText) ? bodyText : ""),
+                                                    ),
                                                     msg.id,
                                                   );
                                                   return audioSrc ? (

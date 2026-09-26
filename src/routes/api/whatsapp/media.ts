@@ -5,6 +5,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { JWT_SECRET } from "@/lib/jwt-secret";
 import { resolveMediaContentType, isMetaHotlinkUrl } from "@/lib/media-content-type";
+import { decodeDataUrl, normalizeGraphScopedId } from "@/lib/chat-media-url";
 import db from "@/lib/db";
 import { createUploadFileResponse } from "@/lib/upload-file-response.server";
 import { resolveExistingUploadFile } from "@/lib/tenant-storage";
@@ -58,19 +59,55 @@ function parseMetadata(raw: unknown): Record<string, any> {
   return typeof raw === "object" ? (raw as Record<string, any>) : {};
 }
 
+function pathFromStorageUrl(value: string): string | null {
+  if (!value.includes("/api/storage/file")) return null;
+  try {
+    const parsed = new URL(value, "http://localhost");
+    const p = parsed.searchParams.get("path");
+    return p ? decodeURIComponent(p) : null;
+  } catch {
+    return null;
+  }
+}
+
 function storagePathFromMetadata(meta: Record<string, any>): string | null {
   if (typeof meta.local_file_path === "string" && meta.local_file_path.trim()) {
     return meta.local_file_path.trim().replace(/^\/?uploads\//, "");
   }
-  const mediaUrl = typeof meta.media_url === "string" ? meta.media_url : "";
-  if (mediaUrl.includes("/api/storage/file")) {
-    try {
-      const parsed = new URL(mediaUrl, "http://localhost");
-      const p = parsed.searchParams.get("path");
-      if (p) return p;
-    } catch {
-      return null;
+  const nested = [meta.media_url, meta.mediaUrl];
+  for (const kind of ["image", "audio", "video", "document", "sticker"]) {
+    const obj = meta[kind];
+    if (obj && typeof obj === "object") {
+      nested.push(obj.link, obj.url);
     }
+  }
+  for (const candidate of nested) {
+    if (typeof candidate === "string") {
+      const fromUrl = pathFromStorageUrl(candidate);
+      if (fromUrl) return fromUrl;
+    }
+  }
+  return null;
+}
+
+function dataUrlFromMetadata(meta: Record<string, any>, rawPayload: unknown): string | null {
+  const candidates: unknown[] = [meta.media_url, meta.mediaUrl, meta.image_url];
+  for (const kind of ["image", "audio", "video", "document", "sticker"]) {
+    const obj = meta[kind];
+    if (obj && typeof obj === "object") {
+      candidates.push(obj.link, obj.url);
+    }
+  }
+  const payload = parseMetadata(rawPayload);
+  const message = payload.message && typeof payload.message === "object" ? payload.message : payload;
+  for (const kind of ["image", "audio", "video", "document", "sticker"]) {
+    const obj = (message as Record<string, any>)[kind];
+    if (obj && typeof obj === "object") {
+      candidates.push(obj.link, obj.url);
+    }
+  }
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.startsWith("data:")) return candidate;
   }
   return null;
 }
@@ -112,7 +149,9 @@ function graphVersion(raw?: string | null) {
 }
 
 async function fetchBinary(url: string, token?: string) {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = {
+    "User-Agent": "Mozilla/5.0 (compatible; BlivCRM/1.0; +https://app.blivcrm.com)",
+  };
   if (token) headers.Authorization = `Bearer ${token}`;
   let res = await fetch(url, { headers });
   if (!res.ok && token) {
@@ -241,15 +280,17 @@ export const Route = createFileRoute("/api/whatsapp/media")({
               const storedPhoto = String(
                 cf.avatar_url || cf.photo_url || cf.photo || cf.picture || cf.image_url || cf.image || "",
               ).trim();
-              const igsid = String(
-                cf.igsid ||
-                  cf.ig_sid ||
-                  contact.instagram_id ||
-                  contact.external_contact_id ||
-                  contact.external_id ||
-                  contact.phone_e164 ||
-                  "",
-              ).trim();
+              const igsid = normalizeGraphScopedId(
+                String(
+                  cf.igsid ||
+                    cf.ig_sid ||
+                    contact.instagram_id ||
+                    contact.external_contact_id ||
+                    contact.external_id ||
+                    contact.phone_e164 ||
+                    "",
+                ),
+              );
 
               const tryPersistAvatar = (bytes: Uint8Array, contentType: string | null) => {
                 const avatarDir = path.resolve(uploadsRoot, ownerTenant, "avatars");
@@ -374,6 +415,17 @@ export const Route = createFileRoute("/api/whatsapp/media")({
 
           const isInstagram = message.channel === "instagram";
           const meta = parseMetadata(message.metadata);
+          const embedded = dataUrlFromMetadata(meta, message.raw_payload);
+          if (embedded) {
+            const decoded = decodeDataUrl(embedded);
+            if (decoded) {
+              const mimeType = resolveMediaContentType({
+                declaredMimeType: decoded.mime,
+                bytes: decoded.bytes,
+              });
+              return respondWithBytes(request, decoded.bytes, mimeType, "embedded-media", download);
+            }
+          }
           const localRel = storagePathFromMetadata(meta);
           if (localRel) {
             const fullPath = resolveExistingUploadFile(uploadsRoot, localRel, {
