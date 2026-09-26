@@ -11,7 +11,6 @@ import {
   List,
   MoreHorizontal,
   Music,
-  Search,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -19,6 +18,7 @@ import { toast } from "sonner";
 import { useConfirm } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { usePageHeader } from "@/components/layout/page-header-provider";
+import { AppToolbar, ToolbarGroup, ToolbarPrimary, ToolbarSearch } from "@/components/layout/app-toolbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,7 +37,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -332,16 +331,14 @@ function GalleryPage() {
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[12rem] flex-1">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
+        <AppToolbar>
+          <ToolbarSearch
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Buscar arquivo"
-              className="pl-8"
-            />
-          </div>
+            className="pl-8"
+          />
+          <ToolbarGroup>
           <div className="flex rounded-xl border border-border p-0.5">
             <Button
               type="button"
@@ -364,17 +361,20 @@ function GalleryPage() {
               <List className="size-4" />
             </Button>
           </div>
+          </ToolbarGroup>
+          <ToolbarPrimary>
           <Button type="button" onClick={() => inputRef.current?.click()} disabled={uploadMutation.isPending}>
             <Upload className="size-4" />
             {uploadMutation.isPending ? "Enviando..." : "Enviar mídia"}
           </Button>
-        </div>
+          </ToolbarPrimary>
+        </AppToolbar>
       </div>
 
       {selected.size > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border bg-muted/40 px-3 py-2">
+        <AppToolbar className="rounded-2xl border border-border bg-muted/40 px-3 py-2">
           <p className="text-sm font-medium">{selected.size} selecionado(s)</p>
-          <div className="flex gap-2">
+          <ToolbarPrimary>
             <Button type="button" variant="outline" size="sm" onClick={() => setSelected(new Set())}>
               Limpar
             </Button>
@@ -387,8 +387,8 @@ function GalleryPage() {
               <Trash2 className="size-4" />
               Excluir
             </Button>
-          </div>
-        </div>
+          </ToolbarPrimary>
+        </AppToolbar>
       ) : null}
 
       {listQuery.isLoading ? (

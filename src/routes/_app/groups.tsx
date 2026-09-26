@@ -157,7 +157,7 @@ function GroupsPage() {
     action: (
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogTrigger asChild>
-          <Button className="bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-md">
+          <Button>
             <Plus className="h-4 w-4 mr-2" /> Novo Grupo
           </Button>
         </DialogTrigger>

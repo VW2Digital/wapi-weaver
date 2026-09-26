@@ -30,8 +30,8 @@ import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppListsRouteImport } from './routes/_app/lists'
 import { Route as AppInstagramContentRouteImport } from './routes/_app/instagram-content'
 import { Route as AppGroupsRouteImport } from './routes/_app/groups'
-import { Route as AppDocsRouteImport } from './routes/_app/docs'
 import { Route as AppGaleriaRouteImport } from './routes/_app/galeria'
+import { Route as AppDocsRouteImport } from './routes/_app/docs'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppCrmRouteImport } from './routes/_app/crm'
 import { Route as AppChatRouteImport } from './routes/_app/chat'
@@ -54,8 +54,8 @@ import { Route as ApiWebhooksMercadopagoRouteImport } from './routes/api/webhook
 import { Route as ApiWebhooksAsaasRouteImport } from './routes/api/webhooks/asaas'
 import { Route as ApiTemplatesHeaderMediaRouteImport } from './routes/api/templates/header-media'
 import { Route as ApiStorageUploadRouteImport } from './routes/api/storage/upload'
-import { Route as ApiStorageRemoveRouteImport } from './routes/api/storage/remove'
 import { Route as ApiStorageShareRouteImport } from './routes/api/storage/share'
+import { Route as ApiStorageRemoveRouteImport } from './routes/api/storage/remove'
 import { Route as ApiStorageListRouteImport } from './routes/api/storage/list'
 import { Route as ApiStorageGlobalUploadRouteImport } from './routes/api/storage/global-upload'
 import { Route as ApiStorageGlobalFileRouteImport } from './routes/api/storage/global-file'
@@ -68,8 +68,8 @@ import { Route as ApiPublicGalleryMediaRouteImport } from './routes/api/public/g
 import { Route as ApiPublicFacebookWebhookRouteImport } from './routes/api/public/facebook-webhook'
 import { Route as ApiLicensesHealthRouteImport } from './routes/api/licenses/health'
 import { Route as ApiInstagramMediaUploadRouteImport } from './routes/api/instagram/media-upload'
-import { Route as ApiChatEventsRouteImport } from './routes/api/chat/events'
 import { Route as ApiChatLinkPreviewRouteImport } from './routes/api/chat/link-preview'
+import { Route as ApiChatEventsRouteImport } from './routes/api/chat/events'
 import { Route as ApiBillingSubscriptionRouteImport } from './routes/api/billing/subscription'
 import { Route as ApiBillingPublicKeyRouteImport } from './routes/api/billing/public-key'
 import { Route as ApiBillingPlansRouteImport } from './routes/api/billing/plans'
@@ -227,14 +227,14 @@ const AppGroupsRoute = AppGroupsRouteImport.update({
   path: '/groups',
   getParentRoute: () => AppRoute,
 } as any)
-const AppDocsRoute = AppDocsRouteImport.update({
-  id: '/docs',
-  path: '/docs',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppGaleriaRoute = AppGaleriaRouteImport.update({
   id: '/galeria',
   path: '/galeria',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDocsRoute = AppDocsRouteImport.update({
+  id: '/docs',
+  path: '/docs',
   getParentRoute: () => AppRoute,
 } as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
@@ -349,14 +349,14 @@ const ApiStorageUploadRoute = ApiStorageUploadRouteImport.update({
   path: '/api/storage/upload',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiStorageRemoveRoute = ApiStorageRemoveRouteImport.update({
-  id: '/api/storage/remove',
-  path: '/api/storage/remove',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiStorageShareRoute = ApiStorageShareRouteImport.update({
   id: '/api/storage/share',
   path: '/api/storage/share',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStorageRemoveRoute = ApiStorageRemoveRouteImport.update({
+  id: '/api/storage/remove',
+  path: '/api/storage/remove',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiStorageListRoute = ApiStorageListRouteImport.update({
@@ -422,14 +422,14 @@ const ApiInstagramMediaUploadRoute = ApiInstagramMediaUploadRouteImport.update({
   path: '/api/instagram/media-upload',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiChatEventsRoute = ApiChatEventsRouteImport.update({
-  id: '/api/chat/events',
-  path: '/api/chat/events',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiChatLinkPreviewRoute = ApiChatLinkPreviewRouteImport.update({
   id: '/api/chat/link-preview',
   path: '/api/chat/link-preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiChatEventsRoute = ApiChatEventsRouteImport.update({
+  id: '/api/chat/events',
+  path: '/api/chat/events',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiBillingSubscriptionRoute = ApiBillingSubscriptionRouteImport.update({
@@ -774,8 +774,8 @@ export interface FileRoutesByFullPath {
   '/api/instagram/media-upload': typeof ApiInstagramMediaUploadRoute
   '/api/licenses/health': typeof ApiLicensesHealthRoute
   '/api/public/facebook-webhook': typeof ApiPublicFacebookWebhookRoute
-  '/api/public/instagram-media': typeof ApiPublicInstagramMediaRoute
   '/api/public/gallery-media': typeof ApiPublicGalleryMediaRoute
+  '/api/public/instagram-media': typeof ApiPublicInstagramMediaRoute
   '/api/public/instagram-webhook': typeof ApiPublicInstagramWebhookRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/sitemap/xml': typeof ApiSitemapXmlRoute
@@ -887,8 +887,8 @@ export interface FileRoutesByTo {
   '/api/instagram/media-upload': typeof ApiInstagramMediaUploadRoute
   '/api/licenses/health': typeof ApiLicensesHealthRoute
   '/api/public/facebook-webhook': typeof ApiPublicFacebookWebhookRoute
-  '/api/public/instagram-media': typeof ApiPublicInstagramMediaRoute
   '/api/public/gallery-media': typeof ApiPublicGalleryMediaRoute
+  '/api/public/instagram-media': typeof ApiPublicInstagramMediaRoute
   '/api/public/instagram-webhook': typeof ApiPublicInstagramWebhookRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/sitemap/xml': typeof ApiSitemapXmlRoute
@@ -1002,8 +1002,8 @@ export interface FileRoutesById {
   '/api/instagram/media-upload': typeof ApiInstagramMediaUploadRoute
   '/api/licenses/health': typeof ApiLicensesHealthRoute
   '/api/public/facebook-webhook': typeof ApiPublicFacebookWebhookRoute
-  '/api/public/instagram-media': typeof ApiPublicInstagramMediaRoute
   '/api/public/gallery-media': typeof ApiPublicGalleryMediaRoute
+  '/api/public/instagram-media': typeof ApiPublicInstagramMediaRoute
   '/api/public/instagram-webhook': typeof ApiPublicInstagramWebhookRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/sitemap/xml': typeof ApiSitemapXmlRoute
@@ -1117,8 +1117,8 @@ export interface FileRouteTypes {
     | '/api/instagram/media-upload'
     | '/api/licenses/health'
     | '/api/public/facebook-webhook'
-    | '/api/public/instagram-media'
     | '/api/public/gallery-media'
+    | '/api/public/instagram-media'
     | '/api/public/instagram-webhook'
     | '/api/public/whatsapp-webhook'
     | '/api/sitemap/xml'
@@ -1230,8 +1230,8 @@ export interface FileRouteTypes {
     | '/api/instagram/media-upload'
     | '/api/licenses/health'
     | '/api/public/facebook-webhook'
-    | '/api/public/instagram-media'
     | '/api/public/gallery-media'
+    | '/api/public/instagram-media'
     | '/api/public/instagram-webhook'
     | '/api/public/whatsapp-webhook'
     | '/api/sitemap/xml'
@@ -1344,8 +1344,8 @@ export interface FileRouteTypes {
     | '/api/instagram/media-upload'
     | '/api/licenses/health'
     | '/api/public/facebook-webhook'
-    | '/api/public/instagram-media'
     | '/api/public/gallery-media'
+    | '/api/public/instagram-media'
     | '/api/public/instagram-webhook'
     | '/api/public/whatsapp-webhook'
     | '/api/sitemap/xml'
@@ -1433,8 +1433,8 @@ export interface RootRouteChildren {
   ApiInstagramMediaUploadRoute: typeof ApiInstagramMediaUploadRoute
   ApiLicensesHealthRoute: typeof ApiLicensesHealthRoute
   ApiPublicFacebookWebhookRoute: typeof ApiPublicFacebookWebhookRoute
-  ApiPublicInstagramMediaRoute: typeof ApiPublicInstagramMediaRoute
   ApiPublicGalleryMediaRoute: typeof ApiPublicGalleryMediaRoute
+  ApiPublicInstagramMediaRoute: typeof ApiPublicInstagramMediaRoute
   ApiPublicInstagramWebhookRoute: typeof ApiPublicInstagramWebhookRoute
   ApiPublicWhatsappWebhookRoute: typeof ApiPublicWhatsappWebhookRoute
   ApiSitemapXmlRoute: typeof ApiSitemapXmlRoute
@@ -1622,18 +1622,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppGroupsRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/docs': {
-      id: '/_app/docs'
-      path: '/docs'
-      fullPath: '/docs'
-      preLoaderRoute: typeof AppDocsRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/galeria': {
       id: '/_app/galeria'
       path: '/galeria'
       fullPath: '/galeria'
       preLoaderRoute: typeof AppGaleriaRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/docs': {
+      id: '/_app/docs'
+      path: '/docs'
+      fullPath: '/docs'
+      preLoaderRoute: typeof AppDocsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/dashboard': {
@@ -1790,18 +1790,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStorageUploadRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/storage/remove': {
-      id: '/api/storage/remove'
-      path: '/api/storage/remove'
-      fullPath: '/api/storage/remove'
-      preLoaderRoute: typeof ApiStorageRemoveRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/storage/share': {
       id: '/api/storage/share'
       path: '/api/storage/share'
       fullPath: '/api/storage/share'
       preLoaderRoute: typeof ApiStorageShareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/storage/remove': {
+      id: '/api/storage/remove'
+      path: '/api/storage/remove'
+      fullPath: '/api/storage/remove'
+      preLoaderRoute: typeof ApiStorageRemoveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/storage/list': {
@@ -1888,18 +1888,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiInstagramMediaUploadRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/chat/events': {
-      id: '/api/chat/events'
-      path: '/api/chat/events'
-      fullPath: '/api/chat/events'
-      preLoaderRoute: typeof ApiChatEventsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/chat/link-preview': {
       id: '/api/chat/link-preview'
       path: '/api/chat/link-preview'
       fullPath: '/api/chat/link-preview'
       preLoaderRoute: typeof ApiChatLinkPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/chat/events': {
+      id: '/api/chat/events'
+      path: '/api/chat/events'
+      fullPath: '/api/chat/events'
+      preLoaderRoute: typeof ApiChatEventsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/billing/subscription': {
@@ -2458,8 +2458,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiInstagramMediaUploadRoute: ApiInstagramMediaUploadRoute,
   ApiLicensesHealthRoute: ApiLicensesHealthRoute,
   ApiPublicFacebookWebhookRoute: ApiPublicFacebookWebhookRoute,
-  ApiPublicInstagramMediaRoute: ApiPublicInstagramMediaRoute,
   ApiPublicGalleryMediaRoute: ApiPublicGalleryMediaRoute,
+  ApiPublicInstagramMediaRoute: ApiPublicInstagramMediaRoute,
   ApiPublicInstagramWebhookRoute: ApiPublicInstagramWebhookRoute,
   ApiPublicWhatsappWebhookRoute: ApiPublicWhatsappWebhookRoute,
   ApiSitemapXmlRoute: ApiSitemapXmlRoute,

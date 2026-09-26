@@ -18,6 +18,7 @@ import {
 import { listContacts } from "@/lib/contacts.functions";
 import { listCustomFields } from "@/lib/custom-fields.functions";
 import { usePageHeader } from "@/components/layout/page-header-provider";
+import { AppToolbar, ToolbarPrimary } from "@/components/layout/app-toolbar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -170,8 +171,9 @@ function ListsPage() {
       <div className="flex-1 overflow-y-auto grid gap-6 p-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-4">
           <Card className="p-4">
-            <div className="flex items-center justify-between">
+            <AppToolbar>
               <h2 className="font-display text-lg font-semibold">Listas</h2>
+              <ToolbarPrimary>
               <Dialog open={newListOpen} onOpenChange={setNewListOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm">
@@ -218,7 +220,8 @@ function ListsPage() {
                   </div>
                 </DialogContent>
               </Dialog>
-            </div>
+              </ToolbarPrimary>
+            </AppToolbar>
             <div className="mt-3 divide-y">
               {(lists.data ?? []).map((l: any) => (
                 <div
@@ -487,9 +490,11 @@ function ListsPage() {
         </div>
 
         <Card className="h-fit p-4">
+          <AppToolbar>
           <h2 className="font-display text-lg font-semibold">Tags</h2>
+          </AppToolbar>
           <div className="mt-3 space-y-2">
-            <div className="flex gap-2">
+            <AppToolbar>
               <Input
                 placeholder="nome"
                 value={tagForm.name}
@@ -501,6 +506,7 @@ function ListsPage() {
                 value={tagForm.color}
                 onChange={(e) => setTagForm({ ...tagForm, color: e.target.value })}
               />
+              <ToolbarPrimary>
               <Button
                 onClick={async () => {
                   try {
@@ -514,7 +520,8 @@ function ListsPage() {
               >
                 Add
               </Button>
-            </div>
+              </ToolbarPrimary>
+            </AppToolbar>
             <div className="flex flex-wrap gap-2">
               {(tags.data ?? []).map((t: any) =>
                 editingTag?.id === t.id ? (

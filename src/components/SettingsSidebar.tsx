@@ -1,19 +1,15 @@
-import React from "react";
 import {
   KeyRound,
-  Phone,
-  MessageSquare,
-  Facebook,
   Database,
   QrCode,
   Settings,
   Monitor,
   ShieldCheck,
-  ChevronRight,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { MetaIcon, WhatsAppIcon } from "@/components/brand-icons";
+import { SettingsNavItem, SettingsNavSection } from "@/components/layout/settings-nav-item";
 
 export function SettingsSidebar({
   activeSection,
@@ -27,191 +23,94 @@ export function SettingsSidebar({
   form: any;
 }) {
   return (
-    <div className="space-y-3">
-      {/* CONEXÕES & APIS */}
-      <div className="space-y-3">
-        <h4 className="px-3 text-xs font-bold tracking-wider text-muted-foreground/75 uppercase flex items-center gap-1.5">
-          <KeyRound className="h-3.5 w-3.5" /> Conexões & APIs
-        </h4>
-        <div className="flex flex-col gap-1 mt-2">
-          {/* Conexão Meta */}
-          <button
-            onClick={() => setActiveSection("meta")}
-            className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors text-left group cursor-pointer"
-          >
-            <div className="flex items-center gap-4">
-              <div className="h-10 w-10 bg-[#0064E0]/10 text-[#0064E0] flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                <MetaIcon className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h5 className="font-semibold text-sm text-foreground">Conexão Meta</h5>
-                  <Badge
-                    variant="secondary"
-                    className={cn(
-                      "text-[10px] border-none font-semibold",
-                      form.hasAccessToken
-                        ? "bg-success/15 text-success hover:bg-success/20"
-                        : "bg-muted text-muted-foreground",
-                    )}
-                  >
-                    {form.hasAccessToken ? "Configurado" : "Pendente"}
-                  </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Configurações de aplicativo, credenciais e webhook da Meta.
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
-          </button>
-
-          {/* WhatsApp WABA */}
-          <button
-            onClick={() => setActiveSection("waba")}
-            className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors text-left group cursor-pointer"
-          >
-            <div className="flex items-center gap-4">
-              <div className="h-10 w-10 bg-[#25D366]/10 text-[#25D366] flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                <WhatsAppIcon className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h5 className="font-semibold text-sm text-foreground">WhatsApp (WABA)</h5>
-                  <Badge
-                    variant="secondary"
-                    className={cn(
-                      "text-[10px] border-none font-semibold",
-                      form.whatsapp_phone_number_id
-                        ? "bg-success/15 text-success hover:bg-success/20"
-                        : "bg-muted text-muted-foreground",
-                    )}
-                  >
-                    {form.whatsapp_phone_number_id ? "Configurado" : "Pendente"}
-                  </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Gerenciamento de instâncias, templates e permissões de chamadas.
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
-          </button>
-        </div>
-      </div>
-
-      {/* INTEGRAÇÕES & EXTRA */}
-      <div className="space-y-3">
-        <h4 className="px-3 text-xs font-bold tracking-wider text-muted-foreground/75 uppercase flex items-center gap-1.5">
-          <Database className="h-3.5 w-3.5" /> Integrações & Extra
-        </h4>
-        <div className="flex flex-col gap-1 mt-2">
-          {/* CRM */}
-          <button
-            onClick={() => setActiveSection("crm")}
-            className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors text-left group cursor-pointer"
-          >
-            <div className="flex items-center gap-4">
-              <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                <Database className="h-5 w-5" />
-              </div>
-              <div>
-                <h5 className="font-semibold text-sm text-foreground">Integrações CRM</h5>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Conexão com plataformas externas e Webhook de Entrada.
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
-          </button>
-
-          {/* QR Codes */}
-          <button
-            onClick={() => setActiveSection("qrcodes")}
-            className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors text-left group cursor-pointer"
-          >
-            <div className="flex items-center gap-4">
-              <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                <QrCode className="h-5 w-5" />
-              </div>
-              <div>
-                <h5 className="font-semibold text-sm text-foreground">QR Codes</h5>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Gerador de links e QR Codes de conversa rápida.
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
-          </button>
-        </div>
-      </div>
-
-      {/* CONFIGURAÇÕES GERAIS */}
-      <div className="space-y-3">
-        <h4 className="px-3 text-xs font-bold tracking-wider text-muted-foreground/75 uppercase flex items-center gap-1.5">
-          <Settings className="h-3.5 w-3.5" /> Configurações Gerais
-        </h4>
-        <div className="flex flex-col gap-1 mt-2">
-          {/* Ferramentas Avançadas */}
-          <button
-            onClick={() => setActiveSection("advanced")}
-            className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors text-left group cursor-pointer"
-          >
-            <div className="flex items-center gap-4">
-              <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                <Settings className="h-5 w-5" />
-              </div>
-              <div>
-                <h5 className="font-semibold text-sm text-foreground">Ferramentas Avançadas</h5>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Sandbox avançada, logs e comandos do sistema.
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
-          </button>
-
-          {/* Geral & Legal */}
-          <button
-            onClick={() => setActiveSection("general")}
-            className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors text-left group cursor-pointer"
-          >
-            <div className="flex items-center gap-4">
-              <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                <Monitor className="h-5 w-5" />
-              </div>
-              <div>
-                <h5 className="font-semibold text-sm text-foreground">Geral & Legal</h5>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Termos de uso, políticas de privacidade e tags globais.
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
-          </button>
-
-          {/* Administração */}
-          {isAdmin && (
-            <button
-              onClick={() => setActiveSection("admin")}
-              className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors text-left group cursor-pointer"
+    <nav className="space-y-4" aria-label="Seções de configuração">
+      <SettingsNavSection title="Conexões & APIs" icon={KeyRound}>
+        <SettingsNavItem
+          active={activeSection === "meta"}
+          onClick={() => setActiveSection("meta")}
+          icon={MetaIcon}
+          iconWrapperClassName="bg-[#0064E0]/10 text-[#0064E0]"
+          title="Conexão Meta"
+          description="Configurações de aplicativo, credenciais e webhook da Meta."
+          badge={
+            <Badge
+              variant="secondary"
+              className={cn(
+                "text-[10px] border-none font-semibold",
+                form.hasAccessToken
+                  ? "bg-success/15 text-success hover:bg-success/20"
+                  : "bg-muted text-muted-foreground",
+              )}
             >
-              <div className="flex items-center gap-4">
-                <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl shrink-0 group-hover:scale-105 transition-transform">
-                  <ShieldCheck className="h-5 w-5" />
-                </div>
-                <div>
-                  <h5 className="font-semibold text-sm text-foreground">Administração</h5>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Configurações globais do servidor, auditoria e backups.
-                  </p>
-                </div>
-              </div>
-              <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform" />
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
+              {form.hasAccessToken ? "Configurado" : "Pendente"}
+            </Badge>
+          }
+        />
+        <SettingsNavItem
+          active={activeSection === "waba"}
+          onClick={() => setActiveSection("waba")}
+          icon={WhatsAppIcon}
+          iconWrapperClassName="bg-[#25D366]/10 text-[#25D366]"
+          title="WhatsApp (WABA)"
+          description="Gerenciamento de instâncias, templates e permissões de chamadas."
+          badge={
+            <Badge
+              variant="secondary"
+              className={cn(
+                "text-[10px] border-none font-semibold",
+                form.whatsapp_phone_number_id
+                  ? "bg-success/15 text-success hover:bg-success/20"
+                  : "bg-muted text-muted-foreground",
+              )}
+            >
+              {form.whatsapp_phone_number_id ? "Configurado" : "Pendente"}
+            </Badge>
+          }
+        />
+      </SettingsNavSection>
+
+      <SettingsNavSection title="Integrações & Extra" icon={Database}>
+        <SettingsNavItem
+          active={activeSection === "crm"}
+          onClick={() => setActiveSection("crm")}
+          icon={Database}
+          title="Integrações CRM"
+          description="Conexão com plataformas externas e Webhook de Entrada."
+        />
+        <SettingsNavItem
+          active={activeSection === "qrcodes"}
+          onClick={() => setActiveSection("qrcodes")}
+          icon={QrCode}
+          title="QR Codes"
+          description="Gerador de links e QR Codes de conversa rápida."
+        />
+      </SettingsNavSection>
+
+      <SettingsNavSection title="Configurações Gerais" icon={Settings}>
+        <SettingsNavItem
+          active={activeSection === "advanced"}
+          onClick={() => setActiveSection("advanced")}
+          icon={Settings}
+          title="Ferramentas Avançadas"
+          description="Sandbox avançada, logs e comandos do sistema."
+        />
+        <SettingsNavItem
+          active={activeSection === "general"}
+          onClick={() => setActiveSection("general")}
+          icon={Monitor}
+          title="Geral & Legal"
+          description="Termos de uso, políticas de privacidade e tags globais."
+        />
+        {isAdmin && (
+          <SettingsNavItem
+            active={activeSection === "admin"}
+            onClick={() => setActiveSection("admin")}
+            icon={ShieldCheck}
+            title="Administração"
+            description="Configurações globais do servidor, auditoria e backups."
+          />
+        )}
+      </SettingsNavSection>
+    </nav>
   );
 }

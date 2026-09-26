@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
 import { usePageHeader } from "@/components/layout/page-header-provider";
+import { AppToolbar, ToolbarGroup, ToolbarPrimary } from "@/components/layout/app-toolbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -294,7 +295,8 @@ function LicensesPage() {
     title: "Gerenciamento de Clientes",
     subtitle: "Gerencie os acessos, planos e datas de validade de cada cliente/instância.",
     action: (
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <AppToolbar>
+        <ToolbarGroup>
         {isAdminMasterUser && (
           <>
             <Button
@@ -318,6 +320,8 @@ function LicensesPage() {
             </Button>
           </>
         )}
+        </ToolbarGroup>
+        <ToolbarPrimary>
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2">
@@ -403,7 +407,8 @@ function LicensesPage() {
             </form>
           </DialogContent>
         </Dialog>
-      </div>
+        </ToolbarPrimary>
+      </AppToolbar>
     ),
   });
 

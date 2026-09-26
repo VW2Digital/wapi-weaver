@@ -5,6 +5,7 @@ import { useState, useMemo } from "react";
 import { getCampaign, exportCampaignReport } from "@/lib/campaigns.functions";
 import { toFriendlyError } from "@/lib/meta-errors";
 import { usePageHeader } from "@/components/layout/page-header-provider";
+import { AppToolbar, ToolbarGroup, ToolbarPrimary } from "@/components/layout/app-toolbar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -133,9 +134,10 @@ function CampaignDetailPage() {
     title: c ? c.name : "Carregando...",
     subtitle: c ? `Criada em ${new Date(c.created_at).toLocaleString("pt-BR")}` : "Detalhes da campanha",
     action: (
-      <div className="flex items-center gap-2">
+      <AppToolbar>
+        <ToolbarGroup>
         {c && (c.status === "failed" || c.status === "cancelled") && (
-          <Button variant="outline" size="sm" onClick={() => setOpenEdit(true)} className="text-xs h-9">
+          <Button variant="outline" size="sm" onClick={() => setOpenEdit(true)}>
             <Pencil className="mr-1.5 h-3.5 w-3.5" /> Editar e reenviar
           </Button>
         )}
@@ -144,7 +146,6 @@ function CampaignDetailPage() {
           size="sm"
           onClick={() => exportMut.mutate()}
           disabled={exportMut.isPending}
-          className="text-xs h-9"
         >
           <Download className="mr-1.5 h-3.5 w-3.5" />
           {exportMut.isPending ? "Exportando…" : "Exportar CSV"}
@@ -154,17 +155,19 @@ function CampaignDetailPage() {
           size="icon"
           onClick={() => refetch()}
           disabled={isFetching}
-          className="h-9 w-9"
           title="Atualizar"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
         </Button>
-        <Button variant="ghost" size="sm" asChild className="text-xs h-9">
+        </ToolbarGroup>
+        <ToolbarPrimary>
+        <Button variant="outline" size="sm" asChild>
           <Link to="/campaigns">
             <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Voltar
           </Link>
         </Button>
-      </div>
+        </ToolbarPrimary>
+      </AppToolbar>
     ),
   });
 

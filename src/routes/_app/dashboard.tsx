@@ -8,6 +8,7 @@ import { getLicenseStatus, getMyPlan } from "@/lib/admin.functions";
 import { listContacts } from "@/lib/contacts.functions";
 import { GlobalPromoBanner } from "@/components/global-promo-banner";
 import { cn } from "@/lib/utils";
+import { AppToolbar } from "@/components/layout/app-toolbar";
 import { normalizeCampaignTotals } from "@/lib/campaign-totals";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -278,7 +279,7 @@ function Dashboard() {
   usePageHeader({
     title: "Dashboard",
     action: (
-      <div className="flex items-center gap-2">
+      <AppToolbar>
         {/* Plan Badge */}
         {planQuery.data && (
           <div
@@ -321,7 +322,7 @@ function Dashboard() {
             )}
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-[320px] max-h-[400px] overflow-y-auto" align="end">
+        <DropdownMenuContent className="w-80 max-h-96" align="end">
           <DropdownMenuLabel className="text-xs font-semibold">Notificações</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {notifications.length === 0 ? (
@@ -359,7 +360,7 @@ function Dashboard() {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-      </div>
+      </AppToolbar>
     ),
   });
 

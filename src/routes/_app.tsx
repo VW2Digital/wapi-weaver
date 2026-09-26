@@ -399,7 +399,7 @@ function AppLayout() {
                 side="top"
                 align="center"
                 sideOffset={4}
-                className="z-100 w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+                className="z-50 min-w-56 rounded-lg"
               >
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col gap-0.5">
@@ -467,8 +467,8 @@ function AppLayout() {
         <SidebarInset className="h-dvh overflow-hidden bg-background flex flex-col flex-1 p-0 m-0 border-0 md:peer-data-[variant=inset]:m-0 md:peer-data-[variant=inset]:rounded-none shadow-none">
           {/* Mobile top bar */}
           <header className="md:hidden flex items-center gap-2 border-b bg-card px-4 py-3 shrink-0">
-            <SidebarTrigger className="h-8 w-8 -ml-1 text-sidebar-foreground/70" />
-            <div className="flex items-center gap-2 ml-1">
+            <SidebarTrigger className="h-8 w-8 text-sidebar-foreground/70" />
+            <div className="flex items-center gap-2">
               <img
                 src={theme === "dark" ? "/logo-dark.png" : "/logo-light.png"}
                 alt="Bliv Logo"

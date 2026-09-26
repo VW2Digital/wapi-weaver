@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useMemo } from "react";
 import { usePageHeader } from "@/components/layout/page-header-provider";
+import { AppToolbar, ToolbarPrimary } from "@/components/layout/app-toolbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -266,16 +267,18 @@ function LicenseDetailPage() {
       ? `${license.client_email || "Sem e-mail"} · ${planLabel} · ${subscriptionStatusLabel(subscription?.status)}`
       : "",
     action: license ? (
-      <div className="flex items-center gap-2">
+      <AppToolbar>
         <Badge variant="outline" className="capitalize">
           {subscriptionStatusLabel(subscription?.status)}
         </Badge>
-        <Button variant="outline" size="icon" asChild>
+        <ToolbarPrimary>
+        <Button variant="outline" size="sm" asChild>
           <Link to="/licenses">
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
           </Link>
         </Button>
-      </div>
+        </ToolbarPrimary>
+      </AppToolbar>
     ) : undefined,
   });
 

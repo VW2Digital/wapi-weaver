@@ -97,6 +97,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePageHeader } from "@/components/layout/page-header-provider";
+import { ToolbarPrimary } from "@/components/layout/app-toolbar";
 import { Card } from "@/components/ui/card";
 import { GatewaySettings } from "@/components/licenses/gateway-settings";
 import { EmailProviderSettings } from "@/components/licenses/email-provider-settings";
@@ -1126,6 +1127,7 @@ function SettingsPage() {
     });
   const headerAction = useMemo(
     () => (
+      <ToolbarPrimary>
       <Button variant="outline" size="sm" asChild className="gap-2 cursor-pointer">
         <Link
           to={activeSection ? "/settings" : "/chat"}
@@ -1140,6 +1142,7 @@ function SettingsPage() {
           <span>Voltar</span>
         </Link>
       </Button>
+      </ToolbarPrimary>
     ),
     [activeSection],
   );

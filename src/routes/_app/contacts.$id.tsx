@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getContactDetail, addContactNote, updateContactProfilePhoto } from "@/lib/contacts.functions";
 import { listCustomFields, getCustomFieldValuesBatch } from "@/lib/custom-fields.functions";
 import { usePageHeader } from "@/components/layout/page-header-provider";
+import { ToolbarPrimary } from "@/components/layout/app-toolbar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -156,11 +157,13 @@ function ContactDetailPage() {
     title: contact ? (contact.name || displayPhone || "Sem identificador") : "Carregando...",
     subtitle: "Detalhes do contato",
     action: contact ? (
+      <ToolbarPrimary>
       <Button variant="outline" size="sm" asChild>
         <Link to="/contacts">
           <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
         </Link>
       </Button>
+      </ToolbarPrimary>
     ) : undefined,
   });
 

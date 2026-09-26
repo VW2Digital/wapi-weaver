@@ -17,6 +17,7 @@ import {
 import { CONTACT_CHANNELS } from "@/lib/contacts.schema";
 import { listLists, listTags } from "@/lib/lists.functions";
 import { usePageHeader } from "@/components/layout/page-header-provider";
+import { AppToolbar, ToolbarGroup, ToolbarPrimary, ToolbarSearch } from "@/components/layout/app-toolbar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -505,7 +506,7 @@ function ContactsPage() {
     title: "Contatos",
     subtitle: `${contacts?.length ?? 0} contato${(contacts?.length ?? 0) === 1 ? "" : "s"} cadastrado${(contacts?.length ?? 0) === 1 ? "" : "s"}.`,
     action: (
-      <div className="grid grid-cols-2 gap-2 w-full lg:w-auto">
+      <AppToolbar>
         <input
           ref={fileRef}
           type="file"
@@ -513,21 +514,20 @@ function ContactsPage() {
           hidden
           onChange={handleFile}
         />
-        <Button
-          variant="outline"
-          onClick={() => fileRef.current?.click()}
-          className="w-full justify-center"
-        >
-          <Upload className="mr-2 h-4 w-4 shrink-0" />
-          <span className="truncate">Importar CSV/XLSX</span>
-        </Button>
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild>
-            <Button className="w-full justify-center">
-              <Plus className="mr-2 h-4 w-4 shrink-0" />
-              <span className="truncate">Novo contato</span>
-            </Button>
-          </SheetTrigger>
+        <ToolbarGroup>
+          <Button variant="outline" onClick={() => fileRef.current?.click()}>
+            <Upload className="mr-2 h-4 w-4 shrink-0" />
+            <span className="truncate">Importar CSV/XLSX</span>
+          </Button>
+        </ToolbarGroup>
+        <ToolbarPrimary>
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4 shrink-0" />
+                <span className="truncate">Novo contato</span>
+              </Button>
+            </SheetTrigger>
           <SheetContent className="bg-card border-l border-muted-foreground/15 p-6 flex flex-col h-full gap-0 overflow-y-auto">
             <SheetHeader className="mb-4">
               <SheetTitle>Novo contato</SheetTitle>
@@ -741,7 +741,8 @@ function ContactsPage() {
             </div>
           </SheetContent>
         </Sheet>
-      </div>
+        </ToolbarPrimary>
+      </AppToolbar>
     ),
   });
 
@@ -749,9 +750,8 @@ function ContactsPage() {
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto p-6">
         <Card>
-          <div className="flex flex-wrap items-center gap-2 border-b p-3">
-            <Input
-              className="max-w-sm"
+          <AppToolbar className="border-b p-3">
+            <ToolbarSearch
               placeholder="Buscar por nome, telefone ou e-mail…"
               value={search}
               onChange={(e) => {
@@ -777,7 +777,7 @@ function ContactsPage() {
               ))}
             </div>
             {picked.size > 0 && (
-              <div className="flex items-center gap-2">
+              <ToolbarPrimary>
                 <span className="text-xs text-muted-foreground">
                   {picked.size} selecionado{picked.size === 1 ? "" : "s"}
                 </span>
@@ -846,9 +846,9 @@ function ContactsPage() {
                 <Button size="sm" variant="ghost" onClick={() => setPicked(new Set())}>
                   Limpar
                 </Button>
-              </div>
+              </ToolbarPrimary>
             )}
-          </div>
+          </AppToolbar>
           <div className="overflow-auto">
             {isLoading ? (
               <TableSkeleton rows={8} cols={5} />

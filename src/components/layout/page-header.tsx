@@ -1,3 +1,6 @@
+import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
+
 export function PageHeader({
   title,
   subtitle,
@@ -5,33 +8,32 @@ export function PageHeader({
 }: {
   title?: string;
   subtitle?: string;
-  action?: React.ReactNode;
+  action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-2 md:gap-4 border-b border-border/40 bg-card/85 backdrop-blur-md px-6 py-4 md:py-5 md:flex-row md:items-center md:justify-between shrink-0 sticky top-0 z-10">
-      <div className="flex items-center justify-between gap-4 w-full md:w-auto min-w-0">
+    <header
+      data-slot="page-header"
+      className="sticky top-0 z-10 shrink-0 border-b border-border bg-card/90 backdrop-blur-md"
+    >
+      <div className="flex w-full min-w-0 flex-col gap-3 px-4 py-3 sm:px-6 sm:py-4 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
         {(title || subtitle) && (
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             {title && (
-              <h1 className="font-display text-xl md:text-2xl font-semibold tracking-tight truncate">
+              <h1 className="font-display text-xl font-semibold tracking-tight truncate sm:text-2xl">
                 {title}
               </h1>
             )}
             {subtitle && (
-              <p className="mt-1 text-xs md:text-sm text-muted-foreground hidden md:block">
-                {subtitle}
-              </p>
+              <p className="mt-1 text-xs text-muted-foreground sm:text-sm">{subtitle}</p>
             )}
           </div>
         )}
-        {/* Mobile Action Trigger */}
-        {action && <div className="flex md:hidden shrink-0 items-center gap-2">{action}</div>}
+        {action && (
+          <div className="flex w-full min-w-0 lg:w-auto lg:max-w-xl lg:justify-end">
+            {action}
+          </div>
+        )}
       </div>
-      {subtitle && <p className="text-xs text-muted-foreground block md:hidden mt-0">{subtitle}</p>}
-      {/* Desktop Actions Wrapper */}
-      {action && (
-        <div className="hidden md:flex shrink-0 flex-wrap items-center gap-2">{action}</div>
-      )}
-    </div>
+    </header>
   );
 }

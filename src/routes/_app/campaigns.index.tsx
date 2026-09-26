@@ -5,9 +5,9 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { listCampaigns, cancelCampaign, deleteCampaign } from "@/lib/campaigns.functions";
 import { usePageHeader } from "@/components/layout/page-header-provider";
+import { AppToolbar, ToolbarPrimary, ToolbarSearch } from "@/components/layout/app-toolbar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Plus, XCircle, Megaphone, Trash2, MoreVertical, Eye, Pencil } from "lucide-react";
 import {
@@ -57,6 +57,7 @@ function CampaignsPage() {
     title: "Campanhas",
     subtitle: "Crie disparos em massa para suas listas de contatos.",
     action: (
+      <ToolbarPrimary>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           <Button onClick={() => setEditingCampaign(null)}>
@@ -74,6 +75,7 @@ function CampaignsPage() {
           />
         </DialogContent>
       </Dialog>
+      </ToolbarPrimary>
     ),
   });
 
@@ -81,8 +83,7 @@ function CampaignsPage() {
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto p-6 space-y-3">
         {(data ?? []).length > 0 && (
-          <Input
-            className="max-w-sm"
+          <ToolbarSearch
             placeholder="Buscar campanha por nome ou status…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}

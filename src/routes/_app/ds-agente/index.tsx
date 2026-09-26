@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { usePageHeader } from "@/components/layout/page-header-provider";
+import { AppToolbar, ToolbarGroup, ToolbarPrimary } from "@/components/layout/app-toolbar";
 import { FolderGrid } from "@/components/ds-agent/FolderGrid";
 import { AgentCardList } from "@/components/ds-agent/AgentCardList";
 import { CreateAgentModal } from "@/components/ds-agent/CreateAgentModal";
@@ -124,25 +125,26 @@ function DsAgenteMainPage() {
         ? "Gestão inteligente de agentes virtuais para automação de conversas."
         : `${currentAgents.length} ${currentAgents.length === 1 ? "agente cadastrado" : "agentes cadastrados"} nesta pasta.`,
     action: (
-      <div className="flex items-center gap-2">
+      <AppToolbar>
         {selectedFolderId === "overview" ? (
           <>
-            <div className="relative w-44 sm:w-56">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <ToolbarGroup>
+            <div className="relative w-full min-w-40 max-w-xs">
+              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Buscar item..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 h-8 rounded-full text-xs bg-background border-border"
+                className="h-9 pl-8"
               />
             </div>
-
+            </ToolbarGroup>
+            <ToolbarPrimary>
             {!isCreatingFolder ? (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setIsCreatingFolder(true)}
-                className="h-8 px-3 rounded-full text-xs font-medium border-border"
               >
                 <Plus className="mr-1.5 h-3.5 w-3.5" /> Nova Pasta
               </Button>
@@ -153,17 +155,16 @@ function DsAgenteMainPage() {
                   value={newFolderName}
                   onChange={(e) => setNewFolderName(e.target.value)}
                   autoFocus
-                  className="w-32 h-8 rounded-full text-xs bg-background border-primary"
+                  className="h-9 w-32"
                 />
-                <Button type="submit" size="sm" className="h-8 px-3 rounded-full text-xs font-medium">
+                <Button type="submit" size="sm">
                   Criar
                 </Button>
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   onClick={() => setIsCreatingFolder(false)}
-                  className="h-8 w-8 rounded-full"
                 >
                   <X className="h-3.5 w-3.5" />
                 </Button>
@@ -173,17 +174,16 @@ function DsAgenteMainPage() {
             <Button
               onClick={() => setIsCreateAgentModalOpen(true)}
               size="sm"
-              className="h-8 px-3.5 rounded-full text-xs font-medium bg-brand-gradient text-white shadow-sm hover:opacity-95"
             >
               <Plus className="mr-1.5 h-3.5 w-3.5" /> Adicionar Agente
             </Button>
+            </ToolbarPrimary>
           </>
         ) : (
-          <>
+          <ToolbarPrimary>
             <Button
               onClick={() => setIsCreateAgentModalOpen(true)}
               size="sm"
-              className="h-8 px-3.5 rounded-full text-xs font-medium bg-brand-gradient text-white shadow-sm hover:opacity-95"
             >
               <Plus className="mr-1.5 h-3.5 w-3.5" /> Adicionar Agente
             </Button>
@@ -192,13 +192,12 @@ function DsAgenteMainPage() {
               variant="outline"
               size="sm"
               onClick={() => setSelectedFolderId("overview")}
-              className="h-8 px-3 rounded-full text-xs font-medium border-border"
             >
               <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Voltar
             </Button>
-          </>
+          </ToolbarPrimary>
         )}
-      </div>
+      </AppToolbar>
     ),
   });
 

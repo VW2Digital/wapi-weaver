@@ -1,5 +1,6 @@
 import { assertPublicHttpUrl } from "@/lib/whatsapp-template-media";
 import type { LinkPreviewPayload } from "@/lib/chat-linkify";
+import { isInstagramPostOrReelUrl } from "@/lib/chat-instagram-share";
 
 const cache = new Map<string, { at: number; data: LinkPreviewPayload }>();
 const CACHE_MS = 30 * 60 * 1000;
@@ -34,11 +35,69 @@ function titleTag(html: string): string {
   return m ? decodeHtml(m[1].trim()) : "";
 }
 
-export async function fetchLinkPreview(rawUrl: string): Promise<LinkPreviewPayload> {
+export function previewFromInstagramOembed(
+  permalink: string,
+  body: Record<string, unknown>,
+): LinkPreviewPayload | null {
+  const image = typeof body.thumbnail_url === "string" ? body.thumbnail_url.trim() : "";
+  if (!/^https:\/\//i.test(image)) return null;
+  const title =
+    (typeof body.title === "string" && body.title.trim()) ||
+    (typeof body.author_name === "string" && body.author_name.trim()) ||
+    "Instagram";
+  return {
+    url: permalink,
+    title: title.slice(0, 140),
+    description: "",
+    image,
+    siteName: "Instagram",
+  };
+}
+
+export async function fetchInstagramOembedPreview(
+  permalink: string,
+  accessToken: string,
+  graphVersion = "v26.0",
+): Promise<LinkPreviewPayload | null> {
+  const version = /^v\d+\.\d+$/.test(graphVersion) ? graphVersion : "v26.0";
+  const endpoint = new URL(`https://graph.facebook.com/${version}/instagram_oembed`);
+  endpoint.searchParams.set("url", permalink);
+  endpoint.searchParams.set("access_token", accessToken);
+  endpoint.searchParams.set("omitscript", "true");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(endpoint.toString(), { signal: controller.signal });
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return null;
+    return previewFromInstagramOembed(permalink, json);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function fetchLinkPreview(
+  rawUrl: string,
+  options?: { instagramAccessToken?: string | null; graphVersion?: string | null },
+): Promise<LinkPreviewPayload> {
   const url = await assertPublicHttpUrl(rawUrl);
   const key = url.toString();
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.data;
+
+  if (isInstagramPostOrReelUrl(key) && options?.instagramAccessToken) {
+    const oembed = await fetchInstagramOembedPreview(
+      key,
+      options.instagramAccessToken,
+      options.graphVersion || "v26.0",
+    );
+    if (oembed?.image) {
+      cache.set(key, { at: Date.now(), data: oembed });
+      return oembed;
+    }
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
@@ -71,7 +130,10 @@ export async function fetchLinkPreview(rawUrl: string): Promise<LinkPreviewPaylo
 
   const html = (await res.text()).slice(0, 250_000);
   const title = metaContent(html, ["og:title", "twitter:title"]) || titleTag(html) || host;
-  const description = metaContent(html, ["og:description", "twitter:description", "description"]).slice(0, 280);
+  const description = metaContent(html, ["og:description", "twitter:description", "description"]).slice(
+    0,
+    280,
+  );
   const siteName = metaContent(html, ["og:site_name"]) || host;
   let image = metaContent(html, ["og:image", "og:image:url", "twitter:image"]);
   if (image) {

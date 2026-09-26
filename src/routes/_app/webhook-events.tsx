@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { usePageHeader } from "@/components/layout/page-header-provider";
+import { ToolbarPrimary } from "@/components/layout/app-toolbar";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -440,10 +441,12 @@ function WebhookEventsPage() {
     title: "Eventos do Webhook",
     subtitle: "Acompanhe em tempo real o status de aprovação de templates, entregas e respostas dos seus contatos.",
     action: (
+      <ToolbarPrimary>
       <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
         <RefreshCw className={cn("mr-2 h-4 w-4", isFetching && "animate-spin")} />
         Atualizar
       </Button>
+      </ToolbarPrimary>
     ),
   });
 

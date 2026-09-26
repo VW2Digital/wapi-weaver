@@ -505,7 +505,10 @@ export const META_TEMPLATE_DETAIL_FIELDS = [
   "optimization_spec",
 ] as const;
 
-export function dropUnknownGraphField(fields: string[], message: string): string[] | null {
+export function dropUnknownGraphField<T extends string>(
+  fields: readonly T[],
+  message: string,
+): T[] | null {
   const match = String(message || "").match(/nonexisting field \(([^)]+)\)/i);
   if (!match) return null;
   const unknown = match[1].trim();

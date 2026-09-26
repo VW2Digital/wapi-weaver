@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { usePageHeader } from "@/components/layout/page-header-provider";
+import { ToolbarPrimary } from "@/components/layout/app-toolbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -242,6 +243,7 @@ function AdminUsers() {
     title: "Membros da empresa",
     subtitle: "Gerencie os colaboradores da sua empresa e defina seus acessos.",
     action: (
+      <ToolbarPrimary>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           <Button>
@@ -312,6 +314,7 @@ function AdminUsers() {
           </form>
         </DialogContent>
       </Dialog>
+      </ToolbarPrimary>
     ),
   });
 
@@ -684,9 +687,11 @@ function AdminTeams() {
     title: "Equipes e Setores",
     subtitle: "Configure setores e a distribuição automática de conversas para os agentes.",
     action: (
+      <ToolbarPrimary>
       <Button onClick={handleNew}>
         <Plus className="h-4 w-4 mr-2" /> Nova equipe
       </Button>
+      </ToolbarPrimary>
     ),
   });
 

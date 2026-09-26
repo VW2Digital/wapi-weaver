@@ -59,7 +59,7 @@ export function SidebarNav({ appName, logo, groups, activePath, onNavigate, foot
 
   return (
     <>
-      <SidebarHeader className="py-5">
+      <SidebarHeader className="py-3">
         <div className="flex items-center justify-between px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
           
           {/* Logo area: static when expanded, hover-to-expand when collapsed */}
@@ -140,7 +140,7 @@ export function SidebarNav({ appName, logo, groups, activePath, onNavigate, foot
                             </SidebarMenuButton>
                           </CollapsibleTrigger>
                           <CollapsibleContent>
-                            <SidebarMenuSub className="border-sidebar-border ml-[22px] mt-2 pl-3 group-data-[collapsible=icon]:hidden">
+                            <SidebarMenuSub className="border-sidebar-border ml-5 mt-1 pl-3 group-data-[collapsible=icon]:hidden">
                               {children.map((child) => {
                                 const childActive = isNavigationPathActive(activePath, child.id);
                                 const ChildIcon = child.icon;

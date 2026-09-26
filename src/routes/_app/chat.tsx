@@ -82,6 +82,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AppToolbar, ToolbarGroup, ToolbarPrimary } from "@/components/layout/app-toolbar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1318,6 +1319,36 @@ function getContactAvatarUrl(contact: ChatContactRecord | null): string {
   return typeof rawUrl === "string" ? rawUrl : "";
 }
 
+function SafeAvatarMedia({
+  url,
+  alt,
+  fallback,
+  backgroundColor,
+}: {
+  url: string;
+  alt: string;
+  fallback: string;
+  backgroundColor: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  const showImage = Boolean(url) && !failed;
+  if (!showImage) {
+    return (
+      <span className="flex h-full w-full items-center justify-center" style={{ backgroundColor }}>
+        {fallback}
+      </span>
+    );
+  }
+  return (
+    <img
+      src={url}
+      alt={alt}
+      className="h-full w-full object-cover"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 /** Gera uma cor HSL consistente baseada no nome do contato */
 function getAvatarColor(name: string): string {
   const hash = (name || "")
@@ -1502,7 +1533,7 @@ function TeamAssignSubmenuItem({
         {isCurrentTeam && <Check className="ml-1 h-3 w-3 text-primary shrink-0" />}
       </DropdownMenuSubTrigger>
       <DropdownMenuPortal>
-        <DropdownMenuSubContent className="w-[200px] max-h-[300px] overflow-y-auto">
+        <DropdownMenuSubContent className="w-56 max-h-72 overflow-y-auto">
           <DropdownMenuItem
             onClick={() => onAssign(team.id, null)}
             className="cursor-pointer text-xs justify-between"
@@ -4658,8 +4689,8 @@ function ChatPage() {
           </div>
 
           {/* Abas Superiores com contadores e botões de ação */}
-          <div className="flex items-center justify-between p-3 border-b bg-muted/30 shrink-0">
-            <div className="flex items-center gap-1.5 flex-1 overflow-x-auto">
+          <AppToolbar className="p-3 border-b bg-muted/30 shrink-0">
+            <ToolbarGroup>
               <button
                 type="button"
                 onClick={() => setActiveTab("novos")}
@@ -4707,9 +4738,9 @@ function ChatPage() {
                   {outrosUnreadCount}
                 </span>
               </button>
-            </div>
+            </ToolbarGroup>
 
-            <div className="flex items-center gap-1 shrink-0 ml-2">
+            <ToolbarPrimary>
               <Button
                 onClick={() => setFilterView(filterView === "archived" ? "all" : "archived")}
                 size="icon"
@@ -4851,13 +4882,13 @@ function ChatPage() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
-          </div>
+            </ToolbarPrimary>
+          </AppToolbar>
 
           {/* Barra de Busca e botões de filtro */}
           <div className="p-3 border-b flex flex-col gap-2 bg-background shrink-0 order-2">
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
+            <AppToolbar>
+              <div className="relative min-w-40 flex-1">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Buscar atendimento"
@@ -4866,7 +4897,7 @@ function ChatPage() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-            </div>
+            </AppToolbar>
 
             {isSelectionMode && (
               <div className="flex items-center justify-between bg-muted/60 p-2.5 rounded-lg border text-xs gap-2 mt-1 animate-in fade-in slide-in-from-top-1 duration-200">
@@ -5075,19 +5106,12 @@ function ChatPage() {
                           style={!avatarUrl ? { backgroundColor: avatarBg } : undefined}
                         >
                           {avatarUrl ? (
-                            <img
-                              src={avatarUrl}
+                            <SafeAvatarMedia
+                              key={avatarUrl}
+                              url={avatarUrl}
                               alt={displayName}
-                              className="h-full w-full object-cover"
-                              onError={(e) => {
-                                const target = e.currentTarget;
-                                const parent = target.parentElement;
-                                if (parent) {
-                                  target.style.display = "none";
-                                  parent.style.backgroundColor = avatarBg;
-                                  parent.textContent = getInitials(c.name ?? "");
-                                }
-                              }}
+                              fallback={getInitials(c.name ?? "")}
+                              backgroundColor={avatarBg}
                             />
                           ) : (
                             getInitials(c.name ?? "")
@@ -5227,7 +5251,7 @@ function ChatPage() {
                               <MoreVertical className="h-4 w-4 text-muted-foreground" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-[200px]">
+                          <DropdownMenuContent align="end" className="w-56">
                             {/* Pin */}
                             <DropdownMenuItem
                               onClick={() =>
@@ -5246,7 +5270,7 @@ function ChatPage() {
                                   <span>Kanban</span>
                                 </DropdownMenuSubTrigger>
                                 <DropdownMenuPortal>
-                                  <DropdownMenuSubContent className="w-[200px]">
+                                  <DropdownMenuSubContent className="w-56">
                                     <DropdownMenuItem
                                       onClick={() =>
                                         kanbanStageMutation.mutate({
@@ -5271,7 +5295,7 @@ function ChatPage() {
                                             <span className="truncate">{funnel.name}</span>
                                           </DropdownMenuSubTrigger>
                                           <DropdownMenuPortal>
-                                            <DropdownMenuSubContent className="w-[180px]">
+                                            <DropdownMenuSubContent className="w-44">
                                               {funnelStages.map((stage) => (
                                                 <DropdownMenuItem
                                                   key={stage.id}
@@ -5310,7 +5334,7 @@ function ChatPage() {
                                   <span>Tags</span>
                                 </DropdownMenuSubTrigger>
                                 <DropdownMenuPortal>
-                                  <DropdownMenuSubContent className="w-[180px]">
+                                  <DropdownMenuSubContent className="w-44">
                                     {(tagsQuery.data as ChatTagRecord[]).map((tag) => {
                                       const tagId = tag.id;
                                       const contactPhone = c.phone_e164;
@@ -5354,7 +5378,7 @@ function ChatPage() {
                                 <span>Status</span>
                               </DropdownMenuSubTrigger>
                               <DropdownMenuPortal>
-                                <DropdownMenuSubContent className="w-[150px]">
+                                <DropdownMenuSubContent className="w-40">
                                   <DropdownMenuItem
                                     onClick={() =>
                                       statusMutation.mutate({ contactId: c.id, status: "aberto" })
@@ -5402,7 +5426,7 @@ function ChatPage() {
                                   <span>Atribuir</span>
                                 </DropdownMenuSubTrigger>
                                 <DropdownMenuPortal>
-                                  <DropdownMenuSubContent className="w-[200px] max-h-[350px] overflow-y-auto">
+                                  <DropdownMenuSubContent className="w-56 max-h-80 overflow-y-auto">
                                     <DropdownMenuItem
                                       onClick={() =>
                                         assignMutation.mutate({
@@ -5500,7 +5524,7 @@ function ChatPage() {
           </div>
 
           {/* Rodapé: Seletor de DDI + Telefone + Botão Conversar */}
-          <div className="p-3 border-t flex items-center gap-2 shrink-0 bg-muted/30 order-6">
+          <AppToolbar className="p-3 border-t shrink-0 bg-muted/30 order-6">
             <div className="relative shrink-0">
               <select
                 value={countryCode}
@@ -5541,7 +5565,6 @@ function ChatPage() {
               variant="outline"
               onClick={handleStartNewChat}
               disabled={addContactMutation.isPending || !newChatPhone}
-              className="h-9 text-xs border-primary/30 hover:border-primary/50 text-primary hover:text-primary hover:bg-primary/10 px-4 rounded-full font-semibold transition-colors shadow-sm shrink-0"
             >
               {addContactMutation.isPending ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -5549,7 +5572,7 @@ function ChatPage() {
                 "Conversar"
               )}
             </Button>
-          </div>
+          </AppToolbar>
         </div>
 
         {/* Janela de Mensagens + Painel de Info */}
@@ -5564,20 +5587,9 @@ function ChatPage() {
             {selectedContact ? (
               <>
                 {/* Header do Chat */}
-                <div className="chat-thread-header h-[59px] px-3 sm:px-4 flex items-center justify-between shrink-0 gap-3">
+                <div className="chat-thread-header min-h-[59px] px-3 py-2 sm:px-4 flex items-center justify-between shrink-0 gap-2">
                   {/* Informações do Contato à Esquerda */}
                   <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                    {/* Botão de Voltar (Mobile) */}
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="md:hidden h-9 w-9 -ml-1 text-muted-foreground hover:text-foreground hover:bg-accent shrink-0 rounded-full"
-                      onClick={() => handleCloseChat()}
-                      title="Voltar para a lista de conversas"
-                    >
-                      <ArrowLeft className="h-4 w-4" />
-                    </Button>
-
                     {/* Avatar */}
                     {(() => {
                       const avatarUrl = getContactAvatarUrl(selectedContact);
@@ -5591,21 +5603,12 @@ function ChatPage() {
                           style={!avatarUrl ? { backgroundColor: avatarBg } : undefined}
                         >
                           {avatarUrl ? (
-                            <img
-                              src={avatarUrl}
+                            <SafeAvatarMedia
+                              key={avatarUrl}
+                              url={avatarUrl}
                               alt={selectedContact.name ?? "Contato"}
-                              className="h-full w-full object-cover"
-                              onError={(e) => {
-                                const target = e.currentTarget;
-                                const parent = target.parentElement;
-                                if (parent) {
-                                  target.style.display = "none";
-                                  parent.style.backgroundColor = avatarBg;
-                                  parent.textContent = (selectedContact.name ?? "C")
-                                    .slice(0, 2)
-                                    .toUpperCase();
-                                }
-                              }}
+                              fallback={(selectedContact.name ?? "C").slice(0, 2).toUpperCase()}
+                              backgroundColor={avatarBg}
                             />
                           ) : (
                             (selectedContact.name ?? "C").slice(0, 2).toUpperCase()
@@ -5632,7 +5635,7 @@ function ChatPage() {
                   </div>
 
                   {/* Ações à Direita */}
-                  <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                  <ToolbarPrimary>
                     {(() => {
                       const botOn = isFlagEnabled(selectedContact.bot_active);
                       const manual = isFlagEnabled(selectedContact.manual_pause as ContactFlagValue);
@@ -5699,7 +5702,7 @@ function ChatPage() {
                           <DropdownMenuTrigger asChild>
                             <button
                               type="button"
-                              className="h-8 max-w-[180px] inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 text-[13px] text-foreground shrink-0 hover:bg-accent"
+                              className="h-8 max-w-44 inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 text-[13px] text-foreground shrink-0 hover:bg-accent"
                               title="Etiquetas e seleção"
                             >
                               <span className="h-3.5 w-3.5 rounded-full overflow-hidden flex shrink-0 border border-border">
@@ -5710,7 +5713,7 @@ function ChatPage() {
                               <ChevronDown className="h-3.5 w-3.5 opacity-80 shrink-0" />
                             </button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-56 max-h-[320px] overflow-y-auto">
+                          <DropdownMenuContent align="end" className="w-56 max-h-80 overflow-y-auto">
                             {(tagsQuery.data as ChatTagRecord[] | undefined)?.length ? (
                               (tagsQuery.data as ChatTagRecord[]).map((tag) => {
                                 const tagId = tag.id;
@@ -5797,7 +5800,7 @@ function ChatPage() {
                           <MoreVertical className="h-5 w-5" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-[220px]">
+                      <DropdownMenuContent align="end" className="w-56">
                         {/* Status Submenu */}
                         <DropdownMenuSub>
                           <DropdownMenuSubTrigger className="cursor-pointer">
@@ -5805,7 +5808,7 @@ function ChatPage() {
                             <span>Status</span>
                           </DropdownMenuSubTrigger>
                           <DropdownMenuPortal>
-                            <DropdownMenuSubContent className="w-[160px]">
+                            <DropdownMenuSubContent className="w-40">
                               <DropdownMenuItem
                                 onClick={() =>
                                   statusMutation.mutate({
@@ -5913,7 +5916,7 @@ function ChatPage() {
                               <span>Atribuir Conversa</span>
                             </DropdownMenuSubTrigger>
                             <DropdownMenuPortal>
-                              <DropdownMenuSubContent className="w-[200px] max-h-[350px] overflow-y-auto">
+                              <DropdownMenuSubContent className="w-56 max-h-80 overflow-y-auto">
                                 <DropdownMenuItem
                                   onClick={() =>
                                     assignMutation.mutate({
@@ -6026,18 +6029,27 @@ function ChatPage() {
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="md:hidden h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
+                      onClick={() => handleCloseChat()}
+                      title="Voltar para a lista de conversas"
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                  </ToolbarPrimary>
                 </div>
 
                 {/* Message Search Bar */}
                 {isMessageSearchOpen && (
-                  <div className="px-4 py-2.5 bg-card border-b border-border flex items-center gap-2 animate-in slide-in-from-top duration-200">
-                    <Search className="h-3.5 w-3.5 text-muted-foreground" />
+                  <AppToolbar className="px-4 py-2.5 bg-card border-b border-border animate-in slide-in-from-top duration-200">
+                    <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <Input
                       placeholder="Buscar nas mensagens deste chat..."
                       value={messageSearchQuery}
                       onChange={(e) => setMessageSearchQuery(e.target.value)}
-                      className="flex-1 h-8 text-xs bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-zinc-800 dark:text-zinc-200 focus-visible:ring-primary focus-visible:ring-offset-0 focus-visible:ring-1"
+                      className="min-w-40 flex-1 h-8 text-xs"
                       autoFocus
                     />
                     {messageSearchQuery && (
@@ -6061,7 +6073,7 @@ function ChatPage() {
                     >
                       <X className="h-4 w-4" />
                     </Button>
-                  </div>
+                  </AppToolbar>
                 )}
 
                 {/* Corpo / Lista de Balões */}
@@ -6271,7 +6283,7 @@ function ChatPage() {
                                           <span>Etiquetar</span>
                                         </DropdownMenuSubTrigger>
                                         <DropdownMenuPortal>
-                                          <DropdownMenuSubContent className="p-2 min-w-[200px]">
+                                          <DropdownMenuSubContent className="p-2 min-w-56">
                                             {renderMessageTagSubmenu(msg)}
                                           </DropdownMenuSubContent>
                                         </DropdownMenuPortal>
@@ -7561,10 +7573,12 @@ function ChatPage() {
                               style={!avatarUrl ? { backgroundColor: avatarBg } : undefined}
                             >
                               {avatarUrl ? (
-                                <img
-                                  src={avatarUrl}
+                                <SafeAvatarMedia
+                                  key={avatarUrl}
+                                  url={avatarUrl}
                                   alt={selectedContact.name ?? ""}
-                                  className="h-full w-full object-cover"
+                                  fallback={(selectedContact.name ?? "C").slice(0, 2).toUpperCase()}
+                                  backgroundColor={avatarBg}
                                 />
                               ) : (
                                 (selectedContact.name ?? "C").slice(0, 2).toUpperCase()
@@ -7748,7 +7762,7 @@ function ChatPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
-                          className="w-[240px] max-h-[350px] overflow-y-auto"
+                          className="w-60 max-h-80 overflow-y-auto"
                           align="end"
                         >
                           <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground">

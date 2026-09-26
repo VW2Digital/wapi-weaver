@@ -19,6 +19,7 @@ import {
 } from "@/lib/crm.functions";
 import { listContacts } from "@/lib/contacts.functions";
 import { usePageHeader } from "@/components/layout/page-header-provider";
+import { AppToolbar, ToolbarGroup, ToolbarPrimary } from "@/components/layout/app-toolbar";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -512,15 +513,15 @@ function CRMPage() {
   usePageHeader({
     title: "Kanban",
     action: (
-      <div className="flex items-center gap-2">
+      <AppToolbar>
         {/* Desktop Actions */}
-        <div className="hidden md:flex items-center gap-2">
+        <ToolbarGroup className="max-md:hidden">
           {/* Funnel Selector */}
           {funnels.length > 0 && (
             <Select value={activeId} onValueChange={handleFunnelChange}>
-              <SelectTrigger className="w-[180px] h-8 px-3 rounded-full text-xs font-medium border-border bg-background">
-                <SelectValue />
-              </SelectTrigger>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
               <SelectContent>
                 {funnels.map((f: any) => (
                   <SelectItem key={f.id} value={f.id}>
@@ -536,7 +537,6 @@ function CRMPage() {
             <Button
               variant="outline"
               size="sm"
-              className="h-8 px-3 rounded-full text-xs font-medium border-border gap-1.5 inline-flex items-center"
               onClick={() => {
                 setStageManagerOpen(true);
                 setStageView("list");
@@ -547,11 +547,12 @@ function CRMPage() {
             </Button>
           )}
 
+        </ToolbarGroup>
+        <ToolbarPrimary className="max-md:hidden">
           <Button
-            variant="default"
+            variant="outline"
             size="sm"
             onClick={() => setNewFunnelOpen(true)}
-            className="h-8 px-3 rounded-full text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 inline-flex items-center"
           >
             Novo Funil
           </Button>
@@ -559,60 +560,55 @@ function CRMPage() {
           <Button
             size="sm"
             onClick={() => handleOpenNewOppModal()}
-            className="h-8 px-3 rounded-full text-xs font-medium gap-1.5 inline-flex items-center"
           >
             <Plus className="h-3.5 w-3.5" />
             <span>Nova Oportunidade</span>
           </Button>
-        </div>
+        </ToolbarPrimary>
 
         {/* Mobile Actions Dropdown */}
-        <div className="flex md:hidden items-center">
+        <ToolbarPrimary className="md:hidden">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" className="h-9 w-9">
                 <MoreVertical className="h-4.5 w-4.5" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="w-[200px] bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200"
-            >
+            <DropdownMenuContent align="end" className="w-56">
               {funnels.length > 0 && (
                 <>
                   <DropdownMenuSub>
-                    <DropdownMenuSubTrigger className="flex items-center gap-2 cursor-pointer focus:bg-neutral-800 focus:text-neutral-100">
+                    <DropdownMenuSubTrigger>
                       <Filter className="h-4 w-4" />
                       <span>Selecionar Funil</span>
                     </DropdownMenuSubTrigger>
                     <DropdownMenuPortal>
-                      <DropdownMenuSubContent className="bg-white dark:bg-[#0c0a0f] border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
+                      <DropdownMenuSubContent>
                         {funnels.map((f: any) => (
                           <DropdownMenuItem
                             key={f.id}
                             onClick={() => handleFunnelChange(f.id)}
-                            className="flex items-center justify-between cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
                           >
                             <span>{f.name}</span>
-                            {activeId === f.id && <Check className="h-4 w-4 text-violet-500" />}
+                            {activeId === f.id && <Check className="h-4 w-4 text-primary" />}
                           </DropdownMenuItem>
                         ))}
                       </DropdownMenuSubContent>
                     </DropdownMenuPortal>
                   </DropdownMenuSub>
-                  <DropdownMenuSeparator className="bg-neutral-800" />
+                  <DropdownMenuSeparator />
                 </>
               )}
               <DropdownMenuItem
                 onClick={() => handleOpenNewOppModal()}
-                className="flex items-center gap-2 cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                className="flex items-center gap-2"
               >
                 <Plus className="h-4 w-4" />
                 <span>Nova Oportunidade</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setNewFunnelOpen(true)}
-                className="flex items-center gap-2 cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                className="flex items-center gap-2"
               >
                 <Plus className="h-4 w-4" />
                 <span>Novo Funil</span>
@@ -623,7 +619,7 @@ function CRMPage() {
                     setStageManagerOpen(true);
                     setStageView("list");
                   }}
-                  className="flex items-center gap-2 cursor-pointer focus:bg-neutral-800 focus:text-neutral-100"
+                  className="flex items-center gap-2"
                 >
                   <Settings className="h-4 w-4" />
                   <span>Gerenciar Etapas</span>
@@ -631,7 +627,7 @@ function CRMPage() {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
+        </ToolbarPrimary>
 
         {/* Render dialogs outside of triggers */}
         <Dialog
@@ -940,7 +936,7 @@ function CRMPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+      </AppToolbar>
     ),
   });
 

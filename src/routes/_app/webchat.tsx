@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { usePageHeader } from "@/components/layout/page-header-provider";
+import { ToolbarPrimary } from "@/components/layout/app-toolbar";
 import { Copy, Plus, ArrowLeft, MessageCircle, ChevronRight, X, User, Mail, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -50,12 +51,14 @@ function WebchatSettingsPage() {
     title: "WebChat",
     subtitle: "Gerencie widgets e copie o código de instalação.",
     action: (
+      <ToolbarPrimary>
       <Button variant="outline" size="sm" asChild>
         <Link to="/settings" search={{ s: undefined }}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Voltar
         </Link>
       </Button>
+      </ToolbarPrimary>
     ),
   });
 
