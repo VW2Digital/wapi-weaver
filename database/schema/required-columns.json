@@ -525,6 +525,7 @@
     "recurrence",
     "wait_amount",
     "wait_unit",
+    "active",
     "created_at"
   ],
   "ds_agent_knowledge": [

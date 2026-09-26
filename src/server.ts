@@ -123,7 +123,7 @@ function startDsAgentFollowupProcessor() {
     try {
       const { processDsAgentFollowupsOnce } = await import("./lib/ds-agent-followup.server");
       const result = await processDsAgentFollowupsOnce();
-      if (result.sent > 0 || result.errors > 0) {
+      if (result.sent > 0 || result.errors > 0 || result.blocked > 0 || result.cancelled > 0) {
         console.log("[DS Follow-up]", JSON.stringify(result));
       }
     } catch (e) {

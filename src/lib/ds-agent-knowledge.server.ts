@@ -86,6 +86,61 @@ function extractPdfText(buffer: Buffer): string {
   return truncate(printable.join(" ").replace(/\s+/g, " "));
 }
 
+function readZipEntry(buffer: Buffer, entryName: string): string {
+  let offset = 0;
+  while (offset + 30 <= buffer.length) {
+    if (buffer.readUInt32LE(offset) !== 0x04034b50) {
+      const next = buffer.indexOf(Buffer.from([0x50, 0x4b, 0x03, 0x04]), offset + 1);
+      if (next < 0) return "";
+      offset = next;
+      continue;
+    }
+    const method = buffer.readUInt16LE(offset + 8);
+    const compressedSize = buffer.readUInt32LE(offset + 18);
+    const nameLength = buffer.readUInt16LE(offset + 26);
+    const extraLength = buffer.readUInt16LE(offset + 28);
+    const nameStart = offset + 30;
+    const fileName = buffer.slice(nameStart, nameStart + nameLength).toString("utf8");
+    const dataStart = nameStart + nameLength + extraLength;
+    if (dataStart > buffer.length) return "";
+    const dataEnd = compressedSize > 0 ? dataStart + compressedSize : buffer.length;
+    const data = buffer.slice(dataStart, Math.min(dataEnd, buffer.length));
+    if (fileName.replace(/\\/g, "/") === entryName) {
+      if (method === 0) return data.toString("utf8");
+      if (method === 8) {
+        try {
+          return zlib.inflateRawSync(data).toString("utf8");
+        } catch {
+          return "";
+        }
+      }
+      return "";
+    }
+    if (compressedSize <= 0) return "";
+    offset = dataStart + compressedSize;
+  }
+  return "";
+}
+
+function extractDocxText(buffer: Buffer): string {
+  const xml = readZipEntry(buffer, "word/document.xml");
+  if (!xml) return "";
+  const text = xml
+    .replace(/<w:tab\/>/g, "\t")
+    .replace(/<w:br\/>/g, "\n")
+    .replace(/<\/w:p>/g, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return truncate(text);
+}
+
 function estimatePages(text: string): number {
   const len = text.length;
   if (len <= 0) return 1;
@@ -123,13 +178,17 @@ export function extractTextFromUpload(
   }
 
   if (ext === ".docx") {
-    return {
-      text: "",
-      type: "text",
-      pageCount: 1,
-      ok: false,
-      error: "DOCX ainda não é suportado para extração. Converta para TXT, CSV ou PDF com texto.",
-    };
+    const text = extractDocxText(buffer);
+    if (!text || text.length < 20) {
+      return {
+        text: "",
+        type: "text",
+        pageCount: 1,
+        ok: false,
+        error: "Não foi possível extrair texto deste DOCX. O arquivo pode estar vazio ou corrompido.",
+      };
+    }
+    return { text, type: "text", pageCount: estimatePages(text), ok: true };
   }
 
   return {

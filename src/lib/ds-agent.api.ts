@@ -367,19 +367,30 @@ dsAgentApi.post("/:id/followups", async (c) => {
     `INSERT INTO ds_agent_followups (id, agent_id, tenant_id, name, message, type, recurrence, wait_amount, wait_unit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [id, agentId, tenantId, body.name, body.message, body.type || "manual", body.recurrence || "unico", body.wait_amount || 10, body.wait_unit || "minutos"]
   );
-  const [followup] = await db.query(`SELECT * FROM ds_agent_followups WHERE id = ?`, [id]);
+  const [followup] = await db.query(
+    `SELECT * FROM ds_agent_followups WHERE id = ? AND tenant_id = ?`,
+    [id, tenantId],
+  );
   return c.json({ ok: true, followup }, 201);
 });
 
 dsAgentApi.get("/:id/followups", async (c) => {
+  const tenantId = c.get("tenantId");
   const agentId = c.req.param("id");
-  const followups = await db.query(`SELECT * FROM ds_agent_followups WHERE agent_id = ?`, [agentId]);
+  const followups = await db.query(
+    `SELECT * FROM ds_agent_followups WHERE agent_id = ? AND tenant_id = ?`,
+    [agentId, tenantId],
+  );
   return c.json({ ok: true, followups });
 });
 
 dsAgentApi.delete("/:id/followups/:followupId", async (c) => {
+  const tenantId = c.get("tenantId");
   const followupId = c.req.param("followupId");
-  await db.query(`DELETE FROM ds_agent_followups WHERE id = ?`, [followupId]);
+  await db.query(`DELETE FROM ds_agent_followups WHERE id = ? AND tenant_id = ?`, [
+    followupId,
+    tenantId,
+  ]);
   return c.json({ ok: true });
 });
 

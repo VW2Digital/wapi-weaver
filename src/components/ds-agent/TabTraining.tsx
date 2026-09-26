@@ -32,22 +32,35 @@ interface FollowupItem {
   recurrence: "unico" | "recorrente" | "diario";
   wait_amount: number;
   wait_unit: "minutos" | "horas" | "dias";
+  active?: number | boolean | null;
+}
+
+interface FollowupRun {
+  id: string;
+  followup_id: string;
+  status: string;
+  reason: string;
+  created_at: string;
 }
 
 interface TabTrainingProps {
   agentData: any;
   onChangeField: (field: string, value: any) => void;
   followups: FollowupItem[];
+  followupRuns?: FollowupRun[];
   onAddFollowup: (followup: any) => void;
   onDeleteFollowup: (id: string) => void;
+  onToggleFollowup?: (id: string, active: boolean) => void;
 }
 
 export function TabTraining({
   agentData,
   onChangeField,
   followups,
+  followupRuns = [],
   onAddFollowup,
   onDeleteFollowup,
+  onToggleFollowup,
 }: TabTrainingProps) {
   const [showApiKey, setShowApiKey] = useState(false);
   const [isActionAnalyzerOpen, setIsActionAnalyzerOpen] = useState(true);
@@ -427,7 +440,7 @@ export function TabTraining({
                 <Clock className="h-5 w-5 text-primary" /> Follow-up do Agente
               </h4>
               <p className="text-xs text-muted-foreground">
-                Configure gatilhos para reengajar clientes automaticamente quando ficarem sem responder.
+                O servidor verifica as conversas a cada minuto, mesmo com a tela fechada. O prazo começa na última mensagem enviada ao lead.
               </p>
             </div>
             <Button
@@ -450,29 +463,102 @@ export function TabTraining({
                   key={f.id}
                   className="rounded-lg border border-border bg-card p-4 relative group"
                 >
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-2">
                     <div>
                       <span className="text-xs font-bold text-foreground">{f.name}</span>
                       <span className="ml-2 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded capitalize font-semibold">
                         {f.type}
                       </span>
                     </div>
-                    <button
-                      onClick={() => onDeleteFollowup(f.id)}
-                      className="text-muted-foreground hover:text-destructive transition-colors"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={f.active == null ? true : Boolean(Number(f.active))}
+                        onCheckedChange={(checked) => onToggleFollowup?.(f.id, checked)}
+                        aria-label={f.active == null || Boolean(Number(f.active)) ? "Desativar follow-up" : "Ativar follow-up"}
+                      />
+                      <button
+                        onClick={() => onDeleteFollowup(f.id)}
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                   <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{f.message}</p>
                   <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground border-t border-border/60 pt-2">
                     <span>Espere {f.wait_amount} {f.wait_unit}</span>
-                    <span className="capitalize font-medium">{f.recurrence}</span>
+                    <span className="capitalize font-medium">
+                      {f.active == null || Boolean(Number(f.active)) ? "Ativo" : "Desativado"} · {f.recurrence}
+                    </span>
                   </div>
                 </div>
               ))}
             </div>
           )}
+
+          <div className="border-t border-border/60 pt-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h5 className="text-sm font-semibold text-foreground">Histórico de execuções</h5>
+              <div className="flex gap-4 text-xs">
+                <span className="text-primary font-semibold">
+                  {followupRuns.filter((run) => run.status === "sent").length} enviados
+                </span>
+                <span className="text-destructive font-semibold">
+                  {followupRuns.filter((run) => run.status === "failed" || run.status === "blocked").length} falhas
+                </span>
+                <span className="text-muted-foreground font-semibold">
+                  {followupRuns.filter((run) => run.status === "cancelled").length} cancelados
+                </span>
+              </div>
+            </div>
+            {followupRuns.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Nenhuma execução registrada. Um follow-up só aparece aqui depois de ser enviado, cancelado ou bloqueado pelo canal.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {followupRuns.slice(0, 8).map((run) => {
+                  const when = new Date(run.created_at);
+                  const time = Number.isNaN(when.getTime())
+                    ? ""
+                    : new Intl.DateTimeFormat("pt-BR", {
+                        timeZone: "America/Sao_Paulo",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      }).format(when);
+                  const label =
+                    run.status === "sent"
+                      ? "Enviado"
+                      : run.status === "cancelled"
+                        ? "Cancelado"
+                        : run.status === "blocked"
+                          ? "Bloqueado"
+                          : run.status === "processing"
+                            ? "Em processamento"
+                            : "Falhou";
+                  return (
+                    <div key={run.id} className="flex items-center justify-between gap-3 text-xs">
+                      <div className="min-w-0">
+                        <span className="text-muted-foreground mr-2">{time}</span>
+                        <span className="text-foreground">{run.reason || "Follow-up"}</span>
+                      </div>
+                      <span
+                        className={
+                          run.status === "sent"
+                            ? "shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary"
+                            : run.status === "cancelled" || run.status === "processing"
+                              ? "shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground"
+                              : "shrink-0 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-semibold text-destructive"
+                        }
+                      >
+                        {label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

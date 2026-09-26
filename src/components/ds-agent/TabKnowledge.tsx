@@ -62,12 +62,6 @@ export function TabKnowledge({
       return;
     }
 
-    if (ext === ".docx") {
-      alert("DOCX ainda não é suportado para indexação. Converta para TXT, CSV ou PDF com texto.");
-      e.target.value = "";
-      return;
-    }
-
     const sizeKb = Math.round(file.size / 1024);
     if (sizeKb > 5120) {
       alert("Arquivo muito grande (máx. 5 MB).");
@@ -121,7 +115,7 @@ export function TabKnowledge({
               <FileCheck className="h-5 w-5 text-primary" /> Base de Conhecimento (Documentos)
             </h3>
             <p className="text-xs text-muted-foreground mt-1">
-              Adicione documentos para que a IA utilize como referência nas conversas. Formatos aceitos: <strong className="text-foreground">PDF (texto selecionável), TXT, CSV</strong>. DOCX ainda não é suportado.
+              Adicione documentos para que a IA utilize como referência nas conversas. Formatos aceitos: <strong className="text-foreground">PDF (texto selecionável), DOCX, TXT, CSV</strong>.
             </p>
           </div>
 
@@ -143,7 +137,7 @@ export function TabKnowledge({
             <FileText className="h-8 w-8 mx-auto mb-2 text-primary" />
             <p className="text-sm font-semibold text-foreground">Nenhum documento enviado</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Envie arquivos PDF ou TXT para treinar o agente com seus produtos e serviços.
+              Envie arquivos PDF, DOCX, TXT ou CSV para o agente consultar nas conversas.
             </p>
           </div>
         ) : (
@@ -182,7 +176,15 @@ export function TabKnowledge({
                         : "bg-destructive/10 text-destructive border-destructive/30 text-[10px]"
                     }
                   >
-                    {file.indexed ? "Indexado" : "Sem conteúdo"}
+                    {file.status === "inativo"
+                      ? "Desativado"
+                      : file.knowledge_status === "pending"
+                        ? "Processando"
+                        : file.knowledge_status === "error"
+                          ? "Falhou"
+                          : file.indexed
+                            ? "Indexado"
+                            : "Sem conteúdo"}
                   </Badge>
                   <button
                     onClick={() => onDeleteFile(file.id)}

@@ -824,6 +824,7 @@ CREATE TABLE IF NOT EXISTS `ds_agent_followups` (
   `recurrence` enum('unico','recorrente','diario') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'unico',
   `wait_amount` int NOT NULL DEFAULT '10',
   `wait_unit` enum('minutos','horas','dias') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'minutos',
+  `active` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_ds_follow_tenant` (`tenant_id`),

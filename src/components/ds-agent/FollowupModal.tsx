@@ -138,7 +138,7 @@ export function FollowupModal({ isOpen, onClose, onAddFollowup }: FollowupModalP
                 >
                   <MessageSquare className="h-4 w-4 mx-auto mb-1 text-primary" />
                   <p className="text-xs font-semibold">Único</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">1 vez por lead</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">1 vez por silêncio</p>
                 </div>
 
                 <div
@@ -190,7 +190,7 @@ export function FollowupModal({ isOpen, onClose, onAddFollowup }: FollowupModalP
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => setWaitAmount((prev) => prev + 1)}
+                    onClick={() => setWaitAmount((prev) => Math.min(waitUnit === "dias" ? 30 : waitUnit === "horas" ? 168 : 10080, prev + 1))}
                     className="h-8 w-8 text-foreground hover:bg-muted"
                   >
                     +
@@ -202,7 +202,11 @@ export function FollowupModal({ isOpen, onClose, onAddFollowup }: FollowupModalP
                     <button
                       key={unit}
                       type="button"
-                      onClick={() => setWaitUnit(unit)}
+                      onClick={() => {
+                        const max = unit === "dias" ? 30 : unit === "horas" ? 168 : 10080;
+                        setWaitUnit(unit);
+                        setWaitAmount((prev) => Math.min(max, Math.max(1, prev)));
+                      }}
                       className={`px-3 py-1 text-xs font-medium capitalize rounded transition-colors ${
                         waitUnit === unit
                           ? "bg-primary text-primary-foreground font-semibold"

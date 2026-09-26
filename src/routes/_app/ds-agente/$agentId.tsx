@@ -22,6 +22,7 @@ import {
   saveDsCalendarAvailability,
   createDsFollowup,
   deleteDsFollowup,
+  setDsFollowupActive,
   testDsAgentChat,
   getDsAgentUsageReport,
 } from "@/lib/ds-agent.functions";
@@ -42,6 +43,7 @@ function DsAgentEditorPage() {
   const saveAvailFn = useServerFn(saveDsCalendarAvailability);
   const createFollowupFn = useServerFn(createDsFollowup);
   const deleteFollowupFn = useServerFn(deleteDsFollowup);
+  const setFollowupActiveFn = useServerFn(setDsFollowupActive);
   const testChatFn = useServerFn(testDsAgentChat);
   const getUsageFn = useServerFn(getDsAgentUsageReport);
 
@@ -153,6 +155,16 @@ function DsAgentEditorPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dsAgentDetail", agentId] });
       toast.success("Follow-up removido.");
+    },
+  });
+
+  const toggleFollowupMut = useMutation({
+    mutationFn: (payload: { id: string; active: boolean }) => setFollowupActiveFn({ data: payload }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dsAgentDetail", agentId] });
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Falha ao atualizar follow-up.");
     },
   });
 
@@ -270,8 +282,10 @@ function DsAgentEditorPage() {
           agentData={localAgentData}
           onChangeField={handleFieldChange}
           followups={agentDetail.followups || []}
+          followupRuns={agentDetail.followup_runs || []}
           onAddFollowup={(f) => createFollowupMut.mutate(f)}
           onDeleteFollowup={(id) => deleteFollowupMut.mutate(id)}
+          onToggleFollowup={(id, active) => toggleFollowupMut.mutate({ id, active })}
         />
       )}
 

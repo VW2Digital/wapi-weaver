@@ -442,6 +442,51 @@ export const getDsAgentDetail = createServerFn({ method: "GET" })
         [data.id, tenantId]
       )) as any[];
 
+      let followupRuns: Array<{
+        id: string;
+        followup_id: string;
+        status: string;
+        reason: string;
+        created_at: string;
+      }> = [];
+      try {
+        const runRows = (await db.query(
+          `SELECT id, message, details, created_at
+           FROM ds_agent_logs
+           WHERE tenant_id = ? AND agent_id = ?
+             AND message IN (
+               'followup_processing',
+               'followup_sent',
+               'followup_failed',
+               'followup_blocked',
+               'followup_cancelled'
+             )
+           ORDER BY created_at DESC
+           LIMIT 30`,
+          [tenantId, data.id],
+        )) as Array<{ id: string; message: string; details: any; created_at: Date }>;
+        followupRuns = (runRows || []).map((row) => {
+          let details = row.details;
+          if (typeof details === "string") {
+            try {
+              details = JSON.parse(details);
+            } catch {
+              details = {};
+            }
+          }
+          const status = String(row.message || "").replace("followup_", "");
+          return {
+            id: row.id,
+            followup_id: String(details?.followup_id || ""),
+            status,
+            reason: String(details?.reason || ""),
+            created_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at || ""),
+          };
+        });
+      } catch {
+        followupRuns = [];
+      }
+
       return {
         ok: true,
         agent,
@@ -453,6 +498,7 @@ export const getDsAgentDetail = createServerFn({ method: "GET" })
         tools: tools || [],
         availability: availability || [],
         followups: followups || [],
+        followup_runs: followupRuns,
       };
     } catch (err: any) {
       console.error("[DS Agente] Erro ao buscar detalhe do agente:", err);
@@ -909,7 +955,7 @@ export const createDsFollowup = createServerFn({ method: "POST" })
           message: z.string().min(1),
           type: z.enum(["manual", "generativo"]).default("manual"),
           recurrence: z.enum(["unico", "recorrente", "diario"]).default("unico"),
-          wait_amount: z.number().default(10),
+          wait_amount: z.number().int().min(1).max(10080).default(10),
           wait_unit: z.enum(["minutos", "horas", "dias"]).default("minutos"),
         })
         .parse(d)
@@ -917,9 +963,11 @@ export const createDsFollowup = createServerFn({ method: "POST" })
   .handler(async ({ data, context }: { data: any; context: any }) => {
     try {
       const { resolveEffectiveUserId } = await import("./chat-helpers");
+      const { assertFollowupWait } = await import("./ds-agent-followup-decision");
       const { default: db } = await import("./db");
       const userId = context.userId || "test-user-id";
       const tenantId = await resolveEffectiveUserId(userId);
+      assertFollowupWait(data.wait_amount, data.wait_unit);
 
       const followupId = crypto.randomUUID();
       await db.query(
@@ -968,6 +1016,26 @@ export const deleteDsFollowup = createServerFn({ method: "POST" })
     } catch (err: any) {
       console.error("[DS Agente] Erro ao deletar follow-up:", err);
       throw new Error(err?.message || "Falha ao deletar follow-up.");
+    }
+  });
+
+export const setDsFollowupActive = createServerFn({ method: "POST" })
+  .middleware([requireSubscription])
+  .validator((d: any) => z.object({ id: z.string(), active: z.boolean() }).parse(d))
+  .handler(async ({ data, context }: { data: { id: string; active: boolean }; context: any }) => {
+    try {
+      const { resolveEffectiveUserId } = await import("./chat-helpers");
+      const { default: db } = await import("./db");
+      const userId = context.userId || "test-user-id";
+      const tenantId = await resolveEffectiveUserId(userId);
+      await db.query(
+        `UPDATE ds_agent_followups SET active = ? WHERE id = ? AND tenant_id = ?`,
+        [data.active ? 1 : 0, data.id, tenantId],
+      );
+      return { ok: true };
+    } catch (err: any) {
+      console.error("[DS Agente] Erro ao atualizar follow-up:", err);
+      throw new Error(err?.message || "Falha ao atualizar follow-up.");
     }
   });
 
